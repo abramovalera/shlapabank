@@ -1,0 +1,424 @@
+:root {
+  --bg: #ececef;
+  --text: #24252b;
+  --muted: #8f9098;
+  --input-bg: #f1f1f3;
+  --input-border: #d0d0d4;
+  --btn-start: #12141c;
+  --btn-end: #1a1d27;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 34px 20px;
+}
+
+.screen {
+  display: none;
+}
+
+.screen-active {
+  display: block;
+}
+
+.login-card {
+  width: min(560px, 100%);
+  position: relative;
+  overflow: visible;
+  padding-top: 56px;
+}
+
+.hat-logo {
+  width: min(350px, 80%);
+  height: auto;
+  display: block;
+  margin: 0 auto 18px;
+  filter: drop-shadow(0 7px 10px rgba(0, 0, 0, 0.18));
+}
+
+.hat-logo-side {
+  position: absolute;
+  width: 364px;
+  right: -140px;
+  top: -40px;
+  margin: 0;
+  transform: rotate(11deg);
+  mix-blend-mode: multiply;
+  opacity: 0.9;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.22));
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-title {
+  margin: 0 0 26px;
+  text-align: center;
+  font-size: clamp(44px, 6.8vw, 70px);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-weight: 700;
+  position: relative;
+  z-index: 1;
+}
+
+.login-title span {
+  font-weight: 700;
+}
+
+.register-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  text-decoration: none;
+  color: #24252b;
+  border-radius: 16px;
+  transform: translateY(3px);
+}
+
+.back-link:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.back-link-icon svg {
+  width: 40px;
+  height: 40px;
+  fill: #24252b;
+}
+
+.login-form {
+  display: grid;
+  gap: 12px;
+}
+
+.input-wrap {
+  height: 74px;
+  border: 1px solid var(--input-border);
+  border-radius: 12px;
+  background: var(--input-bg);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+}
+
+.input-icon {
+  width: 30px;
+  height: 30px;
+  color: #3d3e44;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.input-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.login-form input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: #27282e;
+  padding: 0;
+  font-size: 38px;
+  outline: none;
+}
+
+.login-form input::placeholder {
+  color: var(--muted);
+}
+
+.password-wrap {
+  position: relative;
+}
+
+.eye-btn {
+  width: 34px;
+  height: 34px;
+  color: #a3a3aa;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
+.eye-btn svg {
+  width: 100%;
+  height: 100%;
+}
+
+.submit-btn {
+  height: 82px;
+  border: none;
+  border-radius: 12px;
+  margin-top: 6px;
+  background: linear-gradient(120deg, var(--btn-start), var(--btn-end), #11131a);
+  color: #fff;
+  font-size: 50px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: transform 0.1s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.submit-btn:hover {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+}
+
+.submit-btn:active {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  transform: translateY(0);
+}
+
+.submit-loader {
+  height: 4px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.submit-loader::before {
+  content: "";
+  display: block;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--btn-start), var(--btn-end));
+  transform: translateX(-100%);
+  animation: submit-loader-slide 1.6s infinite;
+}
+
+.submit-loader-visible {
+  opacity: 1;
+}
+
+@keyframes submit-loader-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  60% {
+    transform: translateX(80%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.support-links {
+  margin-top: 36px;
+  position: relative;
+  z-index: 1;
+}
+
+.help-link {
+  display: block;
+  text-align: center;
+  font-size: 23px;
+  color: #58595f;
+  text-decoration: none;
+}
+
+.help-link:hover {
+  color: #3f4048;
+}
+
+.login-error {
+  min-height: 22px;
+  margin: 0 0 8px;
+  text-align: center;
+  font-size: 16px;
+  color: #b02828;
+}
+
+.help-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.help-modal-visible {
+  display: flex;
+}
+
+.help-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.help-modal-dialog {
+  position: relative;
+  background: #000;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+  max-width: min(480px, 100vw - 40px);
+}
+
+.help-modal-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+
+.help-modal-close {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.limit-progress-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.limit-progress-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.limit-progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.limit-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: #39a96a;
+  transition: width 0.25s ease, background 0.25s ease;
+}
+
+.limit-progress-fill.limit-warn {
+  background: linear-gradient(90deg, #f4b000, #e67e22);
+}
+
+.limit-progress-fill.limit-danger {
+  background: linear-gradient(90deg, #e53935, #b71c1c);
+}
+
+.field-error-text {
+  display: block;
+  font-size: 11px;
+  color: #e53935;
+  margin-top: 2px;
+  min-height: 14px; /* резервируем место под одну строку */
+}
+
+#mobileForm .payments-submit-row,
+#vendorForm .payments-submit-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.payments-limit-hint {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.4);
+  margin: 0;
+}
+
+.modal-form-grid label.has-error input,
+.modal-form-grid label.has-error select,
+.form-row label.has-error input,
+.form-row label.has-error select {
+  border-color: #e53935;
+  box-shadow: 0 0 0 1px rgba(229, 57, 53, 0.12);
+}
+
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+@media (max-width: 700px) {
+  .login-card {
+    padding-top: 0;
+  }
+
+  .hat-logo-side {
+    position: static;
+    width: min(300px, 70%);
+    margin: 0 auto 12px;
+    transform: rotate(-8deg);
+    opacity: 0.9;
+  }
+
+  .login-title {
+    font-size: clamp(26px, 8vw, 40px);
+  }
+
+  .input-wrap {
+    height: 58px;
+    border-radius: 10px;
+  }
+
+  .login-form input {
+    font-size: clamp(18px, 5vw, 28px);
+  }
+
+  .submit-btn {
+    height: 58px;
+    font-size: clamp(24px, 6vw, 34px);
+  }
+
+  .help-link {
+    font-size: clamp(14px, 4vw, 18px);
+  }
+
+}

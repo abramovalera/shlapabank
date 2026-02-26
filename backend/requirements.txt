@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt==4.0.1
+pydantic[email]
+python-multipart
+
+# API autotests (run against live server: docker compose up)
+pytest
+httpx

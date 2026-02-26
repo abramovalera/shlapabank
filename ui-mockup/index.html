@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShlapaBank — вход</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="login-page">
+    <section id="screenLogin" class="login-card screen screen-active">
+      <img class="hat-logo hat-logo-side" src="./hat-side.png" alt="" aria-hidden="true" />
+      <h1 class="login-title">Вход в <span>ShlapaBank</span></h1>
+
+      <form id="loginForm" class="login-form">
+        <label class="sr-only" for="login">Телефон или почта</label>
+        <div class="input-wrap">
+          <span class="input-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"></circle>
+              <path d="M4.5 20C5.7 16.6 8.5 15 12 15C15.5 15 18.3 16.6 19.5 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </span>
+          <input
+            id="login"
+            name="login"
+            type="text"
+            placeholder="Логин"
+            required
+            spellcheck="false"
+            autocomplete="username"
+          />
+        </div>
+
+        <label class="sr-only" for="password">Пароль</label>
+        <div class="input-wrap password-wrap">
+          <span class="input-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"></rect>
+              <path d="M8.5 10V7.5C8.5 5.6 10.1 4 12 4C13.9 4 15.5 5.6 15.5 7.5V10" stroke="currentColor" stroke-width="2"></path>
+            </svg>
+          </span>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            placeholder="Пароль"
+            required
+            spellcheck="false"
+            autocomplete="current-password"
+          />
+          <button id="togglePassword" type="button" class="eye-btn" aria-label="Показать пароль">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M3 12C5.6 8.5 8.5 7 12 7C15.5 7 18.4 8.5 21 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+              <path d="M5.5 16.5L7.2 14.8M9.5 18.2L10.4 16M14.5 18.2L13.6 16M18.5 16.5L16.8 14.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </button>
+        </div>
+
+        <button class="submit-btn" type="submit">Войти</button>
+        <div id="loginLoader" class="submit-loader" aria-hidden="true"></div>
+      </form>
+
+      <div class="support-links">
+        <p id="loginError" class="login-error" role="status" aria-live="polite"></p>
+        <a id="loginHelpLink" class="help-link" href="#">Не можете войти?</a>
+        <a id="linkToRegister" class="help-link" href="#">Зарегистрироваться</a>
+      </div>
+    </section>
+
+    <section id="screenRegister" class="login-card screen" aria-hidden="true">
+      <img class="hat-logo hat-logo-side" src="./hat-side.png" alt="" aria-hidden="true" />
+      <div class="register-header">
+        <a
+          id="linkToLogin"
+          class="back-link"
+          href="#"
+          aria-label="Вернуться ко входу"
+          title="Вернуться ко входу"
+        >
+          <span class="back-link-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M14 4L6 12L14 20L16 18L10 12L16 6L14 4Z"></path>
+            </svg>
+          </span>
+        </a>
+        <h1 class="login-title">Регистрация в <span>ShlapaBank</span></h1>
+      </div>
+
+      <form id="registerForm" class="login-form">
+        <label class="sr-only" for="regLogin">Логин</label>
+        <div class="input-wrap">
+          <span class="input-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"></circle>
+              <path d="M4.5 20C5.7 16.6 8.5 15 12 15C15.5 15 18.3 16.6 19.5 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </span>
+          <input
+            id="regLogin"
+            name="login"
+            type="text"
+            placeholder="Логин"
+            required
+            spellcheck="false"
+            autocomplete="username"
+          />
+        </div>
+
+        <label class="sr-only" for="regPassword">Пароль</label>
+        <div class="input-wrap password-wrap">
+          <span class="input-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"></rect>
+              <path d="M8.5 10V7.5C8.5 5.6 10.1 4 12 4C13.9 4 15.5 5.6 15.5 7.5V10" stroke="currentColor" stroke-width="2"></path>
+            </svg>
+          </span>
+          <input
+            id="regPassword"
+            name="password"
+            type="password"
+            placeholder="Пароль"
+            required
+            spellcheck="false"
+            autocomplete="new-password"
+          />
+        </div>
+        <button class="submit-btn" type="submit">Зарегистрироваться</button>
+      </form>
+
+      <div class="support-links">
+        <p id="registerError" class="login-error" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+  </main>
+
+  <div id="loginHelpModal" class="help-modal" hidden>
+    <div class="help-modal-backdrop"></div>
+    <div class="help-modal-dialog" role="dialog" aria-modal="true" aria-label="Подсказка при входе">
+      <button id="loginHelpClose" class="help-modal-close" type="button" aria-label="Закрыть окно">×</button>
+      <img
+        class="help-modal-image"
+        src="./login-help.png"
+        alt="Поддерживающая надпись «У тебя все получится и даже не сомневайся!»"
+      />
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "http://localhost:8001/api/v1";
+    const loginForm = document.getElementById("loginForm");
+    const loginInput = document.getElementById("login");
+    const passwordInput = document.getElementById("password");
+    const togglePasswordBtn = document.getElementById("togglePassword");
+    const loginError = document.getElementById("loginError");
+    const submitButton = loginForm.querySelector(".submit-btn");
+    const loginLoader = document.getElementById("loginLoader");
+    const screenLogin = document.getElementById("screenLogin");
+    const screenRegister = document.getElementById("screenRegister");
+    const registerForm = document.getElementById("registerForm");
+    const regLoginInput = document.getElementById("regLogin");
+    const regPasswordInput = document.getElementById("regPassword");
+    const registerError = document.getElementById("registerError");
+    const linkToRegister = document.getElementById("linkToRegister");
+    const linkToLogin = document.getElementById("linkToLogin");
+    const loginHelpLink = document.getElementById("loginHelpLink");
+    const loginHelpModal = document.getElementById("loginHelpModal");
+    const loginHelpClose = document.getElementById("loginHelpClose");
+
+    const normalizePlaceholders = () => {
+      if (loginInput) loginInput.placeholder = "Логин";
+      if (passwordInput) passwordInput.placeholder = "Пароль";
+      if (regLoginInput) regLoginInput.placeholder = "Логин";
+      if (regPasswordInput) regPasswordInput.placeholder = "Пароль";
+    };
+
+    togglePasswordBtn.addEventListener("click", () => {
+      const isPassword = passwordInput.type === "password";
+      passwordInput.type = isPassword ? "text" : "password";
+      togglePasswordBtn.setAttribute("aria-label", isPassword ? "Скрыть пароль" : "Показать пароль");
+    });
+
+    normalizePlaceholders();
+
+    const stripAllSpacesInput = (input) => {
+      const v = input.value;
+      const noSpaces = v.replace(/\s+/g, "");
+      if (noSpaces !== v) {
+        input.value = noSpaces;
+      }
+    };
+
+    const setLoaderVisible = (loader, visible) => {
+      if (!loader) return;
+      loader.classList.toggle("submit-loader-visible", visible);
+    };
+
+    const waitForMinSubmitTime = async (startedAtMs, minMs = 2000) => {
+      const elapsed = performance.now() - startedAtMs;
+      if (elapsed >= minMs) return;
+      await new Promise((resolve) => setTimeout(resolve, minMs - elapsed));
+    };
+
+    const preventSpaceKey = (event) => {
+      if (event.key === " " || event.code === "Space") {
+        event.preventDefault();
+      }
+    };
+
+    const mapLoginError = (detail) => {
+      if (detail === "invalid_credentials") return "Неверный логин или пароль.";
+      if (detail === "user_blocked") return "Пользователь заблокирован.";
+      return "Не удалось выполнить вход. Проверьте сервер.";
+    };
+
+    const mapRegisterError = (detail) => {
+      if (!detail) return "Не удалось выполнить регистрацию. Проверьте сервер.";
+      if (detail === "validation_error: password_equals_login") {
+        return "Пароль не должен совпадать с логином.";
+      }
+      if (detail === "validation_error: password_contains_space") {
+        return "Пароль не должен содержать пробелы.";
+      }
+      if (detail === "validation_error: weak_password") {
+        return "Пароль не соответствует требованиям безопасности.";
+      }
+      if (detail === "validation_error: login_not_unique") {
+        return "Такой логин уже занят. Попробуйте другой.";
+      }
+      return "Не удалось выполнить регистрацию. Проверьте введённые данные.";
+    };
+
+    const validateRegisterLogin = (login) => {
+      if (!login || login.length < 6) {
+        return "Логин должен быть не короче 6 символов.";
+      }
+      if (login.length > 20) {
+        return "Логин должен быть не длиннее 20 символов.";
+      }
+      if (!/^[A-Za-z0-9]+$/.test(login)) {
+        return "Логин может содержать только латинские буквы и цифры.";
+      }
+      return "";
+    };
+
+    const validateRegisterPassword = (password, login) => {
+      if (!password || password.length < 8) {
+        return "Пароль должен быть не короче 8 символов.";
+      }
+      if (password.length > 30) {
+        return "Пароль должен быть не длиннее 30 символов.";
+      }
+      if (/\s/.test(password)) {
+        return "Пароль не должен содержать пробелы.";
+      }
+      if (login && password === login) {
+        return "Пароль не должен совпадать с логином.";
+      }
+      if (!/[a-z]/.test(password)) {
+        return "Паролю не хватает строчной буквы.";
+      }
+      if (!/[A-Z]/.test(password)) {
+        return "Паролю не хватает заглавной буквы.";
+      }
+      if (!/[0-9]/.test(password)) {
+        return "Паролю не хватает цифры.";
+      }
+      if (!/[^A-Za-z0-9]/.test(password)) {
+        return "Паролю не хватает спецсимвола.";
+      }
+      return "";
+    };
+
+    const showScreen = (target) => {
+      if (!screenLogin || !screenRegister) return;
+      const toLogin = target === "login";
+      screenLogin.classList.toggle("screen-active", toLogin);
+      screenRegister.classList.toggle("screen-active", !toLogin);
+      screenRegister.setAttribute("aria-hidden", toLogin ? "true" : "false");
+      screenLogin.setAttribute("aria-hidden", toLogin ? "false" : "true");
+    };
+
+    const applyInitialScreenFromLocation = () => {
+      const hash = window.location.hash.replace("#", "");
+      if (hash === "register") {
+        showScreen("register");
+      } else {
+        showScreen("login");
+      }
+    };
+
+    const openLoginHelpModal = () => {
+      if (!loginHelpModal) return;
+      loginHelpModal.hidden = false;
+      loginHelpModal.classList.add("help-modal-visible");
+    };
+
+    const closeLoginHelpModal = () => {
+      if (!loginHelpModal) return;
+      loginHelpModal.classList.remove("help-modal-visible");
+      loginHelpModal.hidden = true;
+    };
+
+    loginInput.addEventListener("input", () => stripAllSpacesInput(loginInput));
+    loginInput.addEventListener("keydown", preventSpaceKey);
+    passwordInput.addEventListener("input", () => stripAllSpacesInput(passwordInput));
+    passwordInput.addEventListener("keydown", preventSpaceKey);
+
+    if (regLoginInput) {
+      regLoginInput.addEventListener("input", () => {
+        stripAllSpacesInput(regLoginInput);
+        registerError.textContent = "";
+      });
+      regLoginInput.addEventListener("keydown", preventSpaceKey);
+    }
+    if (regPasswordInput) {
+      regPasswordInput.addEventListener("input", () => {
+        stripAllSpacesInput(regPasswordInput);
+        registerError.textContent = "";
+      });
+      regPasswordInput.addEventListener("keydown", preventSpaceKey);
+    }
+
+    applyInitialScreenFromLocation();
+
+    if (linkToRegister) {
+      linkToRegister.addEventListener("click", (event) => {
+        event.preventDefault();
+        loginError.textContent = "";
+        showScreen("register");
+        try {
+          window.history.replaceState(null, "", "#register");
+        } catch {
+          // ignore history errors
+        }
+        if (regLoginInput) {
+          regLoginInput.focus();
+        }
+      });
+    }
+
+    if (linkToLogin) {
+      linkToLogin.addEventListener("click", (event) => {
+        event.preventDefault();
+        registerError.textContent = "";
+        showScreen("login");
+        try {
+          window.history.replaceState(null, "", "#login");
+        } catch {
+          // ignore history errors
+        }
+        loginInput.focus();
+      });
+    }
+
+    if (loginHelpLink) {
+      loginHelpLink.addEventListener("click", (event) => {
+        event.preventDefault();
+        openLoginHelpModal();
+      });
+    }
+
+    if (loginHelpClose) {
+      loginHelpClose.addEventListener("click", () => {
+        closeLoginHelpModal();
+      });
+    }
+
+    if (loginHelpModal) {
+      loginHelpModal.addEventListener("click", (event) => {
+        if (event.target === loginHelpModal || event.target.classList.contains("help-modal-backdrop")) {
+          closeLoginHelpModal();
+        }
+      });
+    }
+
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      loginError.textContent = "";
+      submitButton.disabled = true;
+      submitButton.textContent = "Входим...";
+      setLoaderVisible(loginLoader, true);
+
+      const startedAt = performance.now();
+
+      try {
+        const response = await fetch(`${API_BASE}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            login: loginInput.value.trim(),
+            password: passwordInput.value,
+          }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.access_token) {
+          loginError.textContent = mapLoginError(data.detail);
+          await waitForMinSubmitTime(startedAt);
+          return;
+        }
+
+        localStorage.setItem("sb_access_token", data.access_token);
+        localStorage.setItem("sb_api_base", API_BASE);
+        await waitForMinSubmitTime(startedAt);
+        window.location.href = "./dashboard.html";
+      } catch (error) {
+        loginError.textContent = "Сервер недоступен. Запустите backend и попробуйте снова.";
+        await waitForMinSubmitTime(startedAt);
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = "Войти";
+        setLoaderVisible(loginLoader, false);
+      }
+    });
+
+    if (registerForm) {
+      const registerSubmitButton = registerForm.querySelector(".submit-btn");
+      registerForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        registerError.textContent = "";
+
+        const loginValue = regLoginInput.value.trim();
+        const passwordValue = regPasswordInput.value;
+
+        const loginValidationError = validateRegisterLogin(loginValue);
+        if (loginValidationError) {
+          registerError.textContent = loginValidationError;
+          return;
+        }
+
+        const passwordValidationError = validateRegisterPassword(passwordValue, loginValue);
+        if (passwordValidationError) {
+          registerError.textContent = passwordValidationError;
+          return;
+        }
+
+        registerSubmitButton.disabled = true;
+        registerSubmitButton.textContent = "Регистрируем...";
+
+        try {
+          const response = await fetch(`${API_BASE}/auth/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              login: loginValue,
+              password: passwordValue,
+            }),
+          });
+
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            registerError.textContent = mapRegisterError(data.detail);
+            return;
+          }
+
+          // Автоматический вход после успешной регистрации
+          try {
+            const loginResponse = await fetch(`${API_BASE}/auth/login`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                login: loginValue,
+                password: passwordValue,
+              }),
+            });
+            const loginData = await loginResponse.json().catch(() => ({}));
+            if (!loginResponse.ok || !loginData.access_token) {
+              registerError.textContent =
+                "Пользователь создан, но автоматически войти не удалось. Попробуйте войти вручную.";
+              showScreen("login");
+              loginInput.value = loginValue;
+              return;
+            }
+
+            localStorage.setItem("sb_access_token", loginData.access_token);
+            localStorage.setItem("sb_api_base", API_BASE);
+            window.location.href = "./dashboard.html";
+          } catch {
+            registerError.textContent =
+              "Пользователь создан, но автоматически войти не удалось. Попробуйте войти вручную.";
+            showScreen("login");
+            loginInput.value = loginValue;
+          }
+        } catch (error) {
+          registerError.textContent = "Сервер недоступен. Запустите backend и попробуйте снова.";
+        } finally {
+          registerSubmitButton.disabled = false;
+          registerSubmitButton.textContent = "Зарегистрироваться";
+        }
+      });
+    }
+  </script>
+</body>
+</html>

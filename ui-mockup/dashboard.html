@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShlapaBank - Главная</title>
+  <link rel="stylesheet" href="./dashboard.css" />
+</head>
+<body>
+  <main class="dashboard-page">
+    <section class="dashboard-shell shell-hidden">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <img id="hatLogo" class="topbar-logo" src="./hat-side.png" alt="" aria-hidden="true" />
+          <span class="topbar-bank-name">ShlapaBank</span>
+        </div>
+
+        <nav class="topnav" aria-label="Основная навигация">
+          <button class="topnav-tab topnav-tab-active" type="button" data-page-target="home">Главная</button>
+          <button class="topnav-tab" type="button" data-page-target="payments">Платежи</button>
+          <button class="topnav-tab" type="button" data-page-target="chat">Чат</button>
+          <button class="topnav-tab" type="button" data-page-target="more">Ещё</button>
+        </nav>
+
+        <div class="topbar-actions">
+          <button id="logoutBtn" class="btn" type="button">Выйти</button>
+          <button id="userAvatar" class="avatar" type="button" aria-label="Профиль">U</button>
+        </div>
+      </header>
+
+      <section class="grid-main">
+        <div class="grid-main-left">
+          <section class="balance-shelf">
+            <div class="shelf-title">
+              <h2>Общий баланс</h2>
+              <p id="shelfSubline">Сумма по всем активным счетам</p>
+            </div>
+            <div id="balanceTotals" class="balance-totals"></div>
+          </section>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Счета</h3>
+            </div>
+            <div id="accountsList" class="accounts-list"></div>
+            <form id="createAccountForm" class="inline-form inline-form-single">
+              <button class="btn accounts-primary-btn" type="submit">Открыть Счет</button>
+            </form>
+          </article>
+        </div>
+
+        <div class="grid-main-right">
+          <section class="page-view page-view-active" data-page-view="home">
+            <article class="panel panel-transfers">
+              <div class="panel-head">
+                <h3>Переводы</h3>
+              </div>
+              <div class="inline-form inline-form-single">
+                <button id="homeTransferOwnBtn" class="btn" type="button">Между своими счетами</button>
+                <button id="homeTransferByAccountBtn" class="btn light" type="button">По номеру счёта</button>
+                <button id="homeExchangeBtn" class="btn light" type="button">Обмен валют</button>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <h3>Последние операции</h3>
+                <button id="showMoreTxBtn" class="btn light btn-small" type="button">Показать ещё</button>
+              </div>
+              <div id="recentTransactions" class="recent-list"></div>
+            </article>
+          </section>
+
+          <section class="page-view" data-page-view="payments">
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Платежи и переводы</h3>
+              </div>
+
+              <div class="payments-categories">
+                <button
+                  class="btn light payments-category-btn payments-category-active"
+                  type="button"
+                  data-pay-target="mobile"
+                >
+                  Мобильная связь
+                </button>
+                <button class="btn light payments-category-btn" type="button" data-pay-target="internet">
+                  Интернет, ТВ, телефония
+                </button>
+                <button class="btn light payments-category-btn" type="button" data-pay-target="utilities">ЖКХ</button>
+                <button class="btn light payments-category-btn" type="button" data-pay-target="education">
+                  Образование
+                </button>
+                <button class="btn light payments-category-btn" type="button" data-pay-target="charity">
+                  Благотворительность
+                </button>
+              </div>
+
+              <section class="payments-view payments-view-active" data-pay-view="mobile">
+                <form id="mobileForm" class="form-row">
+                  <label>
+                    <span>Счёт списания</span>
+                    <select id="mobileAccount" required></select>
+                  </label>
+                  <label>
+                    <span>Оператор</span>
+                    <select id="mobileOperator" required></select>
+                  </label>
+                  <label>
+                    <span>Телефон</span>
+                    <input id="mobilePhone" type="tel" placeholder="+7XXXXXXXXXX" maxlength="12" required />
+                  </label>
+                  <label>
+                    <span>Сумма, ₽</span>
+                    <input id="mobileAmount" type="number" min="100" max="12000" step="1" required inputmode="numeric" />
+                    <p class="payments-limit-hint">Минимальная сумма 100&nbsp;₽</p>
+                    <span id="mobileAmountError" class="field-error-text"></span>
+                  </label>
+                  <div class="payments-submit-row" id="mobileSubmitRow">
+                    <button class="btn" type="submit">Оплатить</button>
+                  </div>
+                </form>
+              </section>
+
+              <section class="payments-view" data-pay-view="vendor">
+                <form id="vendorForm" class="form-row">
+                  <label>
+                    <span>Счёт списания</span>
+                    <select id="vendorAccount" required></select>
+                  </label>
+                  <label>
+                    <span>Поставщик</span>
+                    <select id="vendorProvider" required></select>
+                  </label>
+                  <label>
+                    <span id="vendorAccountNumberLabel">Лицевой счёт</span>
+                    <input id="vendorAccountNumber" type="text" required placeholder="" maxlength="22" />
+                    <p id="vendorHint" class="payments-limit-hint">Укажите лицевой счёт по договору (12–15 цифр в зависимости от поставщика).</p>
+                    <span id="vendorAccountNumberError" class="field-error-text"></span>
+                  </label>
+                  <label>
+                    <span>Сумма, ₽</span>
+                    <input id="vendorAmount" type="number" min="100" max="500000" step="1" required inputmode="numeric" />
+                    <p class="payments-limit-hint">Минимальная сумма 100&nbsp;₽</p>
+                    <span id="vendorAmountError" class="field-error-text"></span>
+                  </label>
+                  <div class="payments-submit-row">
+                    <button class="btn" type="submit">Оплатить</button>
+                  </div>
+                </form>
+              </section>
+            </section>
+          </section>
+
+          <section class="page-view" data-page-view="chat">
+            <section class="panel chat-panel">
+              <div class="panel-head">
+                <h3>Чат с поддержкой</h3>
+                <p class="panel-subline">Спросите про лимиты, курс валют или отправьте документ на проверку.</p>
+              </div>
+              <div id="chatMessages" class="chat-messages" role="log"></div>
+              <div id="chatMenuContainer" class="chat-menu-container"></div>
+              <div class="chat-input-row">
+                <input id="chatFileInput" type="file" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.text" aria-label="Загрузить файл" hidden />
+                <button id="chatAttachBtn" class="btn light chat-attach-btn" type="button" aria-label="Загрузить файл" title="PDF, изображения, текст">📎</button>
+                <input id="chatInput" type="text" placeholder="Сообщение или выберите пункт выше..." maxlength="1000" autocomplete="off" />
+                <button id="chatSendBtn" class="btn" type="button">Отправить</button>
+              </div>
+            </section>
+          </section>
+
+          <section class="page-view" data-page-view="more">
+            <section class="panel">
+              <div class="panel-head">
+                <h3>Профиль</h3>
+              </div>
+              <div class="status-row">
+                <span class="status-label">Статус</span>
+                <span id="statusBadge" class="pill green">Активный</span>
+              </div>
+              <form id="profileForm" class="profile-form profile-narrow" autocomplete="off">
+                <label>Имя<input id="firstName" type="text" /></label>
+                <label>Фамилия<input id="lastName" type="text" /></label>
+                <label>Телефон<input id="phone" type="text" inputmode="tel" maxlength="12" placeholder="+7XXXXXXXXXX" /></label>
+                <label>Email<input id="email" type="email" autocomplete="off" /></label>
+                <label>Текущий пароль<input id="currentPassword" type="password" autocomplete="new-password" /></label>
+                <label>Новый пароль<input id="newPassword" type="password" autocomplete="new-password" /></label>
+                <button class="btn" type="submit">Сохранить профиль</button>
+              </form>
+            </section>
+          </section>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="confirmCloseModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2 class="modal-title">Закрыть счёт?</h2>
+      <p class="modal-text">Баланс должен быть 0,00. После закрытия счёт станет недоступен.</p>
+      <div class="modal-actions">
+        <button id="confirmCloseCancel" class="btn light" type="button">Отмена</button>
+        <button id="confirmCloseOk" class="btn" type="button">Закрыть Счет</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="topupModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2 class="modal-title">Пополнить счёт</h2>
+      <p id="topupAccountLabel" class="modal-text">Укажите сумму пополнения.</p>
+      <form id="topupForm" class="modal-form-grid">
+        <label>
+          <span>Сумма</span>
+          <input id="topupAmount" type="number" step="0.01" min="0.01" required />
+          <span id="topupAmountError" class="field-error-text"></span>
+        </label>
+        <div class="modal-actions">
+          <button id="topupCancel" class="btn light" type="button">Отмена</button>
+          <button class="btn" type="submit">Пополнить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="homeTransferModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2 class="modal-title">Между своими счетами</h2>
+      <p class="modal-text">Выберите счёта списания и зачисления и укажите сумму.</p>
+      <form id="homeTransferForm" class="modal-form-grid">
+        <label>
+          <span>Откуда</span>
+          <select id="homeTransferFrom" required></select>
+        </label>
+        <label>
+          <span>Куда</span>
+          <select id="homeTransferTo" required></select>
+        </label>
+        <label>
+          <span>Сумма</span>
+          <input id="homeTransferAmount" type="number" step="0.01" required />
+          <span id="homeTransferAmountError" class="field-error-text"></span>
+        </label>
+        <div class="limit-progress-row">
+          <span class="limit-progress-label" id="homeTransferLimitLabel"></span>
+          <div class="limit-progress-bar">
+            <div class="limit-progress-fill" id="homeTransferLimitFill"></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="homeTransferCancel" class="btn light" type="button">Отмена</button>
+          <button class="btn" type="submit">Перевести</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="homeByAccountModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2 class="modal-title">По номеру счёта</h2>
+      <p class="modal-text">Укажите счёт списания, номер счёта получателя и сумму.</p>
+      <form id="homeByAccountForm" class="modal-form-grid">
+        <label>
+          <span>Счёт списания</span>
+          <select id="homeByAccountFrom" required></select>
+        </label>
+        <label>
+          <span>Счёт получателя</span>
+          <input id="homeByAccountNumber" type="text" placeholder="Введите номер" required />
+        </label>
+        <label>
+          <span>Сумма</span>
+          <input id="homeByAccountAmount" type="number" step="0.01" required />
+          <span id="homeByAccountAmountError" class="field-error-text"></span>
+        </label>
+        <div class="limit-progress-row">
+          <span class="limit-progress-label" id="homeByAccountLimitLabel"></span>
+          <div class="limit-progress-bar">
+            <div class="limit-progress-fill" id="homeByAccountLimitFill"></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="homeByAccountCancel" class="btn light" type="button">Отмена</button>
+          <button class="btn" type="submit">Перевести</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="homeExchangeModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2 class="modal-title">Обмен валют</h2>
+      <p class="modal-text">Выберите счёт списания и счёт зачисления в другой валюте.</p>
+      <form id="homeExchangeForm" class="modal-form-grid">
+        <label>
+          <span>Откуда</span>
+          <select id="homeExchangeFrom" required></select>
+        </label>
+        <label>
+          <span>Куда</span>
+          <select id="homeExchangeTo" required></select>
+        </label>
+        <label>
+          <span>Сумма</span>
+          <input id="homeExchangeAmount" type="number" step="0.01" required />
+          <span id="homeExchangeAmountError" class="field-error-text"></span>
+        </label>
+        <p id="homeExchangeRateInfo" class="modal-text small"></p>
+        <div class="limit-progress-row">
+          <div class="limit-progress-bar">
+            <div class="limit-progress-fill" id="homeExchangeLimitFill"></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="homeExchangeCancel" class="btn light" type="button">Отмена</button>
+          <button class="btn" type="submit">Обменять</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="otpModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2 class="modal-title">Введите OTP код</h2>
+      <p class="modal-text">На этом этапе вы подтверждаете важную операцию.</p>
+      <p id="otpPreview" class="modal-text small"></p>
+      <div class="otp-inputs">
+        <input id="otpDigit1" type="text" inputmode="numeric" maxlength="1" class="otp-input" />
+        <input id="otpDigit2" type="text" inputmode="numeric" maxlength="1" class="otp-input" />
+        <input id="otpDigit3" type="text" inputmode="numeric" maxlength="1" class="otp-input" />
+        <input id="otpDigit4" type="text" inputmode="numeric" maxlength="1" class="otp-input" />
+      </div>
+      <div class="modal-actions">
+        <button id="otpCancel" class="btn light" type="button">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="openAccountModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2 class="modal-title">Открыть счёт</h2>
+      <p class="modal-text">Выберите тип счёта и валюту. Лимиты и правила будут применены автоматически.</p>
+      <div class="modal-form-grid">
+        <label>
+          <span>Тип счёта</span>
+          <select id="openAccountType">
+            <option value="DEBIT">Дебетовый</option>
+            <option value="SAVINGS">Накопительный</option>
+          </select>
+        </label>
+        <label>
+          <span>Валюта</span>
+          <select id="openAccountCurrency">
+            <option value="RUB">RUB</option>
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+            <option value="CNY">CNY</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button id="openAccountCancel" class="btn light" type="button">Отмена</button>
+        <button id="openAccountOk" class="btn" type="button">Открыть счёт</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="cheatModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2 class="modal-title">Shlapa&nbsp;Cheat&nbsp;Window</h2>
+      <p class="modal-text">Только для теста: быстро поменять баланс своих счетов.</p>
+      <form id="cheatForm" class="modal-form-grid">
+        <label>
+          <span>Счёт</span>
+          <select id="cheatAccountSelect"></select>
+        </label>
+        <label>
+          <span>Действие</span>
+          <select id="cheatAction">
+            <option value="increase">Пополнить на сумму</option>
+            <option value="decrease">Списать сумму</option>
+            <option value="zero">Обнулить баланс</option>
+          </select>
+        </label>
+        <label id="cheatAmountLabel">
+          <span>Сумма</span>
+          <input id="cheatAmount" type="number" step="0.01" min="0.01" />
+        </label>
+      </form>
+      <div class="modal-actions">
+        <button id="cheatCancel" class="btn light" type="button">Закрыть</button>
+        <button id="cheatApply" class="btn" type="button">Применить</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./dashboard.js"></script>
+</body>
+</html>
