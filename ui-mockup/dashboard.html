@@ -7,8 +7,8 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>ShlapaBank - Главная</title>
-  <link rel="stylesheet" href="./dashboard.css?v=4" />
-  <link rel="stylesheet" href="./swagger-btn.css?v=2" />
+  <link rel="stylesheet" href="/ui/dashboard.css?v=4" />
+  <link rel="stylesheet" href="/ui/swagger-btn.css?v=2" />
 </head>
 <body>
   <a id="swaggerFab" class="swagger-fab" href="/docs" target="_blank" rel="noopener noreferrer" title="Открыть Swagger API в новой вкладке">Swagger</a>
@@ -24,7 +24,7 @@
     <section class="dashboard-shell shell-hidden">
       <header class="topbar">
         <div class="topbar-brand">
-          <img id="hatLogo" class="topbar-logo" src="./hat-side.png" alt="" aria-hidden="true" data-testid="btn-hat-cheat" />
+          <img id="hatLogo" class="topbar-logo" src="/ui/hat-side.png" alt="" aria-hidden="true" data-testid="btn-hat-cheat" />
           <span class="topbar-bank-name">ShlapaBank</span>
         </div>
 
@@ -36,10 +36,23 @@
         </nav>
 
         <div class="topbar-actions">
+          <button id="notificationsBtn" class="icon-btn notifications-btn" type="button" aria-label="Уведомления">
+            <svg class="icon-envelope" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="M22 6L12 13L2 6"/>
+            </svg>
+            <span id="notificationsBadge" class="notifications-badge" hidden>0</span>
+          </button>
           <button id="logoutBtn" class="btn" type="button" data-testid="btn-logout">Выйти</button>
           <button id="userAvatar" class="avatar" type="button" aria-label="Профиль">U</button>
         </div>
       </header>
+
+      <div id="notificationsPanel" class="notifications-panel" hidden>
+        <div class="notifications-panel-header">Уведомления</div>
+        <div id="notificationsList" class="notifications-list"></div>
+        <p id="notificationsEmpty" class="notifications-empty" hidden>Нет уведомлений</p>
+      </div>
 
       <section class="grid-main">
         <div class="grid-main-left">
@@ -400,6 +413,7 @@
       <h2 class="modal-title">Введите OTP код</h2>
       <p class="modal-text">На этом этапе вы подтверждаете важную операцию.</p>
       <p id="otpPreview" class="modal-text small"></p>
+      <p id="otpTimer" class="otp-timer" aria-live="polite"></p>
       <div class="otp-inputs">
         <input id="otpDigit1" type="text" inputmode="numeric" maxlength="1" class="otp-input" />
         <input id="otpDigit2" type="text" inputmode="numeric" maxlength="1" class="otp-input" />
@@ -471,6 +485,6 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite" data-testid="toast"></div>
-  <script src="./dashboard.js?v=4"></script>
+  <script src="/ui/dashboard.js?v=5"></script>
 </body>
 </html>

@@ -27,10 +27,26 @@ def _get_own_account(account_id: int, current_user: User, db: Session) -> Accoun
     return account
 
 
+@router.get(
+    "/otp/preview",
+    summary="Получить OTP-код",
+)
+def helper_otp_preview(
+    current_user: User = Depends(require_active_user),
+):
+    code = issue_otp_preview(current_user.id)
+    return {
+        "userId": current_user.id,
+        "otp": code,
+        "ttlSeconds": OTP_TTL_MINUTES * 60,
+        "message": f"SMS: ваш код подтверждения {code}",
+    }
+
+
 @router.post(
     "/accounts/{account_id}/increase",
     response_model=AccountPublic,
-    summary="Пополнить баланс счёта",
+    summary="Увеличить баланс счёта (без OTP)",
 )
 def helper_increase_balance(
     account_id: int,
@@ -47,29 +63,9 @@ def helper_increase_balance(
 
 
 @router.post(
-    "/accounts/{account_id}/zero",
-    response_model=AccountPublic,
-    summary="Установить баланс счёта в 0",
-)
-def helper_zero_balance(
-    account_id: int,
-    current_user: User = Depends(require_active_user),
-    db: Session = Depends(get_db),
-):
-    from decimal import Decimal as _D
-
-    account = _get_own_account(account_id, current_user, db)
-    account.balance = _D("0.00")
-    db.add(account)
-    db.commit()
-    db.refresh(account)
-    return account
-
-
-@router.post(
     "/accounts/{account_id}/decrease",
     response_model=AccountPublic,
-    summary="Уменьшить баланс счёта на сумму",
+    summary="Уменьшить баланс счёта",
 )
 def helper_decrease_balance(
     account_id: int,
@@ -87,25 +83,29 @@ def helper_decrease_balance(
     return account
 
 
-@router.get(
-    "/otp/preview",
-    summary="Сгенерировать и показать OTP-код для операций (только для тестов)",
+@router.post(
+    "/accounts/{account_id}/zero",
+    response_model=AccountPublic,
+    summary="Обнулить счёт",
 )
-def helper_otp_preview(
+def helper_zero_balance(
+    account_id: int,
     current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
 ):
-    code = issue_otp_preview(current_user.id)
-    return {
-        "userId": current_user.id,
-        "otp": code,
-        "ttlSeconds": OTP_TTL_MINUTES * 60,
-        "message": f"SMS: ваш код подтверждения {code}",
-    }
+    from decimal import Decimal as _D
+
+    account = _get_own_account(account_id, current_user, db)
+    account.balance = _D("0.00")
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+    return account
 
 
 @router.post(
     "/clear-browser",
-    summary="Супер-очистка: сигнал клиенту очистить localStorage, sessionStorage и перейти на страницу входа",
+    summary="Очистить кеш браузера",
 )
 def helper_clear_browser(
     current_user: User = Depends(require_active_user),
@@ -113,6 +113,6 @@ def helper_clear_browser(
     """Возвращает инструкцию для клиента. Клиент должен вызвать localStorage.clear(), sessionStorage.clear() и выполнить редирект."""
     return {
         "detail": "clear_browser",
-        "redirect": "/ui/index.html",
+        "redirect": "/login",
     }
 

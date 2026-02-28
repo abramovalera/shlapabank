@@ -2,7 +2,10 @@ const API_BASE = localStorage.getItem("sb_api_base") || "http://localhost:8001/a
 const TOKEN = localStorage.getItem("sb_access_token");
 
 if (!TOKEN) {
-  window.location.href = "./index.html";
+  window.location.href = "/login";
+}
+if (window.location.pathname === "/confirm") {
+  window.location.replace("/dashboard");
 }
 
 const state = {
@@ -53,6 +56,8 @@ const AMOUNT_CONFIGS = {
 let recentLimit = 5;
 let pendingCloseAccountId = null;
 let pendingOtp = null;
+let otpTimerId = null;
+let otpExpiresAt = 0;
 
 function mapApiError(detail) {
   switch (detail) {
@@ -154,12 +159,13 @@ async function api(path, options = {}) {
     if (code === "invalid_token" || response.status === 401) {
       try {
         localStorage.removeItem("sb_access_token");
+        localStorage.removeItem("sb_role");
       } catch {
         // ignore storage errors
       }
       showToast("Сессия истекла. Войдите заново.", true);
       window.setTimeout(() => {
-        window.location.href = "./index.html";
+        window.location.href = "/login";
       }, 1200);
       const error = new Error("Сессия истекла. Войдите заново.");
       error.code = code;
@@ -201,7 +207,7 @@ function getTransactionMeta(tx) {
   let kind = "other";
 
   if (tx.type === "TOPUP") {
-    kind = description === "self_topup" || description === "admin_credit" ? "topup" : "topup";
+    kind = "topup";
   } else if (tx.type === "PAYMENT") {
     kind = "payment";
   } else if (tx.type === "TRANSFER") {
@@ -506,6 +512,7 @@ async function openOtpModal(context) {
   if (!modal) return;
   pendingOtp = context;
   resetOtpInputs();
+  window.history.pushState({ page: "confirm" }, "", "/confirm");
   const preview = qs("otpPreview");
   if (preview) {
     preview.textContent = "Получаем SMS-код...";
@@ -515,46 +522,11 @@ async function openOtpModal(context) {
   try {
     const data = await api("/helper/otp/preview");
     const code = data?.otp || "";
+    const ttlSeconds = data?.ttlSeconds ?? 60;
     if (preview) {
-      const normalizedCode = String(code || "").replace(/\D/g, "").slice(0, 4);
-      if (normalizedCode) {
-        preview.innerHTML = `SMS: ваш код подтверждения <button type="button" class="otp-preview-code" data-otp-code="${normalizedCode}">${normalizedCode}</button>`;
-
-        const codeButton = preview.querySelector(".otp-preview-code");
-        if (codeButton) {
-          const applyCodeFromPreview = () => {
-            const digits = String(codeButton.dataset.otpCode || "")
-              .replace(/\D/g, "")
-              .slice(0, 4)
-              .split("");
-            const otpIds = ["otpDigit1", "otpDigit2", "otpDigit3", "otpDigit4"];
-            otpIds.forEach((id, index) => {
-              const input = qs(id);
-              if (input) {
-                input.value = digits[index] || "";
-              }
-            });
-            const lastIndex = Math.min(digits.length, otpIds.length) - 1;
-            const lastInput =
-              lastIndex >= 0 ? qs(otpIds[lastIndex]) : qs(otpIds[otpIds.length - 1]);
-            if (lastInput) {
-              lastInput.focus();
-              lastInput.select?.();
-            }
-            const collected = collectOtpCode();
-            if (collected.length === 4) {
-              handleOtpSubmit();
-            }
-          };
-
-          codeButton.addEventListener("click", applyCodeFromPreview);
-          codeButton.addEventListener("keydown", (event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              applyCodeFromPreview();
-            }
-          });
-        }
+      if (code) {
+        attachOtpPreviewButton(preview, code);
+        startOtpTimer(ttlSeconds);
       } else {
         preview.textContent = data?.message || "SMS-код сгенерирован.";
       }
@@ -578,6 +550,108 @@ function hideOtpModal() {
   modal.classList.remove("show");
   modal.hidden = true;
   pendingOtp = null;
+  stopOtpTimer();
+  if (window.location.pathname === "/confirm") {
+    window.history.back();
+  }
+}
+
+function stopOtpTimer() {
+  if (otpTimerId) {
+    clearInterval(otpTimerId);
+    otpTimerId = null;
+  }
+  otpExpiresAt = 0;
+  const timerEl = qs("otpTimer");
+  if (timerEl) {
+    timerEl.textContent = "";
+    timerEl.classList.remove("expired");
+  }
+}
+
+function getOtpRemainingSeconds() {
+  if (otpExpiresAt <= 0) return 0;
+  return Math.max(0, Math.ceil((otpExpiresAt - Date.now()) / 1000));
+}
+
+function formatOtpTimer(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function startOtpTimer(ttlSeconds) {
+  stopOtpTimer();
+  otpExpiresAt = Date.now() + ttlSeconds * 1000;
+  const timerEl = qs("otpTimer");
+  if (!timerEl) return;
+
+  const tick = () => {
+    const remaining = getOtpRemainingSeconds();
+    if (remaining <= 0) {
+      timerEl.textContent = "0:00";
+      timerEl.classList.add("expired");
+      stopOtpTimer();
+      return;
+    }
+    timerEl.textContent = `Код действителен: ${formatOtpTimer(remaining)}`;
+    timerEl.classList.remove("expired");
+  };
+
+  tick();
+  otpTimerId = setInterval(tick, 1000);
+}
+
+function attachOtpPreviewButton(preview, code) {
+  const normalizedCode = String(code || "").replace(/\D/g, "").slice(0, 4);
+  if (!normalizedCode) return;
+  preview.innerHTML = `SMS: ваш код подтверждения <button type="button" class="otp-preview-code" data-otp-code="${normalizedCode}">${normalizedCode}</button>`;
+  const codeButton = preview.querySelector(".otp-preview-code");
+  if (codeButton) {
+    const applyCodeFromPreview = () => {
+      const digits = String(codeButton.dataset.otpCode || "")
+        .replace(/\D/g, "")
+        .slice(0, 4)
+        .split("");
+      const otpIds = ["otpDigit1", "otpDigit2", "otpDigit3", "otpDigit4"];
+      otpIds.forEach((id, index) => {
+        const input = qs(id);
+        if (input) input.value = digits[index] || "";
+      });
+      const lastIndex = Math.min(digits.length, otpIds.length) - 1;
+      const lastInput = lastIndex >= 0 ? qs(otpIds[lastIndex]) : qs(otpIds[otpIds.length - 1]);
+      if (lastInput) {
+        lastInput.focus();
+        lastInput.select?.();
+      }
+      const collected = collectOtpCode();
+      if (collected.length === 4) handleOtpSubmit();
+    };
+    codeButton.addEventListener("click", applyCodeFromPreview);
+    codeButton.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        applyCodeFromPreview();
+      }
+    });
+  }
+}
+
+async function refreshOtpInModal() {
+  const preview = qs("otpPreview");
+  if (!preview || !pendingOtp) return;
+  try {
+    const data = await api("/helper/otp/preview");
+    const code = data?.otp || "";
+    const ttlSeconds = data?.ttlSeconds ?? 60;
+    attachOtpPreviewButton(preview, code);
+    startOtpTimer(ttlSeconds);
+    resetOtpInputs();
+    const first = qs("otpDigit1");
+    if (first) first.focus();
+  } catch (_) {
+    preview.textContent = "Не удалось получить новый код. Попробуйте ещё раз.";
+  }
 }
 
 async function handleOtpSubmit() {
@@ -588,6 +662,11 @@ async function handleOtpSubmit() {
   const code = collectOtpCode();
   if (code.length !== 4) {
     showToast("Введите 4-значный OTP код", true);
+    return;
+  }
+  if (getOtpRemainingSeconds() <= 0) {
+    showToast("OTP истёк. Отправлен новый код.", true);
+    await refreshOtpInModal();
     return;
   }
   const { kind, payload, onSuccess, errorPrefix, successMessage } = pendingOtp;
@@ -630,14 +709,11 @@ async function handleOtpSubmit() {
       await onSuccess();
     }
   } catch (error) {
-    showToast(`${errorPrefix || "Ошибка операции"}: ${error.message}`, true);
     if (error && error.code === "invalid_otp_code") {
-      resetOtpInputs();
-      const first = qs("otpDigit1");
-      if (first) {
-        first.focus();
-        first.select?.();
-      }
+      showToast("OTP истёк. Отправлен новый код.", true);
+      await refreshOtpInModal();
+    } else {
+      showToast(`${errorPrefix || "Ошибка операции"}: ${error.message}`, true);
     }
   } finally {
     // для успешных операций очищаем код и модалку, при invalid_otp_code уже сбросили выше
@@ -667,6 +743,43 @@ function renderProfile() {
     const email = state.profile.email;
     emailField.value = email && email !== state.profile.login ? email : "";
   }
+  renderNotifications();
+}
+
+function renderNotifications() {
+  const list = qs("notificationsList");
+  const empty = qs("notificationsEmpty");
+  const badge = qs("notificationsBadge");
+  if (!list || !empty || !badge) return;
+
+  const items = [];
+  const p = state.profile;
+  if (p) {
+    const fn = p.first_name;
+    const ln = p.last_name;
+    const ph = p.phone;
+    if (!fn || (typeof fn === "string" && fn.trim() === "")) {
+      items.push({ text: "Заполните имя в профиле" });
+    }
+    if (!ln || (typeof ln === "string" && ln.trim() === "")) {
+      items.push({ text: "Заполните фамилию в профиле" });
+    }
+    if (!ph || (typeof ph === "string" && ph.trim() === "")) {
+      items.push({ text: "Заполните номер телефона в профиле" });
+    }
+  }
+
+  list.innerHTML = "";
+  items.forEach((item) => {
+    const div = document.createElement("div");
+    div.className = "notifications-item";
+    div.textContent = item.text;
+    list.appendChild(div);
+  });
+
+  empty.hidden = items.length > 0;
+  badge.hidden = items.length === 0;
+  badge.textContent = String(items.length);
 }
 
 function renderBalances() {
@@ -946,6 +1059,12 @@ function renderSettings() {
     Language: ${state.settings.language}<br />
     Notifications: ${state.settings.notificationsEnabled ? "ON" : "OFF"}
   `;
+}
+
+function escapeHtml(s) {
+  const div = document.createElement("div");
+  div.textContent = s;
+  return div.innerHTML;
 }
 
 function renderTransactions() {
@@ -1275,12 +1394,30 @@ function wirePaymentCategories() {
 }
 
 const VALID_PAGE_IDS = ["home", "payments", "chat", "more"];
+const PAGE_TO_PATH = {
+  home: "/dashboard",
+  payments: "/payments",
+  chat: "/chat",
+  more: "/profile",
+};
+const PATH_TO_PAGE = {
+  "/": "home",
+  "/dashboard": "home",
+  "/payments": "payments",
+  "/chat": "chat",
+  "/profile": "more",
+};
+
+function getPageFromPath() {
+  const path = window.location.pathname.replace(/\/$/, "") || "/";
+  return PATH_TO_PAGE[path] || "home";
+}
 
 function wirePages() {
   const pageButtons = document.querySelectorAll("[data-page-target]");
   const views = document.querySelectorAll("[data-page-view]");
 
-  const applyPage = (target) => {
+  const applyPage = (target, skipPushState = false) => {
     const normalized = (target || "home").toLowerCase();
     const pageId = VALID_PAGE_IDS.includes(normalized) ? normalized : "home";
     localStorage.setItem("sb_last_page", pageId);
@@ -1314,8 +1451,16 @@ function wirePages() {
       );
       localStorage.setItem("sb_last_page", "home");
     }
+
+    if (!skipPushState && PAGE_TO_PATH[pageId]) {
+      const path = PAGE_TO_PATH[pageId];
+      if (window.location.pathname !== path) {
+        window.history.pushState({ page: pageId }, "", path);
+      }
+    }
   };
 
+  window.__applyPage = applyPage;
   pageButtons.forEach((btn) => {
     btn.addEventListener("click", () => applyPage(btn.dataset.pageTarget));
   });
@@ -1325,14 +1470,17 @@ function wirePages() {
     btn.addEventListener("click", () => applyPage(btn.dataset.pageTarget));
   });
 
-  const savedRaw = localStorage.getItem("sb_last_page");
-  const saved = savedRaw ? savedRaw.toLowerCase().trim() : "";
-  if (VALID_PAGE_IDS.includes(saved)) {
-    applyPage(saved);
+  const pathPage = getPageFromPath();
+  if (pathPage === "home" || VALID_PAGE_IDS.includes(pathPage)) {
+    applyPage(pathPage, true);
   } else {
-    localStorage.removeItem("sb_last_page");
-    applyPage("home");
+    applyPage("home", true);
   }
+
+  window.addEventListener("popstate", (e) => {
+    const page = e.state?.page || getPageFromPath();
+    applyPage(page, true);
+  });
 }
 
 async function loadData() {
@@ -1369,7 +1517,8 @@ async function loadData() {
 function wireActions() {
   qs("logoutBtn").addEventListener("click", () => {
     localStorage.removeItem("sb_access_token");
-    window.location.href = "./index.html";
+    localStorage.removeItem("sb_role");
+    window.location.href = "/login";
   });
 
   const superClearBtn = qs("superClearBtn");
@@ -1384,7 +1533,7 @@ function wireActions() {
       sessionStorage.clear();
       showToast("Данные браузера очищены. Перезагрузка…");
       setTimeout(() => {
-        window.location.href = "./index.html";
+        window.location.href = "/login";
       }, 500);
     });
   }
@@ -1397,6 +1546,23 @@ function wireActions() {
     input.addEventListener("input", () => updateAmountHint(id, config));
     input.addEventListener("blur", () => updateAmountHint(id, config));
   });
+
+  const notificationsBtn = qs("notificationsBtn");
+  const notificationsPanel = qs("notificationsPanel");
+  if (notificationsBtn && notificationsPanel) {
+    notificationsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      notificationsPanel.hidden = !notificationsPanel.hidden;
+    });
+    document.addEventListener("click", (e) => {
+      if (
+        !notificationsBtn.contains(e.target) &&
+        !notificationsPanel.contains(e.target)
+      ) {
+        notificationsPanel.hidden = true;
+      }
+    });
+  }
 
   const avatar = qs("userAvatar");
   if (avatar) {

@@ -11,12 +11,12 @@ from app.security import get_password_hash, require_active_user, validate_passwo
 router = APIRouter(prefix="/api/v1/profile", tags=["profile"])
 
 
-@router.get("", response_model=UserPublic, summary="Получить профиль текущего пользователя")
+@router.get("", response_model=UserPublic, summary="Получить профиль")
 def get_profile(current_user: User = Depends(require_active_user)):
     return current_user
 
 
-@router.put("", response_model=UserPublic, summary="Обновить профиль и пароль пользователя")
+@router.put("", response_model=UserPublic, summary="Обновить профиль")
 def update_profile(
     payload: ProfileUpdateRequest,
     current_user: User = Depends(require_active_user),

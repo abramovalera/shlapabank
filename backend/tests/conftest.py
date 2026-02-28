@@ -1,6 +1,6 @@
 """
 Фикстуры для API-автотестов. Тесты запускаются против поднятого сервера (docker compose up).
-Подготовка данных — только через API (регистрация, Helper, Admin).
+Подготовка данных — только через API (регистрация, Helper).
 """
 import os
 import time
@@ -8,8 +8,6 @@ import httpx
 import pytest
 
 BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8001/api/v1")
-ADMIN_LOGIN = os.getenv("DEFAULT_ADMIN_LOGIN", "admin")
-ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin")
 
 
 @pytest.fixture(scope="session")
@@ -67,19 +65,6 @@ def token(client, registered_user):
 @pytest.fixture
 def auth_headers(token):
     return _headers(token)
-
-
-@pytest.fixture
-def admin_token(client):
-    """Токен админа (admin/admin)."""
-    r = client.post("/auth/login", json={"login": ADMIN_LOGIN, "password": ADMIN_PASSWORD})
-    assert r.status_code == 200, (r.status_code, r.json())
-    return r.json()["access_token"]
-
-
-@pytest.fixture
-def admin_headers(admin_token):
-    return _headers(admin_token)
 
 
 def get_otp(client, token: str) -> str:

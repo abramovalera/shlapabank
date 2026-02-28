@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/v1/transactions", tags=["transactions"])
 @router.get(
     "",
     response_model=list[TransactionPublic],
-    summary="История всех операций пользователя",
+    summary="Получить историю операций",
 )
 def list_transactions(
     current_user: User = Depends(require_active_user),

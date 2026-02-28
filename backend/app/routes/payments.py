@@ -40,7 +40,7 @@ VENDOR_MAX = Decimal("500000.00")
 
 @router.get(
     "/mobile/operators",
-    summary="Справочник операторов мобильной связи и лимитов",
+    summary="Получить операторов",
 )
 def mobile_operators(current_user: User = Depends(require_active_user)):
     return {
@@ -50,23 +50,11 @@ def mobile_operators(current_user: User = Depends(require_active_user)):
     }
 
 
-@router.get(
-    "/vendor/providers",
-    summary="Справочник поставщиков услуг и требований к номеру счёта",
-)
-def vendor_providers(current_user: User = Depends(require_active_user)):
-    return {
-        "userId": current_user.id,
-        "providers": [{"name": name, "accountLength": length} for name, length in VENDOR_PROVIDERS.items()],
-        "amountRangeRub": {"min": int(VENDOR_MIN), "max": int(VENDOR_MAX)},
-    }
-
-
 @router.post(
     "/mobile",
     response_model=TransactionPublic,
     status_code=201,
-    summary="Оплата мобильной связи",
+    summary="Оплатить мобильную связь",
 )
 def pay_mobile(
     payload: MobilePaymentRequest,
@@ -109,6 +97,18 @@ def pay_mobile(
     db.commit()
     db.refresh(tx)
     return tx
+
+
+@router.get(
+    "/vendor/providers",
+    summary="Получить поставщиков",
+)
+def vendor_providers(current_user: User = Depends(require_active_user)):
+    return {
+        "userId": current_user.id,
+        "providers": [{"name": name, "accountLength": length} for name, length in VENDOR_PROVIDERS.items()],
+        "amountRangeRub": {"min": int(VENDOR_MIN), "max": int(VENDOR_MAX)},
+    }
 
 
 def _execute_vendor_payment(
@@ -161,7 +161,7 @@ def _execute_vendor_payment(
     "/vendor",
     response_model=TransactionPublic,
     status_code=201,
-    summary="Оплата услуг поставщика по лицевому счёту",
+    summary="Оплатить поставщику",
 )
 def pay_vendor(
     payload: VendorPaymentRequest,

@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, field_validator
 
 from app.models import AccountType, Currency, TransactionStatus, TransactionType, UserRole, UserStatus
 
@@ -45,6 +45,7 @@ class TokenResponse(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+    role: str | None = None  # ADMIN или CLIENT
 
 
 class ActionResponse(BaseModel):
@@ -65,6 +66,10 @@ class UserPublic(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     phone: str | None = None
+
+    @field_serializer("first_name", "last_name")
+    def serialize_empty_str(self, v: str | None) -> str:
+        return v if v else ""
 
 
 class ProfileUpdateRequest(BaseModel):

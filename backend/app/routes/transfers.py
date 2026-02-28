@@ -60,46 +60,11 @@ def _check_daily_limit(used_per_currency: dict[Currency, Decimal], currency: Cur
         raise HTTPException(status_code=400, detail="transfer_amount_exceeds_daily_limit")
 
 
-@router.get(
-    "/daily-usage",
-    summary="Остаток суточного лимита по переводам (для полоски прогресса в UI)",
-)
-def daily_usage(
-    current_user: User = Depends(require_active_user),
-    db: Session = Depends(get_db),
-):
-    """Возвращает использовано/лимит по каждой валюте за сегодня."""
-    used_per_currency = _calc_today_transfers_per_currency(current_user, db)
-    per_currency = []
-    for currency in Currency:
-        limit = DAILY_TRANSFER_LIMIT.get(currency)
-        if limit is None:
-            continue
-        used = used_per_currency.get(currency, Decimal("0.00"))
-        remaining = max(limit - used, Decimal("0.00"))
-        per_currency.append({
-            "currency": currency.value,
-            "dailyLimit": str(limit),
-            "usedToday": str(used),
-            "remaining": str(remaining),
-        })
-    return {"limits": {"perCurrency": per_currency}}
-
-
-@router.get("/rates", summary="Получить фиксированные курсы валют к RUB")
-def exchange_rates(current_user: User = Depends(require_active_user)):
-    return {
-        "userId": current_user.id,
-        "base": "RUB",
-        "toRub": {currency.value: str(rate) for currency, rate in RATES_TO_RUB.items()},
-    }
-
-
 @router.post(
     "",
     response_model=TransactionPublic,
     status_code=201,
-    summary="Перевод между своими счетами по ID",
+    summary="Перевести между своими счетами",
 )
 def create_transfer(
     payload: TransferCreateRequest,
@@ -165,7 +130,7 @@ def create_transfer(
     "/by-account",
     response_model=TransactionPublic,
     status_code=201,
-    summary="Перевод по номеру счёта получателя",
+    summary="Перевести по номеру счёта",
 )
 def create_transfer_by_account(
     payload: TransferByAccountRequest,
@@ -242,7 +207,7 @@ def _external_banks_list() -> list[dict]:
 @router.get(
     "/by-phone/check",
     response_model=TransferByPhoneCheckResponse,
-    summary="Доступные банки для перевода по номеру телефона получателя",
+    summary="Проверить телефон, получить банки",
 )
 def by_phone_check(
     phone: str,
@@ -270,7 +235,7 @@ def by_phone_check(
     "/by-phone",
     response_model=TransactionPublic,
     status_code=201,
-    summary="Перевод по номеру телефона получателя (в наш банк или во внешний)",
+    summary="Перевести по номеру телефона",
 )
 def create_transfer_by_phone(
     payload: TransferByPhoneRequest,
@@ -363,7 +328,7 @@ def create_transfer_by_phone(
     "/exchange",
     response_model=TransactionPublic,
     status_code=201,
-    summary="Обмен валют между своими счетами",
+    summary="Обменять валюту",
 )
 def exchange_currency(
     payload: ExchangeRequest,
@@ -430,3 +395,38 @@ def exchange_currency(
     db.commit()
     db.refresh(tx)
     return tx
+
+
+@router.get(
+    "/daily-usage",
+    summary="Получить остаток суточного лимита",
+)
+def daily_usage(
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    """Возвращает использовано/лимит по каждой валюте за сегодня."""
+    used_per_currency = _calc_today_transfers_per_currency(current_user, db)
+    per_currency = []
+    for currency in Currency:
+        limit = DAILY_TRANSFER_LIMIT.get(currency)
+        if limit is None:
+            continue
+        used = used_per_currency.get(currency, Decimal("0.00"))
+        remaining = max(limit - used, Decimal("0.00"))
+        per_currency.append({
+            "currency": currency.value,
+            "dailyLimit": str(limit),
+            "usedToday": str(used),
+            "remaining": str(remaining),
+        })
+    return {"limits": {"perCurrency": per_currency}}
+
+
+@router.get("/rates", summary="Получить курсы валют")
+def exchange_rates(current_user: User = Depends(require_active_user)):
+    return {
+        "userId": current_user.id,
+        "base": "RUB",
+        "toRub": {currency.value: str(rate) for currency, rate in RATES_TO_RUB.items()},
+    }

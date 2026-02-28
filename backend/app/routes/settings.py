@@ -16,7 +16,7 @@ class SettingsResponse(BaseModel):
 @router.get(
     "",
     response_model=SettingsResponse,
-    summary="Получить пользовательские настройки UI",
+    summary="Получить настройки",
 )
 def get_settings(current_user: User = Depends(require_active_user)):
     return SettingsResponse(theme="LIGHT", language="RU", notificationsEnabled=True)

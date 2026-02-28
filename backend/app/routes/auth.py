@@ -39,14 +39,14 @@ def _issue_token_for_credentials(login: str, password: str, db: Session) -> Toke
     db.add(user)
     db.commit()
     token = create_access_token(str(user.id))
-    return TokenResponse(access_token=token)
+    return TokenResponse(access_token=token, role=user.role.value)
 
 
 @router.post(
     "/register",
     response_model=UserPublic,
     status_code=201,
-    summary="Регистрация нового пользователя",
+    summary="Зарегистрировать пользователя",
 )
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     validate_password_rules(payload.login, payload.password)
@@ -75,7 +75,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 @router.post(
     "/login",
     response_model=TokenResponse,
-    summary="Вход и получение JWT токена",
+    summary="Войти",
 )
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     return _issue_token_for_credentials(payload.login, payload.password, db)

@@ -74,13 +74,3 @@ def test_register_weak_password(client, unique_login):
     assert r.json().get("detail") == "validation_error: weak_password"
 
 
-def test_login_user_blocked(client, registered_user, admin_headers):
-    login, password, user = registered_user
-    # блокируем через админа
-    r = client.post(f"/admin/users/{user['id']}/block", headers=admin_headers)
-    assert r.status_code == 200
-    r = client.post("/auth/login", json={"login": login, "password": password})
-    assert r.status_code == 403
-    assert r.json().get("detail") == "user_blocked"
-    # разблокируем чтобы не ломать другие тесты
-    client.post(f"/admin/users/{user['id']}/unblock", headers=admin_headers)

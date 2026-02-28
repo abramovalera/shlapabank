@@ -50,7 +50,7 @@ def _generate_account_number(currency: Currency) -> str:
     return f"{prefix}{suffix}"
 
 
-@router.get("", response_model=list[AccountPublic], summary="Список активных счетов пользователя")
+@router.get("", response_model=list[AccountPublic], summary="Получить список счетов")
 def list_accounts(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
@@ -64,7 +64,7 @@ def list_accounts(
     "",
     response_model=AccountPublic,
     status_code=201,
-    summary="Открыть новый счёт",
+    summary="Открыть счёт",
 )
 def create_account(
     payload: AccountCreateRequest,
@@ -98,7 +98,7 @@ def create_account(
 @router.delete(
     "/{account_id}",
     response_model=ActionResponse,
-    summary="Закрыть счёт при нулевом балансе",
+    summary="Закрыть счёт",
 )
 def close_account(
     account_id: int,
@@ -123,7 +123,7 @@ def close_account(
     "/{account_id}/topup",
     response_model=TransactionPublic,
     status_code=201,
-    summary="Пополнить свой счёт",
+    summary="Пополнить счёт",
 )
 def topup_account(
     account_id: int,

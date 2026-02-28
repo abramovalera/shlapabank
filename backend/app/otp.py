@@ -6,7 +6,7 @@ from typing import Dict
 
 from app.core.config import settings
 
-OTP_TTL_MINUTES = 5
+OTP_TTL_MINUTES = 1
 
 
 @dataclass
