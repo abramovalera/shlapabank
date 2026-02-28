@@ -2652,10 +2652,17 @@ function wireActions() {
       });
     }
     if (chatAttachBtn && chatFileInput) {
+      const allowedExtensions = /\.(pdf|png|jpe?g|gif|webp|txt|text)$/i;
       chatAttachBtn.addEventListener("click", () => chatFileInput.click());
       chatFileInput.addEventListener("change", () => {
         const file = chatFileInput.files && chatFileInput.files[0];
         if (file) {
+          const hasValidExt = allowedExtensions.test(file.name || "");
+          if (!hasValidExt) {
+            showToast("Неизвестный формат. Допустимы: PDF, PNG, JPG, GIF, WEBP, TXT.", true);
+            chatFileInput.value = "";
+            return;
+          }
           sendMessage(null, file.name || "файл");
           chatFileInput.value = "";
         }

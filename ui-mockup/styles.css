@@ -18,13 +18,18 @@ body {
   font-family: "Segoe UI", Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
+  overflow-x: hidden;
 }
 
 .login-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 34px 20px;
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
+  box-sizing: border-box;
 }
 
 .screen {
@@ -37,9 +42,11 @@ body {
 
 .login-card {
   width: min(560px, 100%);
+  max-width: 100%;
   position: relative;
   overflow: visible;
   padding-top: 56px;
+  box-sizing: border-box;
 }
 
 .hat-logo {
@@ -424,6 +431,10 @@ body {
 }
 
 @media (max-width: 700px) {
+  .login-page {
+    padding: 20px 16px;
+  }
+
   .login-card {
     padding-top: 0;
   }
@@ -457,5 +468,23 @@ body {
   .help-link {
     font-size: clamp(14px, 4vw, 18px);
   }
+}
 
+@media (max-width: 400px) {
+  .login-page {
+    padding: 16px 12px;
+  }
+
+  .login-title {
+    font-size: clamp(22px, 6vw, 28px);
+  }
+
+  .input-wrap {
+    height: 52px;
+  }
+
+  .submit-btn {
+    height: 52px;
+    font-size: clamp(20px, 5vw, 26px);
+  }
 }

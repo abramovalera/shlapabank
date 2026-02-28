@@ -19,17 +19,25 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   margin: 0;
   font-family: "Segoe UI", Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
+  overflow-x: hidden;
+  min-height: 100%;
 }
 
 .dashboard-page {
   min-height: 100dvh;
   padding: 22px;
-  padding-bottom: 86px;
+  padding-bottom: max(86px, env(safe-area-inset-bottom, 0px));
+  min-width: 0;
 }
 
 .dashboard-shell {
@@ -43,6 +51,7 @@ body {
   padding: 16px;
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .shell-hidden {
@@ -283,6 +292,7 @@ body {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .grid-main {
@@ -293,6 +303,7 @@ body {
 
 .grid-main-left {
   width: 320px;
+  min-width: 0;
   flex-shrink: 0;
   display: grid;
   gap: 14px;
@@ -300,6 +311,7 @@ body {
 
 .grid-main-right {
   flex: 1;
+  min-width: 0;
   display: grid;
   gap: 14px;
 }
@@ -368,6 +380,7 @@ body {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .account-main {
@@ -979,10 +992,11 @@ tbody tr:last-child td {
 
 .toast {
   position: fixed;
-  top: 16px;
+  top: max(16px, env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%) translateY(-12px);
-  max-width: 480px;
+  max-width: min(480px, calc(100vw - 32px));
+  width: max-content;
   border-radius: 999px;
   padding: 10px 18px;
   color: #0a381a;
@@ -1020,12 +1034,13 @@ tbody tr:last-child td {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 12vh;
+  padding: max(12vh, 24px) 16px 24px;
   z-index: 20;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.18s ease;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-backdrop.show {
@@ -1034,11 +1049,13 @@ tbody tr:last-child td {
 }
 
 .modal {
-  width: min(420px, 90vw);
+  width: min(420px, calc(100vw - 32px));
+  max-width: 100%;
   background: #fff;
   border-radius: 16px;
   padding: 18px 18px 14px;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
+  flex-shrink: 0;
 }
 
 .modal--wide {
@@ -1178,6 +1195,9 @@ tbody tr:last-child td {
   color: #303038;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
+  max-width: 100%;
+  text-align: center;
+  white-space: normal;
 }
 
 .chat-option-btn:hover {
@@ -1376,9 +1396,17 @@ tbody tr:last-child td {
 }
 
 @media (max-width: 1100px) {
-  .grid-two,
-  .grid-main {
+  .grid-two {
     grid-template-columns: 1fr;
+  }
+
+  .grid-main {
+    flex-direction: column;
+  }
+
+  .grid-main-left {
+    width: 100%;
+    max-width: 100%;
   }
 
   .form-row {
@@ -1392,18 +1420,165 @@ tbody tr:last-child td {
 }
 
 @media (max-width: 760px) {
+  .grid-main:has(.page-view-active[data-page-view="chat"]),
+  .grid-main:has(.page-view-active[data-page-view="payments"]),
+  .grid-main:has(.page-view-active[data-page-view="more"]) {
+    flex-direction: column;
+  }
+
+  .grid-main:has(.page-view-active[data-page-view="chat"]) .grid-main-left,
+  .grid-main:has(.page-view-active[data-page-view="payments"]) .grid-main-left,
+  .grid-main:has(.page-view-active[data-page-view="more"]) .grid-main-left {
+    display: none;
+  }
+
   .dashboard-page {
     padding: 10px;
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+    padding-bottom: max(120px, calc(90px + env(safe-area-inset-bottom, 0px)));
+  }
+
+  .grid-main-right {
+    padding-bottom: 48px;
+  }
+
+  .page-view {
+    padding-bottom: 32px;
+  }
+
+  .recent-list {
+    padding-bottom: 32px;
+  }
+
+  .panel-transfers {
+    padding-bottom: 8px;
+  }
+
+  .chat-panel {
+    padding-bottom: 24px;
+  }
+
+  .chat-messages {
+    max-height: 240px;
+  }
+
+  .chat-input-row {
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .chat-input-row input[type="text"] {
+    flex: 1;
+    min-width: 60px;
+    height: 40px;
+    padding: 0 12px;
+    font-size: 14px;
+    border: 1px solid #d5ddeb;
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  .chat-attach-btn {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+
+  .chat-input-row .btn {
+    flex-shrink: 0;
+    min-height: 40px;
+    width: auto;
+  }
+
+  .chat-option-btn {
+    max-width: 180px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .dashboard-shell {
+    border-radius: 12px;
+    padding: 12px;
+    width: 100%;
+    max-width: 100%;
   }
 
   .topbar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .topbar-brand {
+    flex-shrink: 0;
+  }
+
+  .topbar-brand .topbar-bank-name {
+    display: none;
+  }
+
+  .topnav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    gap: 0;
+    padding: 6px 6px max(6px, env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
+    z-index: 15;
+  }
+
+  .topnav-tab {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 4px;
+    min-height: 40px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .topnav-tab-active {
+    background: #000;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .topbar-actions {
+    flex-shrink: 0;
+    justify-content: flex-end;
   }
 
   .balance-shelf {
     flex-direction: column;
     align-items: stretch;
+    text-align: center;
+  }
+
+  .balance-shelf .shelf-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .balance-shelf .balance-totals {
+    justify-content: center;
   }
 
   .inline-form {
@@ -1417,16 +1592,99 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 
-  .topbar-actions {
-    justify-content: flex-end;
-  }
-
   .btn {
     width: 100%;
+    min-height: 44px;
   }
 
   .topbar-actions .btn {
     width: auto;
+    min-height: 44px;
+  }
+
+  .panel {
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+  }
+
+  .panel:last-child {
+    margin-bottom: 0;
+  }
+
+  .payments-submit-row,
+  #mobileForm .payments-submit-row,
+  #vendorForm .payments-submit-row {
+    margin-top: 8px;
+    margin-bottom: 16px;
+  }
+
+  .panel-head h3 {
+    font-size: 16px;
+  }
+
+  .inline-form.inline-form-single {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inline-form.inline-form-single .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-page {
+    padding: 8px;
+  }
+
+  .dashboard-shell {
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  .topbar-brand .topbar-bank-name {
+    font-size: 14px;
+  }
+
+  .topbar-logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  .topnav-tab {
+    padding: 5px 2px;
+    min-height: 36px;
+    font-size: 13px;
+  }
+
+  .topbar-actions .btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .notifications-btn,
+  .avatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .modal {
+    width: min(420px, 100vw - 24px);
+    margin: 12px;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+  }
+
+  .modal-backdrop {
+    padding: 12px 0 24px;
+    align-items: flex-start;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-form-grid {
+    grid-template-columns: 1fr;
   }
 }
 
