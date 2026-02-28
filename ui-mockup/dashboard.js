@@ -343,6 +343,188 @@ function getTransactionMeta(tx) {
   };
 }
 
+/** Парсит description для mobile: оператор:телефон */
+function parseMobileDescription(desc) {
+  if (!desc?.startsWith("mobile:")) return null;
+  const parts = desc.split(":");
+  return { operator: parts[1] || "—", phone: parts[2] || "—" };
+}
+
+/** Парсит description для vendor: поставщик:лицевой_счёт */
+function parseVendorDescription(desc) {
+  if (!desc?.startsWith("vendor:")) return null;
+  const parts = desc.split(":");
+  return { provider: parts[1] || "—", accountNumber: parts[2] || "—" };
+}
+
+/** Парсит description для p2p_transfer_by_account:валюта:••••1234 */
+function parseTransferByAccountDescription(desc) {
+  if (!desc?.startsWith("p2p_transfer_by_account")) return null;
+  const parts = desc.split(":");
+  if (parts.length >= 3) return { currency: parts[1] || "RUB", masked: parts[2] || "••••" };
+  return null;
+}
+
+/** Парсит description для p2p_transfer_by_phone:валюта:••••1234 */
+function parseTransferByPhoneDescription(desc) {
+  if (!desc?.startsWith("p2p_transfer_by_phone")) return null;
+  const parts = desc.split(":");
+  if (parts.length >= 3) return { currency: parts[1] || "RUB", masked: parts[2] || "••••" };
+  return null;
+}
+
+/** Парсит description для p2p_by_phone_external:bank_code:phone */
+function parseTransferExternalDescription(desc) {
+  if (!desc?.startsWith("p2p_by_phone_external")) return null;
+  const parts = desc.split(":");
+  return { bankCode: parts[1] || "", phone: parts[2] || "—" };
+}
+
+/** Возвращает массив полей {label, value} для деталей операции в зависимости от типа */
+function getTransactionDetailFields(tx) {
+  const meta = getTransactionMeta(tx);
+  const desc = tx.description || "";
+  const fromLabel = tx.from_account_id ? getAccountLabelById(tx.from_account_id) : null;
+  const toLabel = tx.to_account_id ? getAccountLabelById(tx.to_account_id) : null;
+  const dt = new Date(tx.created_at);
+  const dateStr = dt.toLocaleDateString("ru-RU");
+  const timeStr = dt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const dateTime = `${dateStr} ${timeStr}`;
+  const fields = [];
+
+  switch (meta.kind) {
+    case "payment": {
+      const mobile = parseMobileDescription(desc);
+      const vendor = parseVendorDescription(desc);
+      if (mobile) {
+        fields.push({ label: "Оператор", value: mobile.operator });
+        fields.push({ label: "Номер телефона", value: mobile.phone });
+      } else if (vendor) {
+        fields.push({ label: "Поставщик", value: vendor.provider });
+        fields.push({ label: "Лицевой счёт", value: vendor.accountNumber });
+      } else {
+        fields.push({ label: "Куда", value: desc || "Оплата услуг" });
+      }
+      fields.push({ label: "Откуда", value: fromLabel || "Счёт списания" });
+      break;
+    }
+    case "topup":
+      fields.push({ label: "Куда", value: toLabel || "Счёт" });
+      fields.push({ label: "Откуда", value: "Внешний источник" });
+      break;
+    case "transfer-own":
+    case "fx":
+      fields.push({ label: "Откуда", value: fromLabel || "Счёт" });
+      fields.push({ label: "Куда", value: toLabel || "Счёт" });
+      break;
+    case "transfer-out": {
+      fields.push({ label: "Откуда", value: fromLabel || "Счёт" });
+      const byAccount = parseTransferByAccountDescription(desc);
+      const byPhone = parseTransferByPhoneDescription(desc);
+      const external = parseTransferExternalDescription(desc);
+      if (byAccount) {
+        fields.push({ label: "Счёт получателя", value: `${byAccount.currency} · ${byAccount.masked}` });
+      } else if (byPhone) {
+        fields.push({ label: "Счёт получателя", value: `${byPhone.currency} · ${byPhone.masked}` });
+      } else if (external) {
+        fields.push({ label: "Банк получателя", value: BANK_LABELS[external.bankCode] || external.bankCode || "—" });
+        if (external.phone && external.phone !== "—") {
+          fields.push({ label: "Номер телефона", value: external.phone });
+        }
+      } else {
+        fields.push({ label: "Куда", value: toLabel || "Получатель" });
+      }
+      break;
+    }
+    default:
+      fields.push({ label: "Откуда", value: fromLabel || "—" });
+      fields.push({ label: "Куда", value: toLabel || desc || "—" });
+  }
+
+  fields.push({ label: "Дата и время", value: dateTime });
+  fields.push({ label: "Банк", value: "ShlapaBank" });
+  fields.push({ label: "Сумма", value: meta.signedAmount, amountClass: meta.amountClass || "" });
+  return fields;
+}
+
+
+/** Справочник банков для отображения в операциях (код → название) */
+const BANK_LABELS = {
+  shlapabank: "Наш банк",
+  alpha: "Бабальфа Банк",
+  tinkoff: "Пенькофф Банк",
+  sber: "Сберушка Банк",
+  vtb: "ВТБей",
+  gazprombank: "Газовик Банк",
+  raiffeisen: "Райфейзен Банк",
+  rosbank: "Россик Банк",
+  otkritie: "Банк Откройка",
+  unicredit: "Юникред Банк",
+  rshb: "СельхозФинанс",
+  sovcombank: "Совком Плюс",
+  promsvyaz: "ПромСбер Банк",
+  mts: "МТСей Финанс",
+  post: "ПочтаФинанс",
+  uralsib: "УралСиб Банк",
+};
+
+/** Главный заголовок операции: куда платили / кому переводили (Beeline, банк и т.д.) */
+function getTransactionTitle(tx, meta) {
+  const description = tx.description || "";
+  const fromLabel = tx.from_account_id ? getAccountLabelById(tx.from_account_id) : null;
+  const toLabel = tx.to_account_id ? getAccountLabelById(tx.to_account_id) : null;
+
+  switch (meta.kind) {
+    case "payment":
+      if (description.startsWith("mobile:")) {
+        const parts = description.split(":");
+        return parts[1] || "Мобильная связь";
+      }
+      if (description.startsWith("vendor:")) {
+        const parts = description.split(":");
+        return parts[1] || "Поставщик";
+      }
+      return "Оплата услуг";
+    case "transfer-own":
+      return "Между своими счетами";
+    case "transfer-out":
+      if (description.startsWith("p2p_by_phone_external:")) {
+        const bankCode = description.split(":")[1];
+        return BANK_LABELS[bankCode] || bankCode || "Банк получателя";
+      }
+      if (description.startsWith("p2p_transfer_by_account")) return "По номеру счёта";
+      if (description.startsWith("p2p_transfer_by_phone")) return "По номеру телефона";
+      return "Перевод";
+    case "fx":
+      return "Обмен валют";
+    case "topup":
+      return toLabel || "Пополнение";
+    default:
+      return tx.type || "Операция";
+  }
+}
+
+/** Подпись типа операции (мелким текстом под заголовком) */
+function getTransactionTypeLabel(tx, meta) {
+  switch (meta.kind) {
+    case "payment": {
+      const d = tx.description || "";
+      if (d.startsWith("mobile:")) return "Оплата мобильной связи";
+      if (d.startsWith("vendor:")) return "Оплата услуг";
+      return "Оплата услуг";
+    }
+    case "transfer-own":
+    case "transfer-out":
+      return "Перевод";
+    case "fx":
+      return "Обмен валют";
+    case "topup":
+      return "Пополнение";
+    default:
+      return tx.type || "Операция";
+  }
+}
+
 function formatTransactionSubtitle(tx, meta) {
   const dt = new Date(tx.created_at);
   const dateStr = dt.toLocaleDateString("ru-RU");
@@ -1158,15 +1340,25 @@ function renderRecentTransactionsHome() {
       const meta = getTransactionMeta(tx);
       const row = document.createElement("div");
       row.className = "recent-item";
+      row.dataset.txId = String(tx.id);
+      row.setAttribute("role", "button");
+      row.setAttribute("tabindex", "0");
+      row.setAttribute("aria-label", `Операция ${tx.type}, ${meta.signedAmount}. Нажмите для просмотра деталей`);
+      const title = getTransactionTitle(tx, meta);
+      const typeLabel = getTransactionTypeLabel(tx, meta);
+      const dt = new Date(tx.created_at);
+      const dateStr = dt.toLocaleDateString("ru-RU");
+      const timeStr = dt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+      const dateTime = `${dateStr} ${timeStr}`;
       row.innerHTML = `
         <div class="recent-item-icon">
           <span class="tx-icon ${meta.iconClass}">${meta.icon}</span>
         </div>
         <div class="recent-main">
           <div class="recent-main-header">
-            <strong>${tx.type}</strong>
+            <strong>${escapeHtml(title)}</strong>
           </div>
-          <span>${formatTransactionSubtitle(tx, meta)}</span>
+          <span class="recent-type-label">${dateTime} · ${escapeHtml(typeLabel)}</span>
         </div>
         <div class="recent-amount ${meta.amountClass}">${meta.signedAmount}</div>
       `;
@@ -1177,6 +1369,75 @@ function renderRecentTransactionsHome() {
   const btn = qs("showMoreTxBtn");
   if (!btn) return;
   btn.textContent = "Показать ещё";
+}
+
+let selectedTransactionForDetail = null;
+
+function openTransactionDetailModal(tx) {
+  selectedTransactionForDetail = tx;
+  const modal = qs("transactionDetailModal");
+  const container = qs("transactionDetailContent");
+  if (!modal || !container) return;
+  const fields = getTransactionDetailFields(tx);
+  container.innerHTML = fields
+    .map(
+      (f) => `
+    <div class="transaction-detail-row">
+      <span class="transaction-detail-label">${escapeHtml(f.label)}</span>
+      <span class="transaction-detail-value ${f.amountClass || ""}">${escapeHtml(f.value)}</span>
+    </div>`
+    )
+    .join("");
+  modal.hidden = false;
+  modal.classList.add("show");
+}
+
+function hideTransactionDetailModal() {
+  const modal = qs("transactionDetailModal");
+  if (modal) {
+    modal.hidden = true;
+    modal.classList.remove("show");
+  }
+  selectedTransactionForDetail = null;
+}
+
+function downloadReceipt(tx) {
+  const fields = getTransactionDetailFields(tx);
+  const dateStr = new Date(tx.created_at).toLocaleDateString("ru-RU");
+  const rowsHtml = fields
+    .map(
+      (f) =>
+        `<div class="row"><span class="label">${escapeHtml(f.label)}</span><br><span class="value ${f.amountClass || ""}">${escapeHtml(f.value)}</span></div>`
+    )
+    .join("\n  ");
+  const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Чек операции №${tx.id}</title>
+  <style>
+    body { font-family: "Segoe UI", Arial, sans-serif; padding: 24px; max-width: 400px; margin: 0 auto; }
+    h1 { font-size: 18px; margin: 0 0 20px; }
+    .row { margin-bottom: 12px; }
+    .label { font-size: 12px; color: #666; }
+    .value { font-size: 15px; font-weight: 500; }
+    .amount { font-size: 20px; font-weight: 600; margin-top: 16px; }
+    .footer { margin-top: 24px; font-size: 11px; color: #888; }
+  </style>
+</head>
+<body>
+  <h1>ShlapaBank — Чек операции</h1>
+  ${rowsHtml}
+  <div class="footer">Операция №${tx.id} · ${tx.status}</div>
+</body>
+</html>`;
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `chek-operacii-${tx.id}-${dateStr.replace(/\./g, "-")}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function fillPaymentLookups() {
@@ -1631,6 +1892,40 @@ function wireActions() {
     moreBtn.addEventListener("click", () => {
       recentLimit += 10;
       renderRecentTransactionsHome();
+    });
+  }
+
+  const recentContainer = qs("recentTransactions");
+  if (recentContainer) {
+    recentContainer.addEventListener("click", (e) => {
+      const row = e.target.closest(".recent-item");
+      if (!row?.dataset.txId) return;
+      const tx = state.transactions.find((t) => String(t.id) === row.dataset.txId);
+      if (tx) openTransactionDetailModal(tx);
+    });
+    recentContainer.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const row = e.target.closest(".recent-item");
+      if (!row?.dataset.txId) return;
+      e.preventDefault();
+      const tx = state.transactions.find((t) => String(t.id) === row.dataset.txId);
+      if (tx) openTransactionDetailModal(tx);
+    });
+  }
+
+  const txDetailClose = qs("txDetailClose");
+  if (txDetailClose) txDetailClose.addEventListener("click", hideTransactionDetailModal);
+  const txDetailDownloadReceipt = qs("txDetailDownloadReceipt");
+  if (txDetailDownloadReceipt) {
+    txDetailDownloadReceipt.addEventListener("click", () => {
+      if (selectedTransactionForDetail) downloadReceipt(selectedTransactionForDetail);
+    });
+  }
+
+  const txDetailModal = qs("transactionDetailModal");
+  if (txDetailModal) {
+    txDetailModal.addEventListener("click", (e) => {
+      if (e.target === txDetailModal) hideTransactionDetailModal();
     });
   }
 

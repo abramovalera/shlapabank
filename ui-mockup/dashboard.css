@@ -536,6 +536,11 @@ input[inputmode="tel"]::placeholder {
   padding: 9px 12px;
   border-radius: 10px;
   background: #f2f2f5;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.recent-item:hover {
+  background: #e8e8ed;
 }
 
 .recent-main {
@@ -548,7 +553,8 @@ input[inputmode="tel"]::placeholder {
   font-size: 13px;
 }
 
-.recent-main span {
+.recent-main span,
+.recent-type-label {
   color: var(--muted);
   font-size: 12px;
 }
@@ -656,6 +662,26 @@ input[inputmode="tel"]::placeholder {
 
 .recent-amount-neg {
   color: #8f1b1b;
+}
+
+.transaction-detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.transaction-detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.transaction-detail-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.transaction-detail-value {
+  font-size: 15px;
+  font-weight: 500;
 }
 
 .payments-categories {

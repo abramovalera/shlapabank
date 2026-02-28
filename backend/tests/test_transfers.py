@@ -171,7 +171,9 @@ def test_transfers_by_account_success(client, auth_headers, token):
         },
     )
     assert r.status_code == 201
-    assert r.json()["description"] == "p2p_transfer_by_account"
+    desc = r.json()["description"]
+    assert desc.startswith("p2p_transfer_by_account:")
+    assert a2["account_number"][-4:] in desc
 
 
 def test_transfers_by_account_not_found(client, auth_headers, token, rub_account):

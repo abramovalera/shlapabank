@@ -521,6 +521,17 @@
     </div>
   </div>
 
+  <div id="transactionDetailModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2 class="modal-title">Детали операции</h2>
+      <div id="transactionDetailContent" class="transaction-detail-content"></div>
+      <div class="modal-actions">
+        <button id="txDetailDownloadReceipt" class="btn" type="button">Скачать чек</button>
+        <button id="txDetailClose" class="btn light" type="button">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="status" aria-live="polite" data-testid="toast"></div>
   <script src="/ui/dashboard.js?v=5"></script>
 </body>

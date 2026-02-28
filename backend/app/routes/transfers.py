@@ -50,6 +50,14 @@ def _calc_today_transfers_per_currency(current_user: User, db: Session) -> dict[
     return per_currency
 
 
+def _mask_account(account_number: str) -> str:
+    """Маскирует номер счёта: ••••1234."""
+    if not account_number:
+        return "••••"
+    s = str(account_number)
+    return f"••••{s[-4:]}" if len(s) >= 4 else "••••"
+
+
 def _check_daily_limit(used_per_currency: dict[Currency, Decimal], currency: Currency, amount: Decimal) -> None:
     """Проверяет суточный лимит по валюте. При превышении — HTTPException 400."""
     limit = DAILY_TRANSFER_LIMIT.get(currency)
@@ -177,6 +185,7 @@ def create_transfer_by_account(
     source.balance -= payload.amount
     target.balance += payload.amount
 
+    masked = _mask_account(target.account_number)
     tx = Transaction(
         from_account_id=source.id,
         to_account_id=target.id,
@@ -185,7 +194,7 @@ def create_transfer_by_account(
         currency=source.currency,
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
-        description="p2p_transfer_by_account",
+        description=f"p2p_transfer_by_account:{source.currency.value}:{masked}",
     )
     db.add(source)
     db.add(target)
@@ -289,6 +298,7 @@ def create_transfer_by_phone(
             raise HTTPException(status_code=400, detail="transfer_same_account")
         source.balance -= amount
         target.balance += amount
+        masked = _mask_account(target.account_number)
         tx = Transaction(
             from_account_id=source.id,
             to_account_id=target.id,
@@ -297,7 +307,7 @@ def create_transfer_by_phone(
             currency=source.currency,
             status=TransactionStatus.COMPLETED,
             initiated_by=current_user.id,
-            description="p2p_transfer_by_phone",
+            description=f"p2p_transfer_by_phone:{source.currency.value}:{masked}",
         )
         db.add(source)
         db.add(target)
@@ -315,7 +325,7 @@ def create_transfer_by_phone(
         currency=source.currency,
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
-        description=f"p2p_by_phone_external:{payload.recipient_bank_id}",
+        description=f"p2p_by_phone_external:{payload.recipient_bank_id}:{payload.phone}",
     )
     db.add(source)
     db.add(tx)
