@@ -223,7 +223,7 @@ def by_phone_check(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ):
-    """Если получатель в нашем банке — возвращаем «Наш банк» + его 0–5 назначенных банков. Иначе — все внешние банки."""
+    """Если получатель в нашем банке — возвращаем название нашего банка (ShlapaBank) + его 0–5 назначенных банков. Иначе — все внешние банки."""
     normalized = normalize_phone(phone)
     if not normalized:
         return TransferByPhoneCheckResponse(inOurBank=False, availableBanks=_external_banks_list())

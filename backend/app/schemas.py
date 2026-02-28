@@ -275,6 +275,8 @@ class BankOption(BaseModel):
 
 
 class TransferByPhoneCheckResponse(BaseModel):
+    """Если получатель в нашем банке — availableBanks содержит название банка (ShlapaBank) и 0–5 назначенных банков. Иначе — все внешние банки."""
+
     inOurBank: bool
     availableBanks: list[BankOption]
 

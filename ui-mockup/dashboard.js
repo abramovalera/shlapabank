@@ -464,7 +464,7 @@ function getTransactionDetailFields(tx) {
 
 /** Справочник банков для отображения в операциях (код → название) */
 const BANK_LABELS = {
-  shlapabank: "Наш банк",
+  shlapabank: "ShlapaBank",
   alpha: "Бабальфа Банк",
   tinkoff: "Пенькофф Банк",
   sber: "Сберушка Банк",
