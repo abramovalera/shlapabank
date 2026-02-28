@@ -1,14 +1,15 @@
-"""Admin API: список пользователей, блокировка, удаление, банки, транзакции."""
+"""Admin API: список пользователей, блокировка, удаление, банки, транзакции, сброс БД."""
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.banks import OUR_BANK_CODE, get_external_bank_codes
 from app.core.config import settings
 from app.db import get_db
 from app.models import Account, Transaction, User, UserBank, UserStatus
+from app.models import UserRole
 from app.schemas import TransactionPublic, UserBanksUpdateRequest, UserPublic
-from app.security import require_admin
+from app.security import require_admin, get_password_hash
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -94,6 +95,34 @@ def delete_user(
     db.delete(user)
     db.commit()
     return {"detail": "user_deleted"}
+
+
+@router.post(
+    "/restore-initial-state",
+    status_code=200,
+    summary="Восстановление БД к исходному состоянию (всё к нулю). Только админ.",
+    description="Удаляются все пользователи, счета, транзакции; создаётся заново только дефолтный админ (admin/admin). "
+    "**Не использовать в автотестах** — ручка нужна исключительно для ручной очистки, когда нужно почистить всё и вернуть бекенд к «как после первого запуска».",
+)
+def restore_initial_state(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Восстановление БД к исходному состоянию: транзакции, счета, user_banks, пользователи удаляются; создаётся только дефолтный админ."""
+    db.execute(delete(Transaction))
+    db.execute(delete(Account))
+    db.execute(delete(UserBank))
+    db.execute(delete(User))
+
+    admin = User(
+        login=settings.default_admin_login,
+        email=settings.default_admin_email,
+        password_hash=get_password_hash(settings.default_admin_password),
+        role=UserRole.ADMIN,
+    )
+    db.add(admin)
+    db.commit()
+    return {"detail": "database_reset", "message": "БД восстановлена к исходному состоянию. Остался только дефолтный админ (admin/admin)."}
 
 
 @router.get(

@@ -2005,6 +2005,11 @@ async function loadData() {
     return;
   }
 
+  // Если профиль не загрузился — пробрасываем ошибку для retry
+  if (results[0].status === "rejected") {
+    throw results[0].reason || new Error("Не удалось загрузить данные");
+  }
+
   const map = (index, fallback) => (results[index].status === "fulfilled" ? results[index].value : fallback);
   state.profile = map(0, null);
   state.accounts = map(1, []);
@@ -3427,20 +3432,34 @@ function wireActions() {
 
 let reloadOnReturnTimer = null;
 let lastLoadTime = 0;
+let lastLoadSuccess = false;
 
 function reloadDataOnReturn() {
-  if (!TOKEN) return;
+  const token = localStorage.getItem("sb_access_token");
+  if (!token) return;
   const now = Date.now();
-  if (now - lastLoadTime < 5000) return;
+  // Если последняя загрузка была успешной и недавно — не перегружаем (защита от спама)
+  if (lastLoadSuccess && now - lastLoadTime < 5000) return;
   if (reloadOnReturnTimer) clearTimeout(reloadOnReturnTimer);
-  reloadOnReturnTimer = setTimeout(() => {
+  reloadOnReturnTimer = setTimeout(async () => {
     reloadOnReturnTimer = null;
-    lastLoadTime = Date.now();
-    loadData().catch((err) => {
-      if (err?.code !== "invalid_token") {
-        showToast("Не удалось обновить данные при возврате на вкладку", true);
+    let retries = 2;
+    while (retries >= 0) {
+      try {
+        await loadData();
+        lastLoadTime = Date.now();
+        lastLoadSuccess = true;
+        return;
+      } catch (err) {
+        if (err?.code === "invalid_token") return;
+        retries--;
+        if (retries >= 0) {
+          await new Promise((r) => setTimeout(r, 1500));
+        } else {
+          showToast("Не удалось обновить данные. Нажмите F5 для обновления страницы.", true);
+        }
       }
-    });
+    }
   }, 300);
 }
 
@@ -3458,12 +3477,14 @@ function reloadDataOnReturn() {
     });
     await loadData();
     lastLoadTime = Date.now();
+    lastLoadSuccess = true;
     const shell = document.querySelector(".dashboard-shell");
     if (shell) {
       shell.classList.remove("shell-hidden");
     }
   } catch (error) {
-    showToast(`Ошибка загрузки данных: ${error.message}`, true);
+    lastLoadSuccess = false;
+    showToast(`Ошибка загрузки данных: ${error.message}. Нажмите F5 для обновления.`, true);
     const shell = document.querySelector(".dashboard-shell");
     if (shell) {
       shell.classList.remove("shell-hidden");

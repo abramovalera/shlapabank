@@ -186,3 +186,30 @@ def test_client_cannot_access_admin(client, auth_headers):
     """Обычный клиент не может вызывать Admin API."""
     r = client.get("/admin/users", headers=auth_headers)
     assert r.status_code == 403
+
+
+def test_admin_restore_initial_state(client, unique_login, valid_password):
+    """POST /admin/restore-initial-state возвращает БД к исходному состоянию (только дефолтный админ).
+    Ручка не предназначена для использования в автотестах — тест проверяет лишь её работоспособность."""
+    r = client.post("/auth/register", json={"login": unique_login, "password": valid_password})
+    assert r.status_code == 201
+
+    token = _admin_token(client)
+    r = client.post("/admin/restore-initial-state", headers=_headers(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data.get("detail") == "database_reset"
+
+    # После сброса старый токен невалиден (пользователь удалён). Вход заново как admin.
+    r = client.post("/auth/login", json={"login": "admin", "password": "admin"})
+    assert r.status_code == 200
+    token = r.json()["access_token"]
+
+    r = client.get("/admin/users", headers=_headers(token))
+    assert r.status_code == 200
+    users = r.json()
+    assert len(users) == 1
+    assert users[0]["login"] == "admin"
+
+    r = client.post("/auth/login", json={"login": unique_login, "password": valid_password})
+    assert r.status_code == 401
