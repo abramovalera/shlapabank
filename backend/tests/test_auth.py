@@ -30,6 +30,14 @@ def test_register_login_not_unique(client, registered_user):
     assert r.json().get("detail") == "validation_error: login_not_unique"
 
 
+def test_login_empty_credentials(client):
+    """Валидация LoginRequest: пустые логин/пароль — 422."""
+    r = client.post("/auth/login", json={"login": "", "password": "x"})
+    assert r.status_code == 422
+    r = client.post("/auth/login", json={"login": "user", "password": ""})
+    assert r.status_code == 422
+
+
 def test_login_invalid_credentials(client, registered_user):
     login, _, _ = registered_user
     r = client.post("/auth/login", json={"login": login, "password": "WrongPass123!"})

@@ -1,9 +1,13 @@
+import random
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.banks import get_external_bank_codes
+from app.constants import FAILED_LOGIN_THRESHOLD
 from app.db import get_db
-from app.models import User, UserStatus
+from app.models import User, UserBank, UserStatus
 from app.schemas import LoginRequest, RegisterRequest, TokenResponse, UserPublic
 from app.security import (
     create_access_token,
@@ -25,7 +29,7 @@ def _issue_token_for_credentials(login: str, password: str, db: Session) -> Toke
 
     if not verify_password(password, user.password_hash):
         user.failed_login_attempts += 1
-        if user.failed_login_attempts >= 5:
+        if user.failed_login_attempts >= FAILED_LOGIN_THRESHOLD:
             user.status = UserStatus.BLOCKED
         db.add(user)
         db.commit()
@@ -57,6 +61,14 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    external = get_external_bank_codes()
+    n = random.randint(0, min(5, len(external)))
+    chosen = random.sample(external, n)
+    for bank_code in chosen:
+        db.add(UserBank(user_id=user.id, bank_code=bank_code))
+    db.commit()
+
     return user
 
 

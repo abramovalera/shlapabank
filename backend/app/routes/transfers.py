@@ -5,17 +5,22 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.banks import OUR_BANK_CODE, BANKS_CATALOG
+from app.constants import DAILY_TRANSFER_LIMIT_RUB, MAX_TRANSFER_AMOUNT, MIN_TRANSFER_AMOUNT
 from app.db import get_db
-from app.models import Account, AccountType, Currency, Transaction, TransactionStatus, TransactionType, User
+from app.models import Account, AccountType, Bank, Currency, Transaction, TransactionStatus, TransactionType, User, UserBank
 from app.otp import validate_otp_for_user
-from app.schemas import ExchangeRequest, TransferByAccountRequest, TransactionPublic, TransferCreateRequest
+from app.schemas import (
+    ExchangeRequest,
+    TransferByAccountRequest,
+    TransferByPhoneCheckResponse,
+    TransferByPhoneRequest,
+    TransactionPublic,
+    TransferCreateRequest,
+)
 from app.security import require_active_user
 
 router = APIRouter(prefix="/api/v1/transfers", tags=["transfers"])
-
-MIN_AMOUNT = Decimal("10.00")
-MAX_AMOUNT = Decimal("300000.00")
-DAILY_LIMIT = Decimal("1000000.00")
 
 RATES_TO_RUB: dict[Currency, Decimal] = {
     # Захардкоженные ориентировочные курсы к RUB
@@ -59,26 +64,26 @@ def daily_usage(
     """Возвращает использовано/лимит по счёту за сегодня — для отображения статус-бара в модалках перевода."""
     stats = _calc_today_transfers_rub(current_user, db)
     total_used = stats["total_rub"]
-    remaining_total = max(DAILY_LIMIT - total_used, Decimal("0.00"))
+    remaining_total = max(DAILY_TRANSFER_LIMIT_RUB - total_used, Decimal("0.00"))
     accounts = db.scalars(
         select(Account).where(Account.user_id == current_user.id, Account.is_active.is_(True))
     ).all()
     per_account = []
     for acc in accounts:
         used = stats["per_account_rub"].get(acc.id, Decimal("0.00"))
-        remaining = max(DAILY_LIMIT - used, Decimal("0.00"))
+        remaining = max(DAILY_TRANSFER_LIMIT_RUB - used, Decimal("0.00"))
         per_account.append({
             "accountId": acc.id,
             "accountNumber": acc.account_number,
             "currency": acc.currency.value,
             "usedTodayRubEquivalent": str(used),
-            "dailyLimitRubEquivalent": str(DAILY_LIMIT),
+            "dailyLimitRubEquivalent": str(DAILY_TRANSFER_LIMIT_RUB),
             "remainingRubEquivalent": str(remaining),
         })
     return {
         "limits": {
             "perUserDaily": {
-                "dailyLimitRubEquivalent": str(DAILY_LIMIT),
+                "dailyLimitRubEquivalent": str(DAILY_TRANSFER_LIMIT_RUB),
                 "usedTodayRubEquivalent": str(total_used),
                 "remainingRubEquivalent": str(remaining_total),
             },
@@ -113,9 +118,9 @@ def create_transfer(
     if payload.from_account_id == payload.to_account_id:
         raise HTTPException(status_code=400, detail="transfer_same_account")
 
-    if payload.amount < MIN_AMOUNT:
+    if payload.amount < MIN_TRANSFER_AMOUNT:
         raise HTTPException(status_code=400, detail="transfer_amount_too_small")
-    if payload.amount > MAX_AMOUNT:
+    if payload.amount > MAX_TRANSFER_AMOUNT:
         raise HTTPException(status_code=400, detail="transfer_amount_exceeds_single_limit")
 
     account_ids = sorted([payload.from_account_id, payload.to_account_id])
@@ -141,7 +146,7 @@ def create_transfer(
     # как мы знаем валюту исходного счёта
     stats = _calc_today_transfers_rub(current_user, db)
     to_rub_amount = payload.amount * RATES_TO_RUB.get(source.currency, Decimal("1"))
-    if stats["total_rub"] + to_rub_amount > DAILY_LIMIT:
+    if stats["total_rub"] + to_rub_amount > DAILY_TRANSFER_LIMIT_RUB:
         raise HTTPException(status_code=400, detail="transfer_amount_exceeds_daily_limit")
 
     source.balance -= payload.amount
@@ -179,9 +184,9 @@ def create_transfer_by_account(
     if not validate_otp_for_user(current_user.id, payload.otp_code):
         raise HTTPException(status_code=400, detail="invalid_otp_code")
 
-    if payload.amount < MIN_AMOUNT:
+    if payload.amount < MIN_TRANSFER_AMOUNT:
         raise HTTPException(status_code=400, detail="transfer_amount_too_small")
-    if payload.amount > MAX_AMOUNT:
+    if payload.amount > MAX_TRANSFER_AMOUNT:
         raise HTTPException(status_code=400, detail="transfer_amount_exceeds_single_limit")
 
     source = db.scalar(
@@ -213,7 +218,7 @@ def create_transfer_by_account(
     # как выяснили валюту исходного счёта
     stats = _calc_today_transfers_rub(current_user, db)
     to_rub_amount = payload.amount * RATES_TO_RUB.get(source.currency, Decimal("1"))
-    if stats["total_rub"] + to_rub_amount > DAILY_LIMIT:
+    if stats["total_rub"] + to_rub_amount > DAILY_TRANSFER_LIMIT_RUB:
         raise HTTPException(status_code=400, detail="transfer_amount_exceeds_daily_limit")
 
     source.balance -= payload.amount
@@ -231,6 +236,133 @@ def create_transfer_by_account(
     )
     db.add(source)
     db.add(target)
+    db.add(tx)
+    db.commit()
+    db.refresh(tx)
+    return tx
+
+
+def _external_banks_list() -> list[dict]:
+    """Список внешних банков для ответа (когда получатель не найден — показываем все)."""
+    return [
+        {"id": code, "label": label}
+        for code, label in BANKS_CATALOG
+        if code != OUR_BANK_CODE
+    ]
+
+
+@router.get(
+    "/by-phone/check",
+    response_model=TransferByPhoneCheckResponse,
+    summary="Доступные банки для перевода по номеру телефона получателя",
+)
+def by_phone_check(
+    phone: str,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    """Если получатель в нашем банке — возвращаем «Наш банк» + его 0–5 назначенных банков. Иначе — все внешние банки."""
+    recipient = db.scalar(select(User).where(User.phone == phone))
+    if recipient:
+        our_bank = next((b for b in BANKS_CATALOG if b[0] == OUR_BANK_CODE), None)
+        options = [{"id": our_bank[0], "label": our_bank[1]}] if our_bank else []
+        user_banks = db.scalars(
+            select(Bank).join(UserBank, UserBank.bank_code == Bank.code).where(UserBank.user_id == recipient.id)
+        ).all()
+        for b in user_banks:
+            options.append({"id": b.code, "label": b.label})
+        return TransferByPhoneCheckResponse(inOurBank=True, availableBanks=options)
+    return TransferByPhoneCheckResponse(inOurBank=False, availableBanks=_external_banks_list())
+
+
+@router.post(
+    "/by-phone",
+    response_model=TransactionPublic,
+    status_code=201,
+    summary="Перевод по номеру телефона получателя (в наш банк или во внешний)",
+)
+def create_transfer_by_phone(
+    payload: TransferByPhoneRequest,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    if not validate_otp_for_user(current_user.id, payload.otp_code):
+        raise HTTPException(status_code=400, detail="invalid_otp_code")
+
+    amount = payload.amount
+    if amount < MIN_TRANSFER_AMOUNT:
+        raise HTTPException(status_code=400, detail="transfer_amount_too_small")
+    if amount > MAX_TRANSFER_AMOUNT:
+        raise HTTPException(status_code=400, detail="transfer_amount_exceeds_single_limit")
+
+    source = db.scalar(
+        select(Account)
+        .where(Account.id == payload.from_account_id, Account.user_id == current_user.id)
+        .with_for_update()
+    )
+    if not source:
+        raise HTTPException(status_code=404, detail="account_not_found")
+    if not source.is_active:
+        raise HTTPException(status_code=400, detail="account_inactive")
+    if source.account_type == AccountType.SAVINGS:
+        raise HTTPException(status_code=400, detail="transfer_not_allowed_from_savings")
+    if source.balance < amount:
+        raise HTTPException(status_code=400, detail="insufficient_funds")
+
+    stats = _calc_today_transfers_rub(current_user, db)
+    to_rub_amount = amount * RATES_TO_RUB.get(source.currency, Decimal("1"))
+    if stats["total_rub"] + to_rub_amount > DAILY_TRANSFER_LIMIT_RUB:
+        raise HTTPException(status_code=400, detail="transfer_amount_exceeds_daily_limit")
+
+    if payload.recipient_bank_id == OUR_BANK_CODE:
+        recipient = db.scalar(select(User).where(User.phone == payload.phone))
+        if not recipient:
+            raise HTTPException(status_code=404, detail="recipient_not_found_in_our_bank")
+        target = db.scalar(
+            select(Account)
+            .where(
+                Account.user_id == recipient.id,
+                Account.currency == source.currency,
+                Account.account_type == AccountType.DEBIT,
+                Account.is_active.is_(True),
+            )
+            .with_for_update()
+        )
+        if not target:
+            raise HTTPException(status_code=400, detail="recipient_has_no_suitable_account")
+        if source.id == target.id:
+            raise HTTPException(status_code=400, detail="transfer_same_account")
+        source.balance -= amount
+        target.balance += amount
+        tx = Transaction(
+            from_account_id=source.id,
+            to_account_id=target.id,
+            type=TransactionType.TRANSFER,
+            amount=amount,
+            currency=source.currency,
+            status=TransactionStatus.COMPLETED,
+            initiated_by=current_user.id,
+            description="p2p_transfer_by_phone",
+        )
+        db.add(source)
+        db.add(target)
+        db.add(tx)
+        db.commit()
+        db.refresh(tx)
+        return tx
+
+    source.balance -= amount
+    tx = Transaction(
+        from_account_id=source.id,
+        to_account_id=None,
+        type=TransactionType.TRANSFER,
+        amount=amount,
+        currency=source.currency,
+        status=TransactionStatus.COMPLETED,
+        initiated_by=current_user.id,
+        description=f"p2p_by_phone_external:{payload.recipient_bank_id}",
+    )
+    db.add(source)
     db.add(tx)
     db.commit()
     db.refresh(tx)

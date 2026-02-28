@@ -1,13 +1,14 @@
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.banks import get_external_bank_codes
 from app.db import get_db
-from app.models import Account, Transaction, TransactionStatus, TransactionType, User, UserStatus
+from app.models import Account, Bank, Transaction, TransactionStatus, TransactionType, User, UserBank, UserStatus
 from app.otp import validate_otp_for_user
-from app.schemas import AdminCreditRequest, TransactionPublic, UserPublic
+from app.schemas import AdminCreditRequest, TransactionPublic, UserBanksUpdateRequest, UserPublic
 from app.security import require_admin
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -101,3 +102,53 @@ def credit_account(
 )
 def list_all_transactions(_: User = Depends(require_admin), db: Session = Depends(get_db)):
     return db.scalars(select(Transaction).order_by(Transaction.created_at.desc())).all()
+
+
+@router.get(
+    "/users/{user_id}/banks",
+    summary="Список банков для перевода по телефону у пользователя (ADMIN)",
+)
+def get_user_banks(user_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    user = db.scalar(select(User).where(User.id == user_id))
+    if not user:
+        raise HTTPException(status_code=404, detail="not_found")
+    rows = db.scalars(
+        select(UserBank).where(UserBank.user_id == user_id)
+    ).all()
+    bank_codes = [r.bank_code for r in rows]
+    banks = db.scalars(select(Bank).where(Bank.code.in_(bank_codes))).all()
+    by_code = {b.code: b.label for b in banks}
+    return {
+        "bank_codes": bank_codes,
+        "banks": [{"code": c, "label": by_code.get(c, c)} for c in bank_codes],
+    }
+
+
+@router.put(
+    "/users/{user_id}/banks",
+    summary="Изменить список банков для перевода у пользователя (0–5, только внешние) (ADMIN)",
+)
+def update_user_banks(
+    user_id: int,
+    payload: UserBanksUpdateRequest,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    user = db.scalar(select(User).where(User.id == user_id))
+    if not user:
+        raise HTTPException(status_code=404, detail="not_found")
+    external = set(get_external_bank_codes())
+    invalid = [c for c in payload.bank_codes if c not in external]
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid_bank_codes: only external banks allowed, got {invalid!r}",
+        )
+    if len(payload.bank_codes) > 5:
+        raise HTTPException(status_code=400, detail="max_5_banks_allowed")
+
+    db.execute(delete(UserBank).where(UserBank.user_id == user_id))
+    for code in payload.bank_codes:
+        db.add(UserBank(user_id=user_id, bank_code=code))
+    db.commit()
+    return {"status": "ok", "bank_codes": payload.bank_codes}

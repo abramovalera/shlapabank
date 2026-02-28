@@ -5,9 +5,10 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 
+from app.banks import BANKS_CATALOG
 from app.core.config import settings
 from app.db import Base, SessionLocal, engine
-from app.models import User, UserRole
+from app.models import Bank, User, UserRole
 from app.routes.accounts import router as accounts_router
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
@@ -74,6 +75,20 @@ def register_page() -> RedirectResponse:
 @app.on_event("startup")
 def startup() -> None:
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        for code, label in BANKS_CATALOG:
+            bank = db.scalar(select(Bank).where(Bank.code == code))
+            if not bank:
+                db.add(Bank(code=code, label=label))
+            else:
+                bank.label = label
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
     db = SessionLocal()
     try:
         admin = db.scalar(

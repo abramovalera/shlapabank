@@ -14,17 +14,17 @@ router = APIRouter(prefix="/api/v1/helper", tags=["helper"])
 
 
 def _get_own_account(account_id: int, current_user: User, db: Session) -> Account:
-  account = db.scalar(
-      select(Account).where(
-          Account.id == account_id,
-          Account.user_id == current_user.id,
-      )
-  )
-  if not account:
-      raise HTTPException(status_code=404, detail="account_not_found")
-  if not account.is_active:
-      raise HTTPException(status_code=400, detail="account_inactive")
-  return account
+    account = db.scalar(
+        select(Account).where(
+            Account.id == account_id,
+            Account.user_id == current_user.id,
+        )
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="account_not_found")
+    if not account.is_active:
+        raise HTTPException(status_code=400, detail="account_inactive")
+    return account
 
 
 @router.post(
@@ -38,12 +38,12 @@ def helper_increase_balance(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ):
-  account = _get_own_account(account_id, current_user, db)
-  account.balance += amount
-  db.add(account)
-  db.commit()
-  db.refresh(account)
-  return account
+    account = _get_own_account(account_id, current_user, db)
+    account.balance += amount
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+    return account
 
 
 @router.post(
@@ -56,14 +56,14 @@ def helper_zero_balance(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ):
-  from decimal import Decimal as _D
+    from decimal import Decimal as _D
 
-  account = _get_own_account(account_id, current_user, db)
-  account.balance = _D("0.00")
-  db.add(account)
-  db.commit()
-  db.refresh(account)
-  return account
+    account = _get_own_account(account_id, current_user, db)
+    account.balance = _D("0.00")
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+    return account
 
 
 @router.post(
@@ -77,14 +77,14 @@ def helper_decrease_balance(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ):
-  account = _get_own_account(account_id, current_user, db)
-  if account.balance < amount:
-      raise HTTPException(status_code=400, detail="insufficient_funds")
-  account.balance -= amount
-  db.add(account)
-  db.commit()
-  db.refresh(account)
-  return account
+    account = _get_own_account(account_id, current_user, db)
+    if account.balance < amount:
+        raise HTTPException(status_code=400, detail="insufficient_funds")
+    account.balance -= amount
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+    return account
 
 
 @router.get(
@@ -94,11 +94,11 @@ def helper_decrease_balance(
 def helper_otp_preview(
     current_user: User = Depends(require_active_user),
 ):
-  code = issue_otp_preview(current_user.id)
-  return {
-      "userId": current_user.id,
-      "otp": code,
-      "ttlSeconds": OTP_TTL_MINUTES * 60,
-      "message": f"SMS: ваш код подтверждения {code}",
-  }
+    code = issue_otp_preview(current_user.id)
+    return {
+        "userId": current_user.id,
+        "otp": code,
+        "ttlSeconds": OTP_TTL_MINUTES * 60,
+        "message": f"SMS: ваш код подтверждения {code}",
+    }
 

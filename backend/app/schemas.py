@@ -1,9 +1,13 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models import AccountType, Currency, TransactionStatus, TransactionType, UserRole, UserStatus
+
+# Общий тип для OTP (4 цифры) — используется во всех запросах с подтверждением
+OtpCode = Annotated[str, Field(min_length=4, max_length=4, pattern=r"^\d{4}$")]
 
 
 class RegisterRequest(BaseModel):
@@ -25,8 +29,8 @@ class LoginRequest(BaseModel):
         json_schema_extra={"example": {"login": "ivanpetrov", "password": "StrongPass123!"}}
     )
 
-    login: str
-    password: str
+    login: str = Field(min_length=1, max_length=20)
+    password: str = Field(min_length=1, max_length=100)
 
 
 class TokenResponse(BaseModel):
@@ -99,14 +103,14 @@ class AdminCreditRequest(BaseModel):
     model_config = ConfigDict(json_schema_extra={"example": {"amount": "10000.00", "otp_code": "0000"}})
 
     amount: Decimal = Field(gt=0)
-    otp_code: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+    otp_code: OtpCode
 
 
 class AccountTopupRequest(BaseModel):
     model_config = ConfigDict(json_schema_extra={"example": {"amount": "1000.00", "otp_code": "0000"}})
 
     amount: Decimal = Field(gt=0)
-    otp_code: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+    otp_code: OtpCode
 
 
 class TransferCreateRequest(BaseModel):
@@ -119,7 +123,7 @@ class TransferCreateRequest(BaseModel):
     from_account_id: int
     to_account_id: int
     amount: Decimal = Field(gt=0)
-    otp_code: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+    otp_code: OtpCode
 
 
 class ExchangeRequest(BaseModel):
@@ -137,7 +141,7 @@ class ExchangeRequest(BaseModel):
     from_account_id: int
     to_account_id: int
     amount: Decimal = Field(gt=0)
-    otp_code: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+    otp_code: OtpCode
 
 
 class TransferByAccountRequest(BaseModel):
@@ -155,7 +159,7 @@ class TransferByAccountRequest(BaseModel):
     from_account_id: int
     target_account_number: str = Field(min_length=1, max_length=32)
     amount: Decimal = Field(gt=0)
-    otp_code: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+    otp_code: OtpCode
 
 
 class MobilePaymentRequest(BaseModel):
@@ -175,7 +179,7 @@ class MobilePaymentRequest(BaseModel):
     operator: str
     phone: str = Field(pattern=r"^\+7\d{10}$")
     amount: Decimal = Field(gt=0)
-    otp_code: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+    otp_code: OtpCode
 
 
 class VendorPaymentRequest(BaseModel):
@@ -193,9 +197,9 @@ class VendorPaymentRequest(BaseModel):
 
     account_id: int
     provider: str
-    account_number: str
+    account_number: str = Field(min_length=1, max_length=30, pattern=r"^\d+$")
     amount: Decimal = Field(gt=0)
-    otp_code: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+    otp_code: OtpCode
 
 
 class AccountCreateRequest(BaseModel):
@@ -226,6 +230,29 @@ class AccountPublic(BaseModel):
     account_type: AccountType
     currency: Currency
     balance: Decimal
+
+
+class UserBanksUpdateRequest(BaseModel):
+    """Список кодов банков для перевода (0–5, только внешние из справочника)."""
+    bank_codes: list[str] = Field(max_length=5, min_length=0)
+
+
+class BankOption(BaseModel):
+    id: str
+    label: str
+
+
+class TransferByPhoneCheckResponse(BaseModel):
+    inOurBank: bool
+    availableBanks: list[BankOption]
+
+
+class TransferByPhoneRequest(BaseModel):
+    from_account_id: int
+    phone: str = Field(pattern=r"^\+7\d{10}$")
+    amount: Decimal = Field(gt=0)
+    recipient_bank_id: str = Field(min_length=1, max_length=32)
+    otp_code: OtpCode
 
 
 class TransactionPublic(BaseModel):

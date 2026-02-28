@@ -5,13 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ShlapaBank - Главная</title>
   <link rel="stylesheet" href="./dashboard.css" />
+  <link rel="stylesheet" href="./swagger-btn.css" />
 </head>
 <body>
+  <a id="swaggerFab" class="swagger-fab" href="/docs" target="_blank" rel="noopener noreferrer" title="Открыть Swagger API в новой вкладке">Swagger</a>
+  <script>
+    (function () {
+      var apiBase = localStorage.getItem("sb_api_base") || "http://localhost:8001/api/v1";
+      var origin = apiBase.replace(/\/api\/v1\/?$/, "");
+      var fab = document.getElementById("swaggerFab");
+      if (fab) fab.href = origin + "/docs";
+    })();
+  </script>
   <main class="dashboard-page">
     <section class="dashboard-shell shell-hidden">
       <header class="topbar">
         <div class="topbar-brand">
-          <img id="hatLogo" class="topbar-logo" src="./hat-side.png" alt="" aria-hidden="true" />
+          <img id="hatLogo" class="topbar-logo" src="./hat-side.png" alt="" aria-hidden="true" data-testid="btn-hat-cheat" />
           <span class="topbar-bank-name">ShlapaBank</span>
         </div>
 
@@ -23,7 +33,7 @@
         </nav>
 
         <div class="topbar-actions">
-          <button id="logoutBtn" class="btn" type="button">Выйти</button>
+          <button id="logoutBtn" class="btn" type="button" data-testid="btn-logout">Выйти</button>
           <button id="userAvatar" class="avatar" type="button" aria-label="Профиль">U</button>
         </div>
       </header>
@@ -44,7 +54,7 @@
             </div>
             <div id="accountsList" class="accounts-list"></div>
             <form id="createAccountForm" class="inline-form inline-form-single">
-              <button class="btn accounts-primary-btn" type="submit">Открыть Счет</button>
+              <button class="btn accounts-primary-btn" type="submit" data-testid="btn-open-account">Открыть Счет</button>
             </form>
           </article>
         </div>
@@ -56,8 +66,9 @@
                 <h3>Переводы</h3>
               </div>
               <div class="inline-form inline-form-single">
-                <button id="homeTransferOwnBtn" class="btn" type="button">Между своими счетами</button>
+                <button id="homeTransferOwnBtn" class="btn" type="button" data-testid="btn-transfer-own">Между своими счетами</button>
                 <button id="homeTransferByAccountBtn" class="btn light" type="button">По номеру счёта</button>
+                <button id="homeTransferByPhoneBtn" class="btn light" type="button">По номеру телефона</button>
                 <button id="homeExchangeBtn" class="btn light" type="button">Обмен валют</button>
               </div>
             </article>
@@ -178,21 +189,45 @@
                 <span class="status-label">Статус</span>
                 <span id="statusBadge" class="pill green">Активный</span>
               </div>
-              <form id="profileForm" class="profile-form profile-narrow" autocomplete="off">
-                <label>Имя<input id="firstName" type="text" /></label>
-                <label>Фамилия<input id="lastName" type="text" /></label>
-                <label>Телефон<input id="phone" type="text" inputmode="tel" maxlength="12" placeholder="+7XXXXXXXXXX" /></label>
-                <label>Email<input id="email" type="email" autocomplete="off" /></label>
-                <label>Текущий пароль<input id="currentPassword" type="password" autocomplete="new-password" /></label>
-                <label>Новый пароль<input id="newPassword" type="password" autocomplete="new-password" /></label>
-                <button class="btn" type="submit">Сохранить профиль</button>
-              </form>
+              <div class="more-content-row">
+                <div class="more-content-left">
+                  <form id="profileForm" class="profile-form profile-narrow" autocomplete="off">
+                    <label>Имя<input id="firstName" type="text" /></label>
+                    <label>Фамилия<input id="lastName" type="text" /></label>
+                    <label>Телефон<input id="phone" type="text" inputmode="tel" maxlength="12" placeholder="+7XXXXXXXXXX" /></label>
+                    <label>Email<input id="email" type="email" autocomplete="off" /></label>
+                    <label>Текущий пароль<input id="currentPassword" type="password" autocomplete="new-password" /></label>
+                    <label>Новый пароль<input id="newPassword" type="password" autocomplete="new-password" /></label>
+                    <button class="btn" type="submit">Сохранить профиль</button>
+                  </form>
+                </div>
+                <div class="more-divider" aria-hidden="true"></div>
+                <div class="more-actions">
+                  <button id="primaryAccountsBtn" class="btn btn-field-size light" type="button">Приоритетные счета</button>
+                </div>
+              </div>
             </section>
           </section>
         </div>
       </section>
     </section>
   </main>
+
+  <div id="primaryAccountsModal" class="modal-backdrop" hidden>
+    <div class="modal modal--wide">
+      <h2 class="modal-title">Приоритетные счета</h2>
+      <p class="modal-text">
+        Выберите для каждой валюты счёт, на который по умолчанию будут зачисляться переводы.
+      </p>
+      <form id="primaryAccountsForm" class="modal-form-grid">
+        <div id="primaryAccountsFields"></div>
+        <div class="modal-actions">
+          <button id="primaryAccountsCancel" class="btn light" type="button">Отмена</button>
+          <button class="btn" type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <div id="confirmCloseModal" class="modal-backdrop" hidden>
     <div class="modal">
@@ -266,7 +301,7 @@
         </label>
         <label>
           <span>Счёт получателя</span>
-          <input id="homeByAccountNumber" type="text" placeholder="Введите номер" required />
+          <input id="homeByAccountNumber" type="text" placeholder="Введите номер" maxlength="32" required />
         </label>
         <label>
           <span>Сумма</span>
@@ -281,6 +316,53 @@
         </div>
         <div class="modal-actions">
           <button id="homeByAccountCancel" class="btn light" type="button">Отмена</button>
+          <button class="btn" type="submit">Перевести</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="homeByPhoneModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2 class="modal-title">По номеру телефона</h2>
+      <p class="modal-text">
+        Выберите счёт списания, введите номер телефона и банк получателя.
+      </p>
+      <p id="homeByPhoneNotInBankWarning" class="modal-warning" hidden>
+        Такого пользователя нет в нашем банке(((
+      </p>
+      <form id="homeByPhoneForm" class="modal-form-grid">
+        <label>
+          <span>Счёт списания</span>
+          <select id="homeByPhoneFrom" required></select>
+        </label>
+        <label>
+          <span>Телефон получателя</span>
+          <input
+            id="homeByPhoneNumber"
+            type="tel"
+            placeholder="+7XXXXXXXXXX"
+            maxlength="12"
+            required
+          />
+        </label>
+        <label>
+          <span>Банк получателя</span>
+          <select id="homeByPhoneBank" required></select>
+        </label>
+        <label>
+          <span>Сумма</span>
+          <input id="homeByPhoneAmount" type="number" step="0.01" required />
+          <span id="homeByPhoneAmountError" class="field-error-text"></span>
+        </label>
+        <div class="limit-progress-row">
+          <span class="limit-progress-label" id="homeByPhoneLimitLabel"></span>
+          <div class="limit-progress-bar">
+            <div class="limit-progress-fill" id="homeByPhoneLimitFill"></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="homeByPhoneCancel" class="btn light" type="button">Отмена</button>
           <button class="btn" type="submit">Перевести</button>
         </div>
       </form>
@@ -394,7 +476,7 @@
     </div>
   </div>
 
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" data-testid="toast"></div>
   <script src="./dashboard.js"></script>
 </body>
 </html>

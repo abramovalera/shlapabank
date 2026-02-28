@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -57,10 +57,32 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     accounts: Mapped[list["Account"]] = relationship(back_populates="owner")
+    transfer_banks: Mapped[list["UserBank"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class Bank(Base):
+    """Справочник банков для переводов по номеру телефона (наш банк + внешние)."""
+    __tablename__ = "banks"
+
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
+class UserBank(Base):
+    """Банки, на которые можно переводить этому клиенту (0–5 внешних банков)."""
+    __tablename__ = "user_banks"
+    __table_args__ = (UniqueConstraint("user_id", "bank_code", name="uq_user_bank"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    bank_code: Mapped[str] = mapped_column(ForeignKey("banks.code", ondelete="CASCADE"), nullable=False, index=True)
+
+    user: Mapped["User"] = relationship(back_populates="transfer_banks")
 
 
 class Account(Base):
     __tablename__ = "accounts"
+    __table_args__ = (CheckConstraint("balance >= 0", name="ck_account_balance_non_negative"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     account_number: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)

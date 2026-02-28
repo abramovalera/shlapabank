@@ -18,6 +18,41 @@ const state = {
 
 const qs = (id) => document.getElementById(id);
 const toastEl = qs("toast");
+
+const CURRENCY_UNITS = { RUB: "₽", USD: "$", EUR: "€", CNY: "¥" };
+
+function getUnitForAmountField(inputId) {
+  const accountSelectMap = {
+    homeTransferAmount: "homeTransferFrom",
+    homeByAccountAmount: "homeByAccountFrom",
+    homeByPhoneAmount: "homeByPhoneFrom",
+    homeExchangeAmount: "homeExchangeFrom",
+  };
+  let accountId = null;
+  if (accountSelectMap[inputId]) {
+    const select = qs(accountSelectMap[inputId]);
+    if (select?.value) accountId = Number(select.value);
+  } else if (inputId === "topupAmount" && pendingTopupAccountId) {
+    accountId = pendingTopupAccountId;
+  } else if (inputId === "mobileAmount" || inputId === "vendorAmount") {
+    return "₽";
+  }
+  if (accountId && state.accounts?.length) {
+    const acc = state.accounts.find((a) => a.id === accountId);
+    if (acc?.currency) return CURRENCY_UNITS[acc.currency] ?? "денег";
+  }
+  return "денег";
+}
+
+const AMOUNT_CONFIGS = {
+  topupAmount: { min: 1 },
+  homeTransferAmount: { min: 10, max: 300000 },
+  homeByAccountAmount: { min: 10, max: 300000 },
+  homeByPhoneAmount: { min: 10, max: 300000 },
+  homeExchangeAmount: { min: 0.01 },
+  mobileAmount: { min: 100, max: 12000, unit: "₽" },
+  vendorAmount: { min: 100, max: 500000, unit: "₽" },
+};
 let recentLimit = 5;
 let pendingCloseAccountId = null;
 let pendingOtp = null;
@@ -38,7 +73,9 @@ function mapApiError(detail) {
     case "transfer_amount_exceeds_daily_limit":
       return "Превышен дневной лимит по переводам.";
     case "account_not_found":
-      return "Счёт не найден.";
+      return "Такого счёта нет в нашем банке(((";
+    case "recipient_not_found_in_our_bank":
+      return "Такого пользователя нет в нашем банке(((";
     case "forbidden_account_access":
       return "Нет доступа к этому счёту.";
     case "account_inactive":
@@ -351,15 +388,62 @@ function setAmountError(inputId, message) {
   const errorEl = qs(`${inputId}Error`);
   if (label) {
     label.classList.toggle("has-error", Boolean(message));
-    // Под полем «Сумма» одна зона сообщений: либо подсказка, либо ошибка (без дубля)
     if (inputId === "mobileAmount" || inputId === "vendorAmount") {
       const amountHint = label.querySelector(".payments-limit-hint");
-      if (amountHint) amountHint.style.display = message ? "none" : "";
+      if (amountHint) amountHint.style.display = ""; // подсказка всегда видна
     }
   }
   if (errorEl) {
     errorEl.textContent = message || "";
   }
+}
+
+/** Обновляет подсказку по лимитам: минимум всегда показан, при превышении — максимум. */
+function updateAmountHint(inputId, config, options = {}) {
+  const { min, max } = config || {};
+  const unit = config?.unit ?? getUnitForAmountField(inputId);
+  const { showEmptyError = false } = options;
+  const input = qs(inputId);
+  if (!input) return true;
+  const label = input.closest("label");
+  const hintEl =
+    inputId === "mobileAmount" || inputId === "vendorAmount"
+      ? label?.querySelector(".payments-limit-hint")
+      : qs(`${inputId}Error`);
+  if (!hintEl) return true;
+
+  const raw = input.value;
+  const value = raw ? Number(raw) : NaN;
+  const isEmpty = !raw;
+  const isInvalidNum = !isEmpty && (!Number.isFinite(value) || value <= 0);
+
+  let hintText = "";
+  let isError = false;
+
+  if (isInvalidNum) {
+    hintText = "Некорректная сумма";
+    isError = true;
+  } else if (isEmpty) {
+    hintText = typeof min === "number" ? `Минимальная сумма ${formatAmountLimit(min)} ${unit}`.trim() : "Укажите сумму";
+    isError = showEmptyError;
+  } else if (typeof min === "number" && value < min) {
+    hintText = `Минимальная сумма ${formatAmountLimit(min)} ${unit}`.trim();
+    isError = !isEmpty;
+  } else if (typeof max === "number" && value > max) {
+    hintText = `Максимальная сумма ${formatAmountLimit(max)} ${unit}`.trim();
+    isError = true;
+  } else {
+    if (typeof max === "number") {
+      hintText = `Максимальная сумма ${formatAmountLimit(max)} ${unit}`.trim();
+    } else if (typeof min === "number") {
+      hintText = `Минимальная сумма ${formatAmountLimit(min)} ${unit}`.trim();
+    }
+    isError = false;
+  }
+
+  hintEl.textContent = hintText;
+  if (label) label.classList.toggle("has-error", isError);
+  return !isError;
 }
 
 function formatAmountLimit(value) {
@@ -373,41 +457,7 @@ function formatAmountLimit(value) {
 }
 
 function validateAmountField(inputId, config, options = {}) {
-  const { min, max, unit = "₽" } = config || {};
-  const { showEmptyError = false } = options;
-  const input = qs(inputId);
-  if (!input) return true;
-
-  const raw = input.value;
-  if (!raw) {
-    if (showEmptyError) {
-      setAmountError(inputId, "Укажите сумму");
-    } else {
-      setAmountError(inputId, "");
-    }
-    return false;
-  }
-
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value <= 0) {
-    setAmountError(inputId, "Некорректная сумма");
-    return false;
-  }
-
-  if (typeof min === "number" && value < min) {
-    const formatted = formatAmountLimit(min);
-    setAmountError(inputId, `Минимальная сумма ${formatted} ${unit}`.trim());
-    return false;
-  }
-
-  if (typeof max === "number" && value > max) {
-    const formatted = formatAmountLimit(max);
-    setAmountError(inputId, `Максимальная сумма ${formatted} ${unit}`.trim());
-    return false;
-  }
-
-  setAmountError(inputId, "");
-  return true;
+  return updateAmountHint(inputId, config, options);
 }
 
 function validateVendorAccountNumber(options = {}) {
@@ -542,6 +592,11 @@ async function handleOtpSubmit() {
         method: "POST",
         body: JSON.stringify({ ...payload, otp_code: code }),
       });
+    } else if (kind === "transfer-by-phone") {
+      await api("/transfers/by-phone", {
+        method: "POST",
+        body: JSON.stringify({ ...payload, otp_code: code }),
+      });
     } else if (kind === "topup") {
       await api(`/accounts/${payload.account_id}/topup`, {
         method: "POST",
@@ -639,7 +694,7 @@ function renderAccounts() {
   listEl.innerHTML = "";
 
   if (!state.accounts.length) {
-    listEl.innerHTML = '<p class="empty">Нет Активных Счетов. Откройте Первый Счет.</p>';
+    listEl.innerHTML = '<p class="empty" data-testid="empty-accounts">Нет Активных Счетов. Откройте Первый Счет.</p>';
     return;
   }
 
@@ -669,6 +724,7 @@ function renderAccounts() {
 
     const row = document.createElement("div");
     row.className = "account-item";
+    row.dataset.accountId = String(account.id);
     row.dataset.fullAccount = fullNumber;
     row.dataset.maskedLabel = maskedLabel;
     row.dataset.fullLabel = fullLabel;
@@ -682,7 +738,8 @@ function renderAccounts() {
         </div>
       </div>
       <div class="account-actions">
-        <button class="btn-mini warn" data-close-id="${account.id}" type="button">Закрыть</button>
+        <button class="btn-mini" data-topup-id="${account.id}" type="button" data-testid="btn-account-topup">Пополнить</button>
+        <button class="btn-mini warn" data-close-id="${account.id}" type="button" data-testid="btn-account-close">Закрыть</button>
       </div>
     `;
     listEl.appendChild(row);
@@ -699,6 +756,7 @@ function fillAccountSelects() {
     "cheatAccountSelect",
     "mobileAccount",
     "vendorAccount",
+    "homeByPhoneFrom",
   ];
   const rubOnlyIds = ["mobileAccount", "vendorAccount"];
   const options = state.accounts.map((a) => ({
@@ -716,11 +774,21 @@ function fillAccountSelects() {
       fillExchangeToSelect();
       return;
     }
+    const isPhoneFrom = id === "homeByPhoneFrom";
     const filtered = rubOnlyIds.includes(id)
       ? options.filter((opt) => opt.currency === "RUB" && opt.account_type === "DEBIT")
-      : id === "homeTransferFrom" || id === "homeByAccountFrom" || id === "homeExchangeFrom"
+      : id === "homeTransferFrom" || id === "homeByAccountFrom" || id === "homeExchangeFrom" || isPhoneFrom
       ? options.filter((opt) => opt.account_type === "DEBIT")
       : options;
+    if (isPhoneFrom) {
+      filtered.forEach((opt) => {
+        const option = document.createElement("option");
+        option.value = String(opt.id);
+        option.textContent = opt.label;
+        select.appendChild(option);
+      });
+      return;
+    }
     filtered.forEach((opt) => {
       const option = document.createElement("option");
       option.value = String(opt.id);
@@ -728,6 +796,87 @@ function fillAccountSelects() {
       select.appendChild(option);
     });
   });
+}
+
+async function fillHomeByPhoneBankSelect(phone) {
+  const select = qs("homeByPhoneBank");
+  if (!select) return;
+  const raw = (phone || "").replace(/\s/g, "");
+  const validPhone = /^\+7\d{10}$/.test(raw);
+  const warningEl = qs("homeByPhoneNotInBankWarning");
+  if (warningEl) warningEl.hidden = true;
+  select.innerHTML = "";
+  if (!validPhone) {
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Введите номер телефона";
+    placeholder.disabled = true;
+    select.appendChild(placeholder);
+    return;
+  }
+  try {
+    const data = await api(`/transfers/by-phone/check?phone=${encodeURIComponent(raw)}`);
+    if (warningEl && data && data.inOurBank === false) {
+      warningEl.textContent = "Такого пользователя нет в нашем банке(((";
+      warningEl.hidden = false;
+    }
+    const banks = (data && data.availableBanks) || [];
+    banks.forEach((b) => {
+      const opt = document.createElement("option");
+      opt.value = b.id;
+      opt.textContent = b.label;
+      select.appendChild(opt);
+    });
+    if (banks.length === 0) {
+      const empty = document.createElement("option");
+      empty.value = "";
+      empty.textContent = "Нет доступных банков";
+      empty.disabled = true;
+      select.appendChild(empty);
+    }
+  } catch (_) {
+    const err = document.createElement("option");
+    err.value = "";
+    err.textContent = "Ошибка загрузки";
+    err.disabled = true;
+    select.appendChild(err);
+  }
+}
+
+const PRIMARY_ACCOUNTS_CURRENCIES = ["RUB", "USD", "EUR", "CNY"];
+
+function fillPrimaryAccountsModal() {
+  const container = qs("primaryAccountsFields");
+  if (!container) return;
+  container.innerHTML = "";
+  let hasAny = false;
+  PRIMARY_ACCOUNTS_CURRENCIES.forEach((currency) => {
+    const accounts = state.accounts.filter(
+      (a) => a.currency === currency && a.account_type === "DEBIT" && a.is_active !== false
+    );
+    if (accounts.length === 0) return;
+    hasAny = true;
+    const label = document.createElement("label");
+    label.innerHTML = `<span>${currency}</span>`;
+    const select = document.createElement("select");
+    select.dataset.currency = currency;
+    select.required = true;
+    accounts.forEach((a) => {
+      const opt = document.createElement("option");
+      opt.value = String(a.id);
+      opt.textContent = maskAccount(a.account_number);
+      if (a.is_primary) opt.selected = true;
+      select.appendChild(opt);
+    });
+    container.appendChild(label);
+    container.appendChild(select);
+  });
+  if (!hasAny) {
+    const msg = document.createElement("p");
+    msg.className = "modal-text small";
+    msg.textContent = "Нет активных счетов для настройки.";
+    container.appendChild(msg);
+  }
 }
 
 function fillExchangeToSelect() {
@@ -1121,28 +1270,37 @@ function wirePaymentCategories() {
   }
 }
 
+const VALID_PAGE_IDS = ["home", "payments", "chat", "more"];
+
 function wirePages() {
   const pageButtons = document.querySelectorAll("[data-page-target]");
   const views = document.querySelectorAll("[data-page-view]");
 
   const applyPage = (target) => {
-    localStorage.setItem("sb_last_page", target);
+    const normalized = (target || "home").toLowerCase();
+    const pageId = VALID_PAGE_IDS.includes(normalized) ? normalized : "home";
+    localStorage.setItem("sb_last_page", pageId);
+
     pageButtons.forEach((btn) =>
-      btn.classList.toggle("topnav-tab-active", btn.dataset.pageTarget === target)
+      btn.classList.toggle("topnav-tab-active", btn.dataset.pageTarget === pageId)
     );
     const bottomButtons = document.querySelectorAll(".nav-item");
     bottomButtons.forEach((btn) =>
-      btn.classList.toggle("nav-item-active", btn.dataset.pageTarget === target)
+      btn.classList.toggle("nav-item-active", btn.dataset.pageTarget === pageId)
     );
 
     let activated = false;
     views.forEach((view) => {
-      const isActive = view.dataset.pageView === target;
+      const isActive = view.dataset.pageView === pageId;
       view.classList.toggle("page-view-active", isActive);
       if (isActive) activated = true;
     });
 
-    // Если по какой-то причине нужный view не найден, всегда показываем home
+    if (pageId === "payments") {
+      updateAmountHint("mobileAmount", AMOUNT_CONFIGS.mobileAmount);
+      updateAmountHint("vendorAmount", AMOUNT_CONFIGS.vendorAmount);
+    }
+
     if (!activated) {
       views.forEach((view) =>
         view.classList.toggle("page-view-active", view.dataset.pageView === "home")
@@ -1163,8 +1321,9 @@ function wirePages() {
     btn.addEventListener("click", () => applyPage(btn.dataset.pageTarget));
   });
 
-  const saved = localStorage.getItem("sb_last_page");
-  if (saved && saved !== "home") {
+  const savedRaw = localStorage.getItem("sb_last_page");
+  const saved = savedRaw ? savedRaw.toLowerCase() : "";
+  if (VALID_PAGE_IDS.includes(saved)) {
     applyPage(saved);
   }
 }
@@ -1206,20 +1365,13 @@ function wireActions() {
     window.location.href = "./index.html";
   });
 
-  const amountConfigs = {
-    topupAmount: { min: 1, unit: "₽" },
-    homeTransferAmount: { min: 10, max: 300000, unit: "₽" },
-    homeByAccountAmount: { min: 10, max: 300000, unit: "₽" },
-    homeExchangeAmount: { min: 0.01, unit: "" },
-    mobileAmount: { min: 100, max: 12000, unit: "₽" },
-    vendorAmount: { min: 100, max: 500000, unit: "₽" },
-  };
+  const amountConfigs = AMOUNT_CONFIGS;
 
   Object.entries(amountConfigs).forEach(([id, config]) => {
     const input = qs(id);
     if (!input) return;
-    input.addEventListener("input", () => validateAmountField(id, config));
-    input.addEventListener("blur", () => validateAmountField(id, config));
+    input.addEventListener("input", () => updateAmountHint(id, config));
+    input.addEventListener("blur", () => updateAmountHint(id, config));
   });
 
   const avatar = qs("userAvatar");
@@ -1265,7 +1417,10 @@ function wireActions() {
       await loadTransfersDailyUsage();
       modal.hidden = false;
       modal.classList.add("show");
-      setTimeout(() => updateLimitProgressForSelect("homeTransferFrom", "homeTransferLimitLabel", "homeTransferLimitFill"), 0);
+      setTimeout(() => {
+        updateLimitProgressForSelect("homeTransferFrom", "homeTransferLimitLabel", "homeTransferLimitFill");
+        updateAmountHint("homeTransferAmount", amountConfigs.homeTransferAmount);
+      }, 0);
     });
   }
 
@@ -1277,7 +1432,30 @@ function wireActions() {
       await loadTransfersDailyUsage();
       modal.hidden = false;
       modal.classList.add("show");
-      setTimeout(() => updateLimitProgressForSelect("homeByAccountFrom", "homeByAccountLimitLabel", "homeByAccountLimitFill"), 0);
+      setTimeout(() => {
+        updateLimitProgressForSelect("homeByAccountFrom", "homeByAccountLimitLabel", "homeByAccountLimitFill");
+        updateAmountHint("homeByAccountAmount", amountConfigs.homeByAccountAmount);
+      }, 0);
+    });
+  }
+
+  const homeTransferByPhoneBtn = qs("homeTransferByPhoneBtn");
+  if (homeTransferByPhoneBtn) {
+    homeTransferByPhoneBtn.addEventListener("click", async () => {
+      const modal = qs("homeByPhoneModal");
+      if (!modal) return;
+      await loadTransfersDailyUsage();
+      fillHomeByPhoneBankSelect("");
+      modal.hidden = false;
+      modal.classList.add("show");
+      setTimeout(() => {
+        updateLimitProgressForSelect("homeByPhoneFrom", "homeByPhoneLimitLabel", "homeByPhoneLimitFill");
+        updateAmountHint("homeByPhoneAmount", amountConfigs.homeByPhoneAmount);
+      }, 0);
+      const phoneInput = qs("homeByPhoneNumber");
+      if (phoneInput && !phoneInput.value) {
+        phoneInput.value = "+7";
+      }
     });
   }
 
@@ -1299,6 +1477,7 @@ function wireActions() {
       modal.classList.add("show");
       updateLimitProgressForSelect("homeExchangeFrom", "", "homeExchangeLimitFill");
       updateExchangeRateInfo();
+      updateAmountHint("homeExchangeAmount", amountConfigs.homeExchangeAmount);
     });
   }
 
@@ -1321,6 +1500,18 @@ function wireActions() {
   const profilePhoneInput = qs("phone");
   if (profilePhoneInput) {
     profilePhoneInput.addEventListener("input", () => applyPhoneMask(profilePhoneInput));
+  }
+
+  const transferPhoneInput = qs("homeByPhoneNumber");
+  if (transferPhoneInput) {
+    transferPhoneInput.addEventListener("input", () => {
+      applyPhoneMask(transferPhoneInput);
+      if (window._homeByPhoneBankDebounce) clearTimeout(window._homeByPhoneBankDebounce);
+      window._homeByPhoneBankDebounce = setTimeout(() => {
+        fillHomeByPhoneBankSelect(transferPhoneInput.value);
+      }, 400);
+    });
+    transferPhoneInput.addEventListener("blur", () => fillHomeByPhoneBankSelect(transferPhoneInput.value));
   }
 
   const firstNameInput = qs("firstName");
@@ -1353,7 +1544,11 @@ function wireActions() {
 
   const homeByAccountNumberInput = qs("homeByAccountNumber");
   if (homeByAccountNumberInput) {
-    homeByAccountNumberInput.addEventListener("input", () => stripAllSpacesInput(homeByAccountNumberInput));
+    homeByAccountNumberInput.addEventListener("input", () => {
+      const v = homeByAccountNumberInput.value.replace(/\D/g, "").slice(0, 32);
+      if (homeByAccountNumberInput.value !== v) homeByAccountNumberInput.value = v;
+      stripAllSpacesInput(homeByAccountNumberInput);
+    });
     homeByAccountNumberInput.addEventListener("keydown", preventSpaceKey);
   }
 
@@ -1633,9 +1828,10 @@ function wireActions() {
 
   const homeTransferFromSelect = qs("homeTransferFrom");
   if (homeTransferFromSelect) {
-    homeTransferFromSelect.addEventListener("change", () =>
-      updateLimitProgressForSelect("homeTransferFrom", "homeTransferLimitLabel", "homeTransferLimitFill")
-    );
+    homeTransferFromSelect.addEventListener("change", () => {
+      updateLimitProgressForSelect("homeTransferFrom", "homeTransferLimitLabel", "homeTransferLimitFill");
+      updateAmountHint("homeTransferAmount", amountConfigs.homeTransferAmount);
+    });
   }
 
   const homeByAccountModal = qs("homeByAccountModal");
@@ -1680,9 +1876,73 @@ function wireActions() {
 
   const homeByAccountFromSelect = qs("homeByAccountFrom");
   if (homeByAccountFromSelect) {
-    homeByAccountFromSelect.addEventListener("change", () =>
-      updateLimitProgressForSelect("homeByAccountFrom", "homeByAccountLimitLabel", "homeByAccountLimitFill")
-    );
+    homeByAccountFromSelect.addEventListener("change", () => {
+      updateLimitProgressForSelect("homeByAccountFrom", "homeByAccountLimitLabel", "homeByAccountLimitFill");
+      updateAmountHint("homeByAccountAmount", amountConfigs.homeByAccountAmount);
+    });
+  }
+
+  const homeByPhoneModal = qs("homeByPhoneModal");
+  const homeByPhoneForm = qs("homeByPhoneForm");
+  const homeByPhoneCancel = qs("homeByPhoneCancel");
+  const hideHomeByPhoneModal = () => {
+    if (!homeByPhoneModal) return;
+    homeByPhoneModal.classList.remove("show");
+    homeByPhoneModal.hidden = true;
+  };
+
+  if (homeByPhoneCancel) {
+    homeByPhoneCancel.addEventListener("click", hideHomeByPhoneModal);
+  }
+
+  if (homeByPhoneForm) {
+    homeByPhoneForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const phoneInput = qs("homeByPhoneNumber");
+      const rawPhone = phoneInput ? phoneInput.value.replace(/\s/g, "") : "";
+      if (!/^\+7\d{10}$/.test(rawPhone)) {
+        showToast("Телефон: +7 и 10 цифр (например +79991234567)", true);
+        return;
+      }
+      const bankSelect = qs("homeByPhoneBank");
+      const recipientBankId = bankSelect ? bankSelect.value : "";
+      if (!recipientBankId) {
+        showToast("Выберите банк получателя", true);
+        return;
+      }
+      if (
+        !validateAmountField("homeByPhoneAmount", amountConfigs.homeByPhoneAmount, {
+          showEmptyError: true,
+        })
+      ) {
+        return;
+      }
+      const payload = {
+        from_account_id: Number(qs("homeByPhoneFrom").value),
+        phone: rawPhone,
+        amount: qs("homeByPhoneAmount").value,
+        recipient_bank_id: recipientBankId,
+      };
+      openOtpModal({
+        kind: "transfer-by-phone",
+        payload,
+        async onSuccess() {
+          homeByPhoneForm.reset();
+          hideHomeByPhoneModal();
+          await Promise.all([loadAccounts(), loadTransactions()]);
+        },
+        errorPrefix: "Ошибка перевода по номеру телефона",
+        successMessage: "Перевод по номеру телефона выполнен",
+      });
+    });
+  }
+
+  const homeByPhoneFromSelect = qs("homeByPhoneFrom");
+  if (homeByPhoneFromSelect) {
+    homeByPhoneFromSelect.addEventListener("change", () => {
+      updateLimitProgressForSelect("homeByPhoneFrom", "homeByPhoneLimitLabel", "homeByPhoneLimitFill");
+      updateAmountHint("homeByPhoneAmount", amountConfigs.homeByPhoneAmount);
+    });
   }
 
   const homeExchangeModal = qs("homeExchangeModal");
@@ -1783,6 +2043,7 @@ function wireActions() {
       exchangeFrom.addEventListener("change", () => {
         fillExchangeToSelect();
         updateExchangeRateInfo();
+        updateAmountHint("homeExchangeAmount", amountConfigs.homeExchangeAmount);
       });
     }
     if (exchangeTo) {
@@ -1853,6 +2114,7 @@ function wireActions() {
           amountInput.value = "";
           amountInput.focus();
         }
+        updateAmountHint("topupAmount", amountConfigs.topupAmount);
       }
       return;
     }
@@ -2284,6 +2546,51 @@ function wireActions() {
       showToast(`Ошибка обновления профиля: ${error.message}`, true);
     }
   });
+
+  const primaryAccountsModal = qs("primaryAccountsModal");
+  const primaryAccountsBtn = qs("primaryAccountsBtn");
+  const primaryAccountsCancel = qs("primaryAccountsCancel");
+  const primaryAccountsForm = qs("primaryAccountsForm");
+  const hidePrimaryAccountsModal = () => {
+    if (!primaryAccountsModal) return;
+    primaryAccountsModal.classList.remove("show");
+    primaryAccountsModal.hidden = true;
+  };
+  if (primaryAccountsBtn) {
+    primaryAccountsBtn.addEventListener("click", () => {
+      fillPrimaryAccountsModal();
+      if (primaryAccountsModal) {
+        primaryAccountsModal.hidden = false;
+        primaryAccountsModal.classList.add("show");
+      }
+    });
+  }
+  if (primaryAccountsCancel) {
+    primaryAccountsCancel.addEventListener("click", hidePrimaryAccountsModal);
+  }
+  if (primaryAccountsForm) {
+    primaryAccountsForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const container = qs("primaryAccountsFields");
+      const selects = container ? container.querySelectorAll("select") : [];
+      if (selects.length === 0) {
+        showToast("Нет счетов для настройки", true);
+        return;
+      }
+      try {
+        for (const select of selects) {
+          const accountId = select.value;
+          if (!accountId) continue;
+          await api(`/accounts/${accountId}/primary`, { method: "POST" });
+        }
+        showToast("Приоритетные счета сохранены");
+        hidePrimaryAccountsModal();
+        await loadAccounts();
+      } catch (error) {
+        showToast(`Не удалось сохранить: ${error.message}`, true);
+      }
+    });
+  }
 }
 
 (async function init() {
