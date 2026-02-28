@@ -260,10 +260,16 @@ function getTransactionMeta(tx) {
   } else if (tx.type === "PAYMENT") {
     kind = "payment";
   } else if (tx.type === "TRANSFER") {
-    if (description.startsWith("p2p_transfer_by_account")) {
-      kind = "transfer-out";
-    } else if (description.startsWith("fx_exchange")) {
+    if (description.startsWith("fx_exchange")) {
       kind = "fx";
+    } else if (description === "p2p_transfer") {
+      kind = "transfer-own";
+    } else if (
+      description.startsWith("p2p_transfer_by_account") ||
+      description.startsWith("p2p_transfer_by_phone") ||
+      description.startsWith("p2p_by_phone_external")
+    ) {
+      kind = "transfer-out";
     } else {
       kind = "transfer-own";
     }
@@ -408,10 +414,18 @@ function getTransactionDetailFields(tx) {
       fields.push({ label: "Откуда", value: fromLabel || "Счёт списания" });
       break;
     }
-    case "topup":
+    case "topup": {
+      const incomeLabel = getIncomeTypeLabel(desc);
+      const sourceLabel =
+        incomeLabel === "Зарплата"
+          ? "ShlapaBank (зарплата)"
+          : incomeLabel === "Подарок"
+          ? "ShlapaBank (подарок)"
+          : "ShlapaBank";
       fields.push({ label: "Куда", value: toLabel || "Счёт" });
-      fields.push({ label: "Откуда", value: "Внешний источник" });
+      fields.push({ label: "Откуда", value: sourceLabel });
       break;
+    }
     case "transfer-own":
     case "fx":
       fields.push({ label: "Откуда", value: fromLabel || "Счёт" });
@@ -487,7 +501,10 @@ function getTransactionTitle(tx, meta) {
       return "Оплата услуг";
     case "transfer-own":
       return "Между своими счетами";
-    case "transfer-out":
+    case "transfer-out": {
+      const ownsFrom = tx.from_account_id && (state.accounts || []).map((a) => a.id).includes(tx.from_account_id);
+      const ownsTo = tx.to_account_id && (state.accounts || []).map((a) => a.id).includes(tx.to_account_id);
+      if (!ownsFrom && ownsTo) return "Перевод"; // получен
       if (description.startsWith("p2p_by_phone_external:")) {
         const bankCode = description.split(":")[1];
         return BANK_LABELS[bankCode] || bankCode || "Банк получателя";
@@ -495,10 +512,15 @@ function getTransactionTitle(tx, meta) {
       if (description.startsWith("p2p_transfer_by_account")) return "По номеру счёта";
       if (description.startsWith("p2p_transfer_by_phone")) return "По номеру телефона";
       return "Перевод";
+    }
     case "fx":
       return "Обмен валют";
-    case "topup":
-      return toLabel || "Пополнение";
+    case "topup": {
+      const incomeLabel = getIncomeTypeLabel(description);
+      if (incomeLabel === "Зарплата") return "Зарплата от банка";
+      if (incomeLabel === "Подарок") return "Подарок от банка";
+      return incomeLabel ? `${incomeLabel} от банка` : "Пополнение от банка";
+    }
     default:
       return tx.type || "Операция";
   }
@@ -518,8 +540,12 @@ function getTransactionTypeLabel(tx, meta) {
       return "Перевод";
     case "fx":
       return "Обмен валют";
-    case "topup":
-      return "Пополнение";
+    case "topup": {
+      const d = tx.description || "";
+      if (d.startsWith("self_topup:salary") || d === "admin_credit") return "Пополнение от банка (зарплата)";
+      if (d.startsWith("self_topup:gift")) return "Пополнение от банка (подарок)";
+      return "Пополнение от банка";
+    }
     default:
       return tx.type || "Операция";
   }
@@ -927,6 +953,12 @@ async function handleOtpSubmit() {
         method: "POST",
         body: JSON.stringify({ ...payload, otp_code: code }),
       });
+    } else if (kind === "topup") {
+      const { account_id, amount, purpose } = payload;
+      await api(`/accounts/${account_id}/topup`, {
+        method: "POST",
+        body: JSON.stringify({ amount, otp_code: code, purpose: purpose || undefined }),
+      });
     } else {
       // vendor и все категории (internet, utilities, education, charity) — один эндпоинт
       await api("/payments/vendor", {
@@ -1037,13 +1069,122 @@ function renderBalances() {
   });
 }
 
+/** Цвета для полосок по валютам */
+const STATS_CURRENCY_COLORS = {
+  RUB: "#dc2626",
+  USD: "#2563eb",
+  EUR: "#059669",
+  CNY: "#d97706",
+};
+
+/** Маппинг description → читаемая подпись дохода */
+function getIncomeTypeLabel(desc) {
+  if (!desc) return "Пополнение";
+  if (desc.startsWith("self_topup:salary") || desc === "admin_credit") return "Зарплата";
+  if (desc.startsWith("self_topup:gift") || desc === "helper_topup:gift") return "Подарок";
+  if (desc.startsWith("self_topup:") || desc.startsWith("helper_topup:")) return desc.split(":")[1] || "Пополнение";
+  if (desc === "helper_topup") return "Пополнение";
+  return "Пополнение";
+}
+
+const CURRENCY_ORDER = ["RUB", "USD", "EUR", "CNY"];
+
+function computeStats() {
+  const ownedIds = (state.accounts || []).map((a) => a.id);
+  const incomeByCurrency = {};
+  const expenseByCurrency = {};
+
+  (state.transactions || []).forEach((tx) => {
+    const meta = getTransactionMeta(tx);
+    const amount = Number(tx.amount) || 0;
+    const currency = tx.currency || "RUB";
+    const ownsFrom = tx.from_account_id && ownedIds.includes(tx.from_account_id);
+    const ownsTo = tx.to_account_id && ownedIds.includes(tx.to_account_id);
+    const desc = tx.description || "";
+
+    if (meta.kind === "topup") {
+      if (!incomeByCurrency[currency]) incomeByCurrency[currency] = { salary: 0, gift: 0, transfer: 0, topup: 0 };
+      const label = getIncomeTypeLabel(desc);
+      if (label === "Зарплата") incomeByCurrency[currency].salary += amount;
+      else if (label === "Подарок") incomeByCurrency[currency].gift += amount;
+      else if (label === "Перевод") incomeByCurrency[currency].transfer += amount;
+      else incomeByCurrency[currency].topup += amount;
+    } else if (meta.kind === "transfer-out" && !ownsFrom && ownsTo) {
+      if (!incomeByCurrency[currency]) incomeByCurrency[currency] = { salary: 0, gift: 0, transfer: 0, topup: 0 };
+      incomeByCurrency[currency].transfer += amount;
+    } else if (meta.kind === "payment" || (meta.kind === "transfer-out" && ownsFrom && !ownsTo)) {
+      if (!expenseByCurrency[currency]) expenseByCurrency[currency] = { payment: 0, transfer: 0, fx: 0 };
+      if (meta.kind === "payment") expenseByCurrency[currency].payment += amount;
+      else expenseByCurrency[currency].transfer += amount;
+    } else if (meta.kind === "fx") {
+      if (!expenseByCurrency[currency]) expenseByCurrency[currency] = { payment: 0, transfer: 0, fx: 0 };
+      expenseByCurrency[currency].fx += amount;
+    }
+  });
+
+  return { incomeByCurrency, expenseByCurrency };
+}
+
+function renderStats() {
+  const summaryEl = qs("statsSummary");
+  if (!summaryEl) return;
+
+  const { incomeByCurrency, expenseByCurrency } = computeStats();
+
+  const incomeTotals = {};
+  const expenseTotals = {};
+
+  CURRENCY_ORDER.forEach((c) => {
+    const inc = incomeByCurrency[c] || { salary: 0, gift: 0, transfer: 0, topup: 0 };
+    const exp = expenseByCurrency[c] || { payment: 0, transfer: 0, fx: 0 };
+    incomeTotals[c] = inc.salary + inc.gift + inc.transfer + inc.topup;
+    expenseTotals[c] = exp.payment + exp.transfer + exp.fx;
+  });
+
+  function renderBar(label, data, isIncome) {
+    const total = CURRENCY_ORDER.reduce((s, c) => s + (data[c] || 0), 0);
+    let html = `<div class="stats-bar-section ${isIncome ? "stats-income" : "stats-expense"}">`;
+    html += `<div class="stats-bar-header">`;
+    html += `<span class="stats-bar-title">${escapeHtml(label)}</span>`;
+    html += `<span class="stats-bar-total">${total > 0 ? CURRENCY_ORDER.filter((c) => (data[c] || 0) > 0).map((c) => formatAmount(data[c], c)).join(" · ") : "—"}</span>`;
+    html += `</div>`;
+    html += `<div class="stats-bar-stack">`;
+    if (total > 0) {
+      CURRENCY_ORDER.forEach((curr) => {
+        const val = data[curr] || 0;
+        if (val <= 0) return;
+        const pct = (val / total) * 100;
+        const color = STATS_CURRENCY_COLORS[curr] || "#666";
+        html += `<div class="stats-bar-segment" style="width:${pct}%;background:${color}" title="${escapeHtml(curr)}: ${formatAmount(val, curr)}"></div>`;
+      });
+    } else {
+      html += `<div class="stats-bar-segment stats-bar-empty" style="width:100%"></div>`;
+    }
+    html += `</div>`;
+    html += `<div class="stats-bar-legend">`;
+    CURRENCY_ORDER.forEach((curr) => {
+      const val = data[curr] || 0;
+      const color = STATS_CURRENCY_COLORS[curr] || "#666";
+      html += `<span class="stats-bar-legend-item"><span class="stats-bar-dot" style="background:${color}"></span>${escapeHtml(curr)} ${val > 0 ? formatAmount(val, curr) : "—"}</span>`;
+    });
+    html += `</div></div>`;
+    return html;
+  }
+
+  let html = "";
+  html += renderBar("Доход", incomeTotals, true);
+  html += renderBar("Расход", expenseTotals, false);
+
+  summaryEl.innerHTML = html;
+}
+
 function renderAccounts() {
   const listEl = qs("accountsList");
   if (!listEl) return;
   listEl.innerHTML = "";
 
   if (!state.accounts.length) {
-    listEl.innerHTML = '<p class="empty" data-testid="empty-accounts">Нет Активных Счетов. Откройте Первый Счет.</p>';
+    listEl.innerHTML = '<p class="empty" data-testid="empty-accounts">Нет активных счетов. Откройте первый счёт.</p>';
     return;
   }
 
@@ -1087,7 +1228,7 @@ function renderAccounts() {
         </div>
       </div>
       <div class="account-actions">
-        <button class="btn-mini warn" data-close-id="${account.id}" type="button" data-testid="btn-account-close">Закрыть</button>
+        <button class="btn-mini warn" data-close-id="${account.id}" type="button" data-testid="btn-account-close">Закрыть счёт</button>
       </div>
     `;
     listEl.appendChild(row);
@@ -1120,6 +1261,10 @@ function fillAccountSelects() {
     select.innerHTML = "";
     if (id === "homeExchangeTo") {
       fillExchangeToSelect();
+      return;
+    }
+    if (id === "homeTransferTo") {
+      fillHomeTransferToSelect();
       return;
     }
     const isPhoneFrom = id === "homeByPhoneFrom";
@@ -1227,6 +1372,44 @@ function fillPrimaryAccountsModal() {
   }
 }
 
+function fillHomeTransferToSelect() {
+  const toSelect = qs("homeTransferTo");
+  const fromSelect = qs("homeTransferFrom");
+  const hintEl = qs("homeTransferToHint");
+  const submitBtn = qs("homeTransferForm")?.querySelector('button[type="submit"]');
+  if (!toSelect || !fromSelect) return;
+  toSelect.innerHTML = "";
+  toSelect.required = true;
+  if (hintEl) hintEl.hidden = true;
+  if (submitBtn) submitBtn.disabled = false;
+
+  const fromId = fromSelect.value;
+  if (!fromId || !state.accounts.length) return;
+  const fromAcc = state.accounts.find((a) => String(a.id) === fromId);
+  if (!fromAcc) return;
+  const fromCurrency = fromAcc.currency;
+  const options = state.accounts
+    .filter((a) => a.account_type === "DEBIT" && a.currency === fromCurrency && String(a.id) !== fromId)
+    .map((a) => ({ id: a.id, label: `${a.currency} · ${maskAccount(a.account_number)}` }));
+  if (options.length === 0) {
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Нет другого счёта в этой валюте";
+    placeholder.disabled = true;
+    toSelect.appendChild(placeholder);
+    toSelect.required = false;
+    if (hintEl) hintEl.hidden = false;
+    if (submitBtn) submitBtn.disabled = true;
+    return;
+  }
+  options.forEach((opt) => {
+    const option = document.createElement("option");
+    option.value = String(opt.id);
+    option.textContent = opt.label;
+    toSelect.appendChild(option);
+  });
+}
+
 function fillExchangeToSelect() {
   const toSelect = qs("homeExchangeTo");
   const fromSelect = qs("homeExchangeFrom");
@@ -1261,20 +1444,25 @@ function renderRules() {
   // Специального отдельного блока сейчас нет.
 }
 
+/** Фиксированные курсы (запасной вариант при недоступности API) */
+const FALLBACK_RATES = { RUB: "1", USD: "95", EUR: "105", CNY: "13.5" };
+
 function renderExchangeRates() {
   const el = qs("exchangeRatesBox");
   if (!el) return;
-  if (!state.exchangeRates) {
-    el.textContent = "Курс валют недоступен. Попробуйте позже.";
-    return;
-  }
+  const data = state.exchangeRates || { base: "RUB", toRub: FALLBACK_RATES };
+  const rates = data.toRub && typeof data.toRub === "object" ? data.toRub : FALLBACK_RATES;
+  const base = data.base || "RUB";
 
-  const { base, toRub } = state.exchangeRates;
-  const lines = Object.entries(toRub)
-    .map(([code, rate]) => `1 ${code} = ${Number(rate).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ${base}`)
-    .join("<br />");
+  const lines = Object.entries(rates)
+    .filter(([code]) => code !== base)
+    .map(
+      ([code, rate]) =>
+        `<div class="exchange-rate-row"><span class="exchange-rate-pair">1 ${code}</span><span class="exchange-rate-arrow">=</span><span class="exchange-rate-value">${Number(rate).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ${base}</span></div>`
+    )
+    .join("");
 
-  el.innerHTML = `<strong>Фиксированный курс</strong><br />${lines}`;
+  el.innerHTML = `<div class="exchange-rates-title">Курс валют</div><div class="exchange-rates-list">${lines}</div>`;
 }
 
 function renderSettings() {
@@ -1497,6 +1685,7 @@ async function loadTransactions() {
   const data = await api("/transactions");
   state.transactions = data;
   renderTransactions();
+  renderStats();
   recentLimit = 5;
   renderRecentTransactionsHome();
 }
@@ -1508,8 +1697,13 @@ async function loadPaymentsLookups() {
 }
 
 async function loadExchangeRates() {
-  const data = await api("/transfers/rates");
-  state.exchangeRates = data;
+  try {
+    const data = await api("/transfers/rates");
+    state.exchangeRates = data;
+  } catch (_) {
+    state.exchangeRates = null;
+  }
+  renderExchangeRates();
 }
 
 async function loadSettings() {
@@ -1801,7 +1995,15 @@ async function loadData() {
     api("/payments/mobile/operators"),
     api("/payments/vendor/providers"),
     api("/settings"),
+    api("/transfers/rates"),
   ]);
+
+  const hasAuthError = results.some(
+    (r) => r.status === "rejected" && (r.reason?.code === "invalid_token" || r.reason?.status === 401)
+  );
+  if (hasAuthError) {
+    return;
+  }
 
   const map = (index, fallback) => (results[index].status === "fulfilled" ? results[index].value : fallback);
   state.profile = map(0, null);
@@ -1810,7 +2012,7 @@ async function loadData() {
   state.operators = map(3, { operators: [] }).operators || [];
   state.providers = map(4, { providers: [] }).providers || [];
   state.settings = map(5, null);
-  state.transfersInfo = null;
+  state.exchangeRates = map(6, null);
 
   renderProfile();
   renderBalances();
@@ -1819,9 +2021,11 @@ async function loadData() {
   renderRules();
   renderSettings();
   renderTransactions();
+  renderStats();
   recentLimit = 5;
   renderRecentTransactionsHome();
   fillPaymentLookups();
+  renderExchangeRates();
 }
 
 function wireActions() {
@@ -1949,6 +2153,7 @@ function wireActions() {
       const modal = qs("homeTransferModal");
       if (!modal) return;
       await loadTransfersDailyUsage();
+      fillHomeTransferToSelect();
       modal.hidden = false;
       modal.classList.add("show");
       setTimeout(() => {
@@ -2219,12 +2424,23 @@ function wireActions() {
   if (homeTransferForm) {
     homeTransferForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const fromId = qs("homeTransferFrom")?.value;
+      const toId = qs("homeTransferTo")?.value;
+      const submitBtn = homeTransferForm.querySelector('button[type="submit"]');
+      if (submitBtn?.disabled || !toId) {
+        showToast("Для перевода нужны минимум два счёта в одной валюте.", true);
+        return;
+      }
+      if (fromId && toId && fromId === toId) {
+        showToast("Нельзя переводить на тот же счёт.", true);
+        return;
+      }
       if (!validateAmountField("homeTransferAmount", amountConfigs.homeTransferAmount, { showEmptyError: true })) {
         return;
       }
       const payload = {
-        from_account_id: Number(qs("homeTransferFrom").value),
-        to_account_id: Number(qs("homeTransferTo").value),
+        from_account_id: Number(fromId),
+        to_account_id: Number(toId),
         amount: qs("homeTransferAmount").value,
       };
       openOtpModal({
@@ -2353,6 +2569,7 @@ function wireActions() {
   const homeTransferFromSelect = qs("homeTransferFrom");
   if (homeTransferFromSelect) {
     homeTransferFromSelect.addEventListener("change", () => {
+      fillHomeTransferToSelect();
       updateLimitProgressForSelect("homeTransferFrom", "homeTransferLimitLabel", "homeTransferLimitFill");
       updateAmountHint("homeTransferAmount", amountConfigs.homeTransferAmount);
     });
@@ -2473,6 +2690,7 @@ function wireActions() {
   const homeExchangeForm = qs("homeExchangeForm");
   const homeExchangeCancel = qs("homeExchangeCancel");
   const homeExchangeRateInfo = qs("homeExchangeRateInfo");
+  const homeExchangeRateWrap = qs("homeExchangeRateWrap");
   const hideHomeExchangeModal = () => {
     if (!homeExchangeModal) return;
     homeExchangeModal.classList.remove("show");
@@ -2492,17 +2710,20 @@ function wireActions() {
     const fromAcc = state.accounts.find((a) => a.id === Number(fromSel.value));
     const toAcc = state.accounts.find((a) => a.id === Number(toSel.value));
     if (!fromAcc || !toAcc) {
+      if (homeExchangeRateWrap) homeExchangeRateWrap.hidden = true;
       homeExchangeRateInfo.textContent = "";
       return;
     }
 
     // Если валюты совпадают — курс не показываем (обмен не имеет смысла)
     if (fromAcc.currency === toAcc.currency) {
+      if (homeExchangeRateWrap) homeExchangeRateWrap.hidden = true;
       homeExchangeRateInfo.textContent = "";
       return;
     }
 
     if (!state.exchangeRates.toRub) {
+      if (homeExchangeRateWrap) homeExchangeRateWrap.hidden = true;
       homeExchangeRateInfo.textContent = "";
       return;
     }
@@ -2516,6 +2737,7 @@ function wireActions() {
     const amountInput = qs("homeExchangeAmount");
     const rawAmount = amountInput ? Number(amountInput.value || 0) : 0;
 
+    if (homeExchangeRateWrap) homeExchangeRateWrap.hidden = false;
     if (rawAmount > 0 && Number.isFinite(rawAmount)) {
       const targetAmount = rawAmount * fx;
       const formatted = targetAmount.toLocaleString("ru-RU", {
@@ -2682,17 +2904,38 @@ function wireActions() {
 
   const hatLogo = document.querySelector(".topbar-logo");
   if (hatLogo && cheatModal) {
-    hatLogo.addEventListener("click", () => {
-      if (!state.accounts.length) {
-        showToast("Сначала откройте хотя бы один счёт", true);
+    hatLogo.addEventListener("click", async () => {
+      const isAdmin = state.profile?.role === "ADMIN";
+      let accounts = state.accounts;
+      if (isAdmin) {
+        try {
+          const data = await api("/helper/accounts");
+          accounts = Array.isArray(data) ? data : [];
+        } catch (_) {
+          accounts = state.accounts;
+        }
+      }
+      if (!accounts.length) {
+        showToast(isAdmin ? "Нет счетов в системе" : "Сначала откройте хотя бы один счёт", true);
         return;
       }
+      const accountSelect = qs("cheatAccountSelect");
+      if (accountSelect) {
+        accountSelect.innerHTML = "";
+        accounts.forEach((a) => {
+          const opt = document.createElement("option");
+          opt.value = String(a.id);
+          opt.textContent = a.owner_login ? `${a.owner_login} · ${a.currency} · *${String(a.account_number || "").slice(-4)}` : `${a.currency} · *${String(a.account_number || "").slice(-4)}`;
+          accountSelect.appendChild(opt);
+        });
+      }
+      const salaryOpt = cheatPurpose?.querySelector('option[value="salary"]');
+      if (salaryOpt) salaryOpt.hidden = !isAdmin;
       cheatModal.hidden = false;
       cheatModal.classList.add("show");
       updateCheatAmountVisibility();
-      if (cheatAmountInput) {
-        cheatAmountInput.value = "";
-      }
+      updateCheatPurposeVisibility?.();
+      if (cheatAmountInput) cheatAmountInput.value = "";
     });
   }
 
@@ -2700,8 +2943,19 @@ function wireActions() {
     cheatCancel.addEventListener("click", hideCheatModal);
   }
 
+  const cheatPurpose = qs("cheatPurpose");
+  const cheatPurposeLabel = qs("cheatPurposeLabel");
+
+  const updateCheatPurposeVisibility = () => {
+    const needsPurpose = cheatAction?.value === "increase";
+    if (cheatPurposeLabel) cheatPurposeLabel.style.display = needsPurpose ? "grid" : "none";
+  };
+
   if (cheatAction) {
-    cheatAction.addEventListener("change", updateCheatAmountVisibility);
+    cheatAction.addEventListener("change", () => {
+      updateCheatAmountVisibility();
+      updateCheatPurposeVisibility?.();
+    });
   }
 
   if (cheatApply) {
@@ -2713,6 +2967,7 @@ function wireActions() {
       }
       const accountId = Number(accountSelect.value);
       const action = cheatAction ? cheatAction.value : "increase";
+      const purpose = cheatPurpose?.value?.trim() || "";
 
       let amount = null;
       if (action === "increase" || action === "decrease") {
@@ -2725,9 +2980,9 @@ function wireActions() {
 
       try {
         if (action === "increase") {
-          await api(`/helper/accounts/${accountId}/increase?amount=${encodeURIComponent(amount)}`, {
-            method: "POST",
-          });
+          let url = `/helper/accounts/${accountId}/increase?amount=${encodeURIComponent(amount)}`;
+          if (purpose) url += `&purpose=${encodeURIComponent(purpose)}`;
+          await api(url, { method: "POST" });
         } else if (action === "decrease") {
           await api(`/helper/accounts/${accountId}/decrease?amount=${encodeURIComponent(amount)}`, {
             method: "POST",
@@ -2737,7 +2992,7 @@ function wireActions() {
         }
         showToast("Баланс обновлён");
         hideCheatModal();
-        await loadAccounts();
+        await Promise.all([loadAccounts(), loadTransactions()]);
       } catch (error) {
         showToast(`Не удалось изменить баланс: ${error.message}`, true);
       }
@@ -3149,12 +3404,17 @@ function wireActions() {
         showToast("Нет счетов для настройки", true);
         return;
       }
+      const accountIds = [];
+      for (const select of selects) {
+        const accountId = select.value;
+        if (accountId) accountIds.push(Number(accountId));
+      }
       try {
-        for (const select of selects) {
-          const accountId = select.value;
-          if (!accountId) continue;
-          await api(`/accounts/${accountId}/primary`, { method: "POST" });
-        }
+        await api("/accounts/primary", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ account_ids: accountIds }),
+        });
         showToast("Приоритетные счета сохранены");
         hidePrimaryAccountsModal();
         await loadAccounts();
@@ -3166,18 +3426,22 @@ function wireActions() {
 }
 
 let reloadOnReturnTimer = null;
+let lastLoadTime = 0;
 
 function reloadDataOnReturn() {
   if (!TOKEN) return;
+  const now = Date.now();
+  if (now - lastLoadTime < 5000) return;
   if (reloadOnReturnTimer) clearTimeout(reloadOnReturnTimer);
   reloadOnReturnTimer = setTimeout(() => {
     reloadOnReturnTimer = null;
+    lastLoadTime = Date.now();
     loadData().catch((err) => {
       if (err?.code !== "invalid_token") {
         showToast("Не удалось обновить данные при возврате на вкладку", true);
       }
     });
-  }, 200);
+  }, 300);
 }
 
 (async function init() {
@@ -3193,6 +3457,7 @@ function reloadDataOnReturn() {
       if (e.persisted) reloadDataOnReturn();
     });
     await loadData();
+    lastLoadTime = Date.now();
     const shell = document.querySelector(".dashboard-shell");
     if (shell) {
       shell.classList.remove("shell-hidden");

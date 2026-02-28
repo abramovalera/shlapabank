@@ -69,6 +69,7 @@ body {
   filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.22));
   pointer-events: none;
   z-index: 0;
+  background: var(--bg);
 }
 
 .login-title {

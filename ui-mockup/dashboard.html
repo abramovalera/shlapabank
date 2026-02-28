@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>ShlapaBank - Главная</title>
-  <link rel="stylesheet" href="/ui/dashboard.css?v=4" />
+  <link rel="stylesheet" href="/ui/dashboard.css?v=5" />
   <link rel="stylesheet" href="/ui/swagger-btn.css?v=2" />
 </head>
 <body>
@@ -81,12 +81,21 @@
               <div class="panel-head">
                 <h3>Переводы</h3>
               </div>
-              <div class="inline-form inline-form-single">
-                <button id="homeTransferOwnBtn" class="btn" type="button" data-testid="btn-transfer-own">Между своими счетами</button>
-                <button id="homeTransferByAccountBtn" class="btn light" type="button">По номеру счёта</button>
-                <button id="homeTransferByPhoneBtn" class="btn light" type="button">По номеру телефона</button>
-                <button id="homeExchangeBtn" class="btn light" type="button">Обмен валют</button>
+              <div class="transfers-with-rates">
+                <div class="transfers-buttons">
+                  <button id="homeTransferOwnBtn" class="btn" type="button" data-testid="btn-transfer-own">Между своими счетами</button>
+                  <button id="homeTransferByAccountBtn" class="btn light" type="button">По номеру счёта</button>
+                  <button id="homeTransferByPhoneBtn" class="btn light" type="button">По номеру телефона</button>
+                  <button id="homeExchangeBtn" class="btn light" type="button">Обмен валют</button>
+                </div>
+                <div id="exchangeRatesBox" class="exchange-rates-block" aria-label="Курс валют"></div>
               </div>
+            </article>
+            <article class="panel panel-stats">
+              <div class="panel-head">
+                <h3>Статистика</h3>
+              </div>
+              <div class="stats-summary" id="statsSummary"></div>
             </article>
             <article class="panel">
               <div class="panel-head">
@@ -314,8 +323,9 @@
         <label>
           <span>Куда</span>
           <select id="homeTransferTo" required></select>
+          <p id="homeTransferToHint" class="field-hint" hidden>Для перевода нужны минимум два счёта в одной валюте.</p>
         </label>
-        <label>
+        <label class="modal-form-grid-full">
           <span>Сумма</span>
           <input id="homeTransferAmount" type="number" step="0.01" required />
           <span id="homeTransferAmountError" class="field-error-text"></span>
@@ -347,7 +357,7 @@
           <span>Счёт получателя</span>
           <input id="homeByAccountNumber" type="text" placeholder="Введите номер" maxlength="32" required />
         </label>
-        <label>
+        <label class="modal-form-grid-full">
           <span>Сумма</span>
           <input id="homeByAccountAmount" type="number" step="0.01" required />
           <span id="homeByAccountAmountError" class="field-error-text"></span>
@@ -394,7 +404,7 @@
           <span>Банк получателя</span>
           <select id="homeByPhoneBank" required></select>
         </label>
-        <label>
+        <label class="modal-form-grid-full">
           <span>Сумма</span>
           <input id="homeByPhoneAmount" type="number" step="0.01" required />
           <span id="homeByPhoneAmountError" class="field-error-text"></span>
@@ -426,12 +436,14 @@
           <span>Куда</span>
           <select id="homeExchangeTo" required></select>
         </label>
-        <label>
+        <label class="modal-form-grid-full">
           <span>Сумма</span>
           <input id="homeExchangeAmount" type="number" step="0.01" required />
           <span id="homeExchangeAmountError" class="field-error-text"></span>
         </label>
-        <p id="homeExchangeRateInfo" class="modal-text small"></p>
+        <div id="homeExchangeRateWrap" class="exchange-rate-block" hidden>
+          <p id="homeExchangeRateInfo" class="exchange-rate-text"></p>
+        </div>
         <div class="limit-progress-row">
           <div class="limit-progress-bar">
             <div class="limit-progress-fill" id="homeExchangeLimitFill"></div>
@@ -512,6 +524,14 @@
         <label id="cheatAmountLabel">
           <span>Сумма</span>
           <input id="cheatAmount" type="number" step="0.01" min="0.01" />
+        </label>
+        <label id="cheatPurposeLabel">
+          <span>Тип дохода</span>
+          <select id="cheatPurpose">
+            <option value="">Пополнение</option>
+            <option value="salary">Зарплата</option>
+            <option value="gift">Подарок</option>
+          </select>
         </label>
       </form>
       <div class="modal-actions">

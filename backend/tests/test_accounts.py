@@ -90,6 +90,26 @@ def test_accounts_topup_success(client, auth_headers, token, rub_account):
     assert data["amount"] == "500.00"
 
 
+def test_accounts_topup_with_purpose_salary(client, auth_headers, token, rub_account):
+    """Пополнение с purpose=salary создаёт транзакцию self_topup:salary (отображается как «Зарплата от банка»)."""
+    otp = get_otp(client, token)
+    r = client.post(
+        f"/accounts/{rub_account['id']}/topup",
+        headers=auth_headers,
+        json={"amount": "3000.00", "otp_code": otp, "purpose": "salary"},
+    )
+    assert r.status_code == 201
+    data = r.json()
+    assert data["type"] == "TOPUP"
+    assert data["description"] == "self_topup:salary"
+    assert data["amount"] == "3000.00"
+    # Проверяем, что транзакция есть в истории
+    r2 = client.get("/transactions", headers=auth_headers)
+    assert r2.status_code == 200
+    txs = [t for t in r2.json() if t.get("description") == "self_topup:salary" and t.get("amount") == "3000.00"]
+    assert len(txs) >= 1
+
+
 def test_accounts_topup_invalid_otp(client, auth_headers, token, rub_account):
     r = client.post(
         f"/accounts/{rub_account['id']}/topup",
@@ -109,6 +129,33 @@ def test_accounts_topup_amount_non_positive(client, auth_headers, token, rub_acc
     )
     assert r.status_code == 400
     assert r.json().get("detail") == "amount_must_be_positive"
+
+
+def test_accounts_primary_success(client, auth_headers, two_rub_accounts):
+    """Установка приоритетных счетов."""
+    acc1, acc2 = two_rub_accounts
+    r = client.put(
+        "/accounts/primary",
+        headers=auth_headers,
+        json={"account_ids": [acc1["id"]]},
+    )
+    assert r.status_code == 200
+    assert r.json().get("detail") == "primary_accounts_updated"
+    r = client.get("/accounts", headers=auth_headers)
+    accounts = r.json()
+    primary = [a for a in accounts if a.get("is_primary")]
+    assert len(primary) == 1
+    assert primary[0]["id"] == acc1["id"]
+
+
+def test_accounts_primary_not_owned(client, auth_headers, two_rub_accounts):
+    """Нельзя пометить чужой счёт как приоритетный."""
+    r = client.put(
+        "/accounts/primary",
+        headers=auth_headers,
+        json={"account_ids": [999999]},
+    )
+    assert r.status_code == 404
 
 
 def test_accounts_topup_account_not_found(client, auth_headers, token):

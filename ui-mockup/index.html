@@ -23,7 +23,7 @@
       <h1 class="login-title">Вход в <span>ShlapaBank</span></h1>
 
       <form id="loginForm" class="login-form">
-        <label class="sr-only" for="login">Телефон или почта</label>
+        <label class="sr-only" for="login">Логин</label>
         <div class="input-wrap">
           <span class="input-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
@@ -278,31 +278,33 @@
     };
 
     const validateRegisterPassword = (password, login) => {
+      const errors = [];
       if (!password || password.length < 8) {
-        return "Пароль должен быть не короче 8 символов.";
+        errors.push("не короче 8 символов");
       }
-      if (password.length > 30) {
-        return "Пароль должен быть не длиннее 30 символов.";
+      if (password && password.length > 30) {
+        errors.push("не длиннее 30 символов");
       }
-      if (/\s/.test(password)) {
-        return "Пароль не должен содержать пробелы.";
+      if (password && /\s/.test(password)) {
+        errors.push("без пробелов");
       }
-      if (login && password === login) {
-        return "Пароль не должен совпадать с логином.";
+      if (password && login && password === login) {
+        errors.push("не должен совпадать с логином");
       }
-      if (!/[a-z]/.test(password)) {
-        return "Паролю не хватает строчной буквы.";
+      if (password && !/[a-z]/.test(password)) {
+        errors.push("хотя бы одна строчная буква (a-z)");
       }
-      if (!/[A-Z]/.test(password)) {
-        return "Паролю не хватает заглавной буквы.";
+      if (password && !/[A-Z]/.test(password)) {
+        errors.push("хотя бы одна заглавная буква (A-Z)");
       }
-      if (!/[0-9]/.test(password)) {
-        return "Паролю не хватает цифры.";
+      if (password && !/[0-9]/.test(password)) {
+        errors.push("хотя бы одна цифра");
       }
-      if (!/[^A-Za-z0-9]/.test(password)) {
-        return "Паролю не хватает спецсимвола.";
+      if (password && !/[^A-Za-z0-9]/.test(password)) {
+        errors.push("хотя бы один спецсимвол (!@#$ и т.п.)");
       }
-      return "";
+      if (errors.length === 0) return "";
+      return "Пароль: " + errors.join("; ");
     };
 
     const showScreen = (target) => {
@@ -312,6 +314,7 @@
       screenRegister.classList.toggle("screen-active", !toLogin);
       screenRegister.setAttribute("aria-hidden", toLogin ? "true" : "false");
       screenLogin.setAttribute("aria-hidden", toLogin ? "false" : "true");
+      document.title = toLogin ? "ShlapaBank — вход" : "ShlapaBank — регистрация";
     };
 
     const applyInitialScreenFromLocation = () => {
@@ -335,9 +338,15 @@
       loginHelpModal.hidden = true;
     };
 
-    loginInput.addEventListener("input", () => stripAllSpacesInput(loginInput));
+    loginInput.addEventListener("input", () => {
+      stripAllSpacesInput(loginInput);
+      if (loginError) loginError.textContent = "";
+    });
     loginInput.addEventListener("keydown", preventSpaceKey);
-    passwordInput.addEventListener("input", () => stripAllSpacesInput(passwordInput));
+    passwordInput.addEventListener("input", () => {
+      stripAllSpacesInput(passwordInput);
+      if (loginError) loginError.textContent = "";
+    });
     passwordInput.addEventListener("keydown", preventSpaceKey);
 
     if (regLoginInput) {

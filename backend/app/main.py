@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.db import Base, SessionLocal, engine
 from app.models import Bank, User, UserRole
 from app.routes.accounts import router as accounts_router
+from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.helper import router as helper_router
 from app.routes.health import router as health_router
@@ -28,6 +29,7 @@ from app.security import get_password_hash
 openapi_tags = [
     {"name": "health", "description": "Проверка доступности."},
     {"name": "helper", "description": "OTP, баланс, очистка (для тестов)."},
+    {"name": "admin", "description": "Администрирование (список пользователей, блокировка, банки)."},
     {"name": "auth", "description": "Регистрация и вход."},
     {"name": "profile", "description": "Профиль пользователя."},
     {"name": "accounts", "description": "Счета пользователя."},
@@ -148,6 +150,14 @@ def confirm_page():
 @app.on_event("startup")
 def startup() -> None:
     Base.metadata.create_all(bind=engine)
+    # Миграция: добавить is_primary в accounts, если колонки нет
+    with engine.connect() as conn:
+        from sqlalchemy import text
+        try:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT FALSE"))
+            conn.commit()
+        except Exception:
+            conn.rollback()
     db = SessionLocal()
     try:
         for code, label in BANKS_CATALOG:
@@ -217,6 +227,7 @@ def startup() -> None:
 
 app.include_router(health_router)
 app.include_router(helper_router)
+app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(accounts_router)

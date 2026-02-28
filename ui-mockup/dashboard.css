@@ -351,6 +351,18 @@ body {
   font-size: 18px;
 }
 
+.panel-head--stacked {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.panel-head .panel-subline {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: normal;
+}
+
 .pill {
   border-radius: 999px;
   background: #edf1fb;
@@ -461,6 +473,270 @@ body {
   height: 46px;
   padding: 0 18px;
   font-size: 13px;
+}
+
+.transfers-with-rates {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.transfers-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.transfers-with-rates .exchange-rates-block {
+  margin-top: 0;
+  flex: 0 0 auto;
+  width: 155px;
+}
+
+/* Статистика */
+.panel-stats {
+  margin-bottom: 14px;
+}
+
+.stats-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.stats-bar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--surface-soft);
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+
+.stats-bar-section.stats-income {
+  border-left: 3px solid var(--ok-text);
+}
+
+.stats-bar-section.stats-expense {
+  border-left: 3px solid #b91c1c;
+}
+
+.stats-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.stats-bar-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stats-bar-total {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: right;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats-bar-stack {
+  display: flex;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #e2e2e9;
+}
+
+.stats-bar-segment {
+  height: 100%;
+  min-width: 2px;
+  transition: width 0.35s ease;
+}
+
+.stats-bar-segment:first-child {
+  border-radius: 7px 0 0 7px;
+}
+
+.stats-bar-segment:last-child {
+  border-radius: 0 7px 7px 0;
+}
+
+.stats-bar-segment:only-child {
+  border-radius: 7px;
+}
+
+.stats-bar-empty {
+  background: #e2e2e9 !important;
+  opacity: 0.6;
+}
+
+.stats-bar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.stats-bar-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.stats-bar-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stats-card {
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--line);
+}
+
+.stats-card.stats-income {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-color: var(--ok-text);
+}
+
+.stats-card.stats-expense {
+  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+  border-color: #b91c1c;
+}
+
+.stats-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.stats-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.stats-card.stats-income .stats-value {
+  color: var(--ok-text);
+}
+
+.stats-card.stats-expense .stats-value {
+  color: #8f1b1b;
+}
+
+.stats-income-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.stats-income-tag {
+  background: rgba(27, 106, 58, 0.15);
+  color: var(--ok-text);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.stats-chart-section {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.stats-chart-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stats-chart-wrap {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.stats-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stats-bar-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+}
+
+.stats-bar-track-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stats-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.stats-bar-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stats-bar-track {
+  flex: 1 1 0;
+  min-width: 200px;
+  max-width: 462px;
+  height: 12px;
+  background: #e2e2e9;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.stats-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  min-width: 4px;
+  transition: width 0.3s ease;
+}
+
+.stats-bar-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.stats-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .accounts-primary-btn {
@@ -1146,6 +1422,63 @@ tbody tr:last-child td {
   background: linear-gradient(90deg, #b71c1c, #e53935);
 }
 
+.exchange-rate-block {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #f0f4fa 0, #e8ecf4 100%);
+  border: 1px solid #d5ddeb;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.exchange-rate-text {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.exchange-rates-block {
+  padding: 10px 12px;
+  min-height: auto;
+  background: linear-gradient(135deg, #f5f8fc 0, #eef2f8 100%);
+  border: 1px solid #d8dde8;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.exchange-rates-empty {
+  color: var(--muted);
+  font-size: 13px;
+  display: block;
+}
+.exchange-rates-title {
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.exchange-rates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.exchange-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.exchange-rate-pair {
+  color: var(--muted);
+  min-width: 2.5em;
+}
+.exchange-rate-arrow {
+  color: #9ca3b8;
+  font-size: 12px;
+}
+.exchange-rate-value {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 13px;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -1359,11 +1692,26 @@ tbody tr:last-child td {
   margin-bottom: 14px;
 }
 
+.modal-form-grid .modal-actions {
+  grid-column: 1 / -1;
+}
+
+.modal-form-grid .modal-form-grid-full,
+.modal-form-grid .exchange-rate-block {
+  grid-column: 1 / -1;
+}
+
 .modal-form-grid label {
   display: grid;
   gap: 4px;
   font-size: 12px;
   color: var(--muted);
+}
+
+.modal-form-grid .field-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0 0;
 }
 
 .page-view {
@@ -1479,6 +1827,15 @@ tbody tr:last-child td {
 
   .panel-transfers {
     padding-bottom: 8px;
+  }
+
+  .transfers-with-rates {
+    flex-direction: column;
+  }
+
+  .transfers-with-rates .exchange-rates-block {
+    width: 100%;
+    min-width: 0;
   }
 
   .chat-panel {

@@ -120,10 +120,13 @@ class AdminCreditRequest(BaseModel):
 
 
 class AccountTopupRequest(BaseModel):
-    model_config = ConfigDict(json_schema_extra={"example": {"amount": "1000.00", "otp_code": "1234"}})
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"amount": "1000.00", "otp_code": "1234", "purpose": "salary"}}
+    )
 
     amount: Decimal = Field(gt=0)
     otp_code: OtpCode
+    purpose: str | None = Field(default=None, max_length=32, pattern=r"^[a-z_]+$")
 
 
 class TransferCreateRequest(BaseModel):
@@ -232,6 +235,12 @@ class AccountCreateRequest(BaseModel):
     currency: Currency
 
 
+class PrimaryAccountsRequest(BaseModel):
+    """Список ID счетов, помечаемых как приоритетные (по одному на валюту)."""
+
+    account_ids: list[int] = Field(min_length=0, max_length=4, description="ID счетов (RUB, USD, EUR, CNY)")
+
+
 class AccountPublic(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
@@ -242,6 +251,7 @@ class AccountPublic(BaseModel):
                 "account_type": "DEBIT",
                 "currency": "RUB",
                 "balance": "0.00",
+                "is_primary": False,
             }
         },
     )
@@ -251,6 +261,7 @@ class AccountPublic(BaseModel):
     account_type: AccountType
     currency: Currency
     balance: Decimal
+    is_primary: bool = False
 
 
 class UserBanksUpdateRequest(BaseModel):

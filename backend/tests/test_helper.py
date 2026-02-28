@@ -26,6 +26,19 @@ def test_helper_increase(client, auth_headers, token, rub_account):
     assert float(data["balance"]) == 100.50
 
 
+def test_helper_increase_creates_transaction(client, auth_headers, token, rub_account):
+    """Пополнение через Helper создаёт транзакцию для статистики."""
+    client.post(
+        f"/helper/accounts/{rub_account['id']}/increase",
+        params={"amount": "250.00"},
+        headers=auth_headers,
+    )
+    r = client.get("/transactions", headers=auth_headers)
+    assert r.status_code == 200
+    txs = [t for t in r.json() if t.get("description") == "helper_topup" and str(t.get("amount")) == "250.00"]
+    assert len(txs) >= 1
+
+
 def test_helper_decrease(client, auth_headers, token, rub_account):
     helper_increase(client, token, rub_account["id"], "200")
     r = client.post(

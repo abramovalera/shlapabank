@@ -91,6 +91,7 @@ class Account(Base):
     currency: Mapped[Currency] = mapped_column(Enum(Currency), nullable=False)
     balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     owner: Mapped["User"] = relationship(back_populates="accounts")

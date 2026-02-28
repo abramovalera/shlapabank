@@ -13,6 +13,7 @@ from app.schemas import (
     AccountPublic,
     AccountTopupRequest,
     ActionResponse,
+    PrimaryAccountsRequest,
     TransactionPublic,
 )
 from app.security import require_active_user
@@ -95,6 +96,37 @@ def create_account(
     return account
 
 
+@router.put(
+    "/primary",
+    response_model=ActionResponse,
+    summary="Установить приоритетные счета (по одному на валюту)",
+)
+def set_primary_accounts(
+    payload: PrimaryAccountsRequest,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    """Помечает указанные счета как приоритетные. Остальные снимаются с приоритета."""
+    owned = list(
+        db.scalars(
+            select(Account).where(
+                Account.user_id == current_user.id,
+                Account.is_active.is_(True),
+            )
+        )
+    )
+    owned_ids = {a.id for a in owned}
+    for aid in payload.account_ids:
+        if aid not in owned_ids:
+            raise HTTPException(status_code=404, detail="account_not_found")
+
+    for acc in owned:
+        acc.is_primary = acc.id in payload.account_ids
+        db.add(acc)
+    db.commit()
+    return ActionResponse(detail="primary_accounts_updated")
+
+
 @router.delete(
     "/{account_id}",
     response_model=ActionResponse,
@@ -147,6 +179,10 @@ def topup_account(
 
     account.balance += payload.amount
 
+    desc = "self_topup"
+    if payload.purpose:
+        desc = f"self_topup:{payload.purpose}"
+
     tx = Transaction(
         from_account_id=None,
         to_account_id=account.id,
@@ -155,7 +191,7 @@ def topup_account(
         currency=account.currency,
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
-        description="self_topup",
+        description=desc,
     )
     db.add(account)
     db.add(tx)
