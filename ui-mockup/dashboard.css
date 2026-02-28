@@ -737,6 +737,16 @@ tbody tr:last-child td {
   padding-top: 20px; /* подпись (label) + gap — на одной линии с полем Фамилия */
 }
 
+.panel-debug {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: #fafafa;
+}
+
+.panel-debug .panel-head h3 {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .more-actions .btn-field-size {
   height: 38px;
   padding: 0 14px;

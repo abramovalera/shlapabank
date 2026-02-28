@@ -1,13 +1,13 @@
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.banks import get_external_bank_codes
+from app.core.config import settings
 from app.db import get_db
 from app.models import Account, Bank, Transaction, TransactionStatus, TransactionType, User, UserBank, UserStatus
-from app.otp import validate_otp_for_user
 from app.schemas import AdminCreditRequest, TransactionPublic, UserBanksUpdateRequest, UserPublic
 from app.security import require_admin
 
@@ -56,6 +56,31 @@ def unblock_user(user_id: int, _: User = Depends(require_admin), db: Session = D
     return user
 
 
+@router.delete(
+    "/users/{user_id}",
+    status_code=204,
+    summary="Удалить пользователя (для очистки тестовых данных)",
+)
+def delete_user(user_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    user = db.scalar(select(User).where(User.id == user_id))
+    if not user:
+        raise HTTPException(status_code=404, detail="not_found")
+    if user.login == settings.default_admin_login:
+        raise HTTPException(status_code=400, detail="cannot_delete_admin")
+
+    account_ids = [a.id for a in user.accounts]
+    tx_conds = [Transaction.initiated_by == user_id]
+    if account_ids:
+        tx_conds.extend([
+            Transaction.from_account_id.in_(account_ids),
+            Transaction.to_account_id.in_(account_ids),
+        ])
+    db.execute(delete(Transaction).where(or_(*tx_conds)))
+    db.execute(delete(Account).where(Account.user_id == user_id))
+    db.execute(delete(User).where(User.id == user_id))
+    db.commit()
+
+
 @router.post(
     "/accounts/{account_id}/credit",
     response_model=TransactionPublic,
@@ -68,9 +93,6 @@ def credit_account(
     current_admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    if not validate_otp_for_user(current_admin.id, payload.otp_code):
-        raise HTTPException(status_code=400, detail="invalid_otp_code")
-
     account = db.scalar(select(Account).where(Account.id == account_id, Account.is_active.is_(True)).with_for_update())
     if not account:
         raise HTTPException(status_code=404, detail="account_not_found")

@@ -307,6 +307,39 @@ body {
   cursor: pointer;
 }
 
+.help-modal-text {
+  margin: 24px 16px 20px;
+  font-size: 16px;
+  color: #fff;
+  line-height: 1.4;
+}
+
+.help-modal-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.help-modal-btn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.help-modal-btn-yes {
+  background: #2a9d5f;
+  color: #fff;
+}
+
+.help-modal-btn-no {
+  background: #444;
+  color: #fff;
+}
+
 .limit-progress-row {
   display: flex;
   flex-direction: column;

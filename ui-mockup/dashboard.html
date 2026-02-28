@@ -3,9 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>ShlapaBank - Главная</title>
-  <link rel="stylesheet" href="./dashboard.css" />
-  <link rel="stylesheet" href="./swagger-btn.css" />
+  <link rel="stylesheet" href="./dashboard.css?v=4" />
+  <link rel="stylesheet" href="./swagger-btn.css?v=2" />
 </head>
 <body>
   <a id="swaggerFab" class="swagger-fab" href="/docs" target="_blank" rel="noopener noreferrer" title="Открыть Swagger API в новой вкладке">Swagger</a>
@@ -119,7 +122,7 @@
                   </label>
                   <label>
                     <span>Телефон</span>
-                    <input id="mobilePhone" type="tel" placeholder="+7XXXXXXXXXX" maxlength="12" required />
+                    <input id="mobilePhone" type="tel" placeholder="+7(999)123-45-67" maxlength="18" required />
                   </label>
                   <label>
                     <span>Сумма, ₽</span>
@@ -194,7 +197,7 @@
                   <form id="profileForm" class="profile-form profile-narrow" autocomplete="off">
                     <label>Имя<input id="firstName" type="text" /></label>
                     <label>Фамилия<input id="lastName" type="text" /></label>
-                    <label>Телефон<input id="phone" type="text" inputmode="tel" maxlength="12" placeholder="+7XXXXXXXXXX" /></label>
+                    <label>Телефон<input id="phone" type="text" inputmode="tel" maxlength="18" placeholder="+7(999)123-45-67" /></label>
                     <label>Email<input id="email" type="email" autocomplete="off" /></label>
                     <label>Текущий пароль<input id="currentPassword" type="password" autocomplete="new-password" /></label>
                     <label>Новый пароль<input id="newPassword" type="password" autocomplete="new-password" /></label>
@@ -206,6 +209,15 @@
                   <button id="primaryAccountsBtn" class="btn btn-field-size light" type="button">Приоритетные счета</button>
                 </div>
               </div>
+            </section>
+            <section class="panel panel-debug">
+              <div class="panel-head">
+                <h3>Отладка</h3>
+              </div>
+              <p class="modal-text small" style="margin-bottom: 10px;">
+                Очищает localStorage, sessionStorage и перезагружает страницу. Используйте при сбоях отображения.
+              </p>
+              <button id="superClearBtn" class="btn light" type="button">Супер-очистка</button>
             </section>
           </section>
         </div>
@@ -237,24 +249,6 @@
         <button id="confirmCloseCancel" class="btn light" type="button">Отмена</button>
         <button id="confirmCloseOk" class="btn" type="button">Закрыть Счет</button>
       </div>
-    </div>
-  </div>
-
-  <div id="topupModal" class="modal-backdrop" hidden>
-    <div class="modal">
-      <h2 class="modal-title">Пополнить счёт</h2>
-      <p id="topupAccountLabel" class="modal-text">Укажите сумму пополнения.</p>
-      <form id="topupForm" class="modal-form-grid">
-        <label>
-          <span>Сумма</span>
-          <input id="topupAmount" type="number" step="0.01" min="0.01" required />
-          <span id="topupAmountError" class="field-error-text"></span>
-        </label>
-        <div class="modal-actions">
-          <button id="topupCancel" class="btn light" type="button">Отмена</button>
-          <button class="btn" type="submit">Пополнить</button>
-        </div>
-      </form>
     </div>
   </div>
 
@@ -341,8 +335,8 @@
           <input
             id="homeByPhoneNumber"
             type="tel"
-            placeholder="+7XXXXXXXXXX"
-            maxlength="12"
+            placeholder="+7(999)123-45-67"
+            maxlength="18"
             required
           />
         </label>
@@ -477,6 +471,6 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite" data-testid="toast"></div>
-  <script src="./dashboard.js"></script>
+  <script src="./dashboard.js?v=4"></script>
 </body>
 </html>

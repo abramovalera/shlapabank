@@ -32,8 +32,6 @@ function getUnitForAmountField(inputId) {
   if (accountSelectMap[inputId]) {
     const select = qs(accountSelectMap[inputId]);
     if (select?.value) accountId = Number(select.value);
-  } else if (inputId === "topupAmount" && pendingTopupAccountId) {
-    accountId = pendingTopupAccountId;
   } else if (inputId === "mobileAmount" || inputId === "vendorAmount") {
     return "₽";
   }
@@ -45,7 +43,6 @@ function getUnitForAmountField(inputId) {
 }
 
 const AMOUNT_CONFIGS = {
-  topupAmount: { min: 1 },
   homeTransferAmount: { min: 10, max: 300000 },
   homeByAccountAmount: { min: 10, max: 300000 },
   homeByPhoneAmount: { min: 10, max: 300000 },
@@ -56,7 +53,6 @@ const AMOUNT_CONFIGS = {
 let recentLimit = 5;
 let pendingCloseAccountId = null;
 let pendingOtp = null;
-let pendingTopupAccountId = null;
 
 function mapApiError(detail) {
   switch (detail) {
@@ -327,20 +323,34 @@ function formatTransactionSubtitle(tx, meta) {
   }
 }
 
+/** Форматирует номер для отображения: +7(906)000-00-00 */
+function formatPhoneDisplay(raw) {
+  const digits = (raw || "").replace(/\D/g, "");
+  let d = digits.startsWith("7") ? digits.slice(1) : digits;
+  d = d.slice(0, 10);
+  if (d.length === 0) return "+7";
+  if (d.length <= 3) return `+7(${d}`;
+  if (d.length <= 6) return `+7(${d.slice(0, 3)})${d.slice(3)}`;
+  if (d.length <= 8) return `+7(${d.slice(0, 3)})${d.slice(3, 6)}-${d.slice(6)}`;
+  return `+7(${d.slice(0, 3)})${d.slice(3, 6)}-${d.slice(6, 8)}-${d.slice(8, 10)}`;
+}
+
+/** Извлекает сырой номер +7XXXXXXXXXX из ввода для API */
+function getRawPhone(value) {
+  let digits = (value || "").replace(/\D/g, "");
+  if (digits.startsWith("8") && digits.length >= 11) digits = "7" + digits.slice(1);
+  if (digits.length === 10 && !digits.startsWith("7")) digits = "7" + digits;
+  if (digits.startsWith("7")) digits = digits.slice(0, 11);
+  return digits.length >= 11 ? "+" + digits.slice(0, 11) : "";
+}
+
 function applyPhoneMask(input) {
-  let value = input.value || "";
-  // Оставляем только цифры и плюс
-  value = value.replace(/[^\d+]/g, "");
-  // Гарантируем, что плюс только один и в начале
-  if (!value.startsWith("+")) {
-    value = "+" + value.replace(/\+/g, "");
-  } else {
-    const rest = value.slice(1).replace(/\+/g, "");
-    value = "+" + rest;
-  }
-  // Оставляем максимум 11 цифр после плюса (+7XXXXXXXXXX)
-  const digits = value.slice(1).replace(/\D/g, "").slice(0, 11);
-  input.value = "+" + digits;
+  const oldVal = input.value || "";
+  let digits = oldVal.replace(/\D/g, "");
+  if (digits.startsWith("8") && digits.length >= 11) digits = "7" + digits.slice(1);
+  if (digits.length === 10 && !digits.startsWith("7")) digits = "7" + digits;
+  if (digits.startsWith("7")) digits = digits.slice(0, 11);
+  input.value = formatPhoneDisplay("+" + digits);
 }
 
 function stripEdgeSpacesInput(input) {
@@ -597,11 +607,6 @@ async function handleOtpSubmit() {
         method: "POST",
         body: JSON.stringify({ ...payload, otp_code: code }),
       });
-    } else if (kind === "topup") {
-      await api(`/accounts/${payload.account_id}/topup`, {
-        method: "POST",
-        body: JSON.stringify({ amount: payload.amount, otp_code: code }),
-      });
     } else if (kind === "exchange") {
       await api("/transfers/exchange", {
         method: "POST",
@@ -656,7 +661,7 @@ function renderProfile() {
   }
   qs("firstName").value = state.profile.first_name || "";
   qs("lastName").value = state.profile.last_name || "";
-  qs("phone").value = state.profile.phone || "";
+  qs("phone").value = state.profile.phone ? formatPhoneDisplay(state.profile.phone) : "";
   const emailField = qs("email");
   if (emailField) {
     const email = state.profile.email;
@@ -738,7 +743,6 @@ function renderAccounts() {
         </div>
       </div>
       <div class="account-actions">
-        <button class="btn-mini" data-topup-id="${account.id}" type="button" data-testid="btn-account-topup">Пополнить</button>
         <button class="btn-mini warn" data-close-id="${account.id}" type="button" data-testid="btn-account-close">Закрыть</button>
       </div>
     `;
@@ -801,8 +805,8 @@ function fillAccountSelects() {
 async function fillHomeByPhoneBankSelect(phone) {
   const select = qs("homeByPhoneBank");
   if (!select) return;
-  const raw = (phone || "").replace(/\s/g, "");
-  const validPhone = /^\+7\d{10}$/.test(raw);
+      const raw = getRawPhone(phone || "");
+      const validPhone = raw.length === 12 && /^\+7\d{10}$/.test(raw);
   const warningEl = qs("homeByPhoneNotInBankWarning");
   if (warningEl) warningEl.hidden = true;
   select.innerHTML = "";
@@ -1255,7 +1259,7 @@ function wirePaymentCategories() {
         fillVendorProvidersByCategory(target);
       } else if (viewId === "mobile") {
         const phoneInput = qs("mobilePhone");
-        if (phoneInput && (!phoneInput.value || phoneInput.value.replace(/\D/g, "").length < 10))
+        if (phoneInput && (!phoneInput.value || getRawPhone(phoneInput.value).length < 12))
           phoneInput.value = "+7";
       }
     });
@@ -1322,9 +1326,12 @@ function wirePages() {
   });
 
   const savedRaw = localStorage.getItem("sb_last_page");
-  const saved = savedRaw ? savedRaw.toLowerCase() : "";
+  const saved = savedRaw ? savedRaw.toLowerCase().trim() : "";
   if (VALID_PAGE_IDS.includes(saved)) {
     applyPage(saved);
+  } else {
+    localStorage.removeItem("sb_last_page");
+    applyPage("home");
   }
 }
 
@@ -1364,6 +1371,23 @@ function wireActions() {
     localStorage.removeItem("sb_access_token");
     window.location.href = "./index.html";
   });
+
+  const superClearBtn = qs("superClearBtn");
+  if (superClearBtn) {
+    superClearBtn.addEventListener("click", async () => {
+      try {
+        await api("/helper/clear-browser", { method: "POST" });
+      } catch (_) {
+        /* при ошибке всё равно выполняем очистку */
+      }
+      localStorage.clear();
+      sessionStorage.clear();
+      showToast("Данные браузера очищены. Перезагрузка…");
+      setTimeout(() => {
+        window.location.href = "./index.html";
+      }, 500);
+    });
+  }
 
   const amountConfigs = AMOUNT_CONFIGS;
 
@@ -1581,14 +1605,7 @@ function wireActions() {
 
   const mobilePhoneInput = qs("mobilePhone");
   if (mobilePhoneInput) {
-    mobilePhoneInput.addEventListener("input", () => {
-      const raw = mobilePhoneInput.value.replace(/[^\d+]/g, "");
-      let digits = raw.replace(/\+/g, "");
-      if (digits.startsWith("7")) digits = digits.slice(1);
-      digits = digits.slice(0, 10);
-      const v = "+7" + digits;
-      if (mobilePhoneInput.value !== v) mobilePhoneInput.value = v;
-    });
+    mobilePhoneInput.addEventListener("input", () => applyPhoneMask(mobilePhoneInput));
   }
 
   const mobileAmountInput = qs("mobileAmount");
@@ -1668,16 +1685,6 @@ function wireActions() {
     });
   }
 
-  const topupModal = qs("topupModal");
-  const topupForm = qs("topupForm");
-  const topupCancel = qs("topupCancel");
-  const hideTopupModal = () => {
-    if (!topupModal) return;
-    topupModal.classList.remove("show");
-    topupModal.hidden = true;
-    pendingTopupAccountId = null;
-  };
-
   const homeTransferModal = qs("homeTransferModal");
   const homeTransferForm = qs("homeTransferForm");
   const homeTransferCancel = qs("homeTransferCancel");
@@ -1722,11 +1729,11 @@ function wireActions() {
       event.preventDefault();
       const accountId = Number(qs("mobileAccount").value);
       const operator = qs("mobileOperator").value.trim();
-      const phone = qs("mobilePhone").value.replace(/\s/g, "");
+      const phone = getRawPhone(qs("mobilePhone").value);
       const amountRaw = qs("mobileAmount").value;
       const amount = Number(amountRaw);
-      if (!/^\+7\d{10}$/.test(phone)) {
-        showToast("Телефон: +7 и 10 цифр (например +79991234567)", true);
+      if (!phone || !/^\+7\d{10}$/.test(phone)) {
+        showToast("Телефон: +7(XXX)XXX-XX-XX (например +7(999)123-45-67)", true);
         return;
       }
       if (!validateAmountField("mobileAmount", amountConfigs.mobileAmount, { showEmptyError: true })) {
@@ -1785,20 +1792,20 @@ function wireActions() {
     const label = qs(labelId);
     const fill = qs(fillId);
     if (!select || !label || !fill) return;
-    if (!state.transfersInfo?.limits) {
+    if (!state.transfersInfo?.limits?.perCurrency?.length) {
       label.textContent = "";
       fill.style.width = "0%";
       return;
     }
 
     const accountId = Number(select.value);
-    const perAccount = state.transfersInfo.limits.perAccountDaily || [];
-    const info = perAccount.find((x) => x.accountId === accountId);
-    const perUser = state.transfersInfo.limits.perUserDaily;
+    const account = state.accounts?.find((a) => a.id === accountId);
+    const currency = account?.currency || "RUB";
+    const info = state.transfersInfo.limits.perCurrency.find((x) => x.currency === currency);
 
-    const used = info ? Number(info.usedTodayRubEquivalent) : 0;
-    const limit = info ? Number(info.dailyLimitRubEquivalent) : Number(perUser?.dailyLimitRubEquivalent || 0);
-    const remaining = info ? Number(info.remainingRubEquivalent) : Number(perUser?.remainingRubEquivalent || 0);
+    const used = info ? Number(info.usedToday) : 0;
+    const limit = info ? Number(info.dailyLimit) : 0;
+    const remaining = info ? Number(info.remaining) : 0;
 
     if (!limit || limit <= 0) {
       label.textContent = "";
@@ -1806,25 +1813,24 @@ function wireActions() {
       return;
     }
 
+    const unit = CURRENCY_UNITS[currency] ?? "денег";
     const percent = Math.min(100, Math.max(0, (used / limit) * 100));
     fill.classList.remove("limit-warn", "limit-danger");
+    const fmt = (v) =>
+      Number.isFinite(Number(v))
+        ? `${Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ${unit}`
+        : `— ${unit}`;
     if (percent >= 90) {
       fill.classList.add("limit-danger");
-      label.textContent = `Почти весь лимит израсходован. Осталось: ${formatRub(remaining)}`;
+      label.textContent = `Почти весь лимит израсходован. Осталось: ${fmt(remaining)}`;
     } else if (percent >= 70) {
       fill.classList.add("limit-warn");
-      label.textContent = `Лимит близок к исчерпанию. Осталось: ${formatRub(remaining)}`;
+      label.textContent = `Лимит близок к исчерпанию. Осталось: ${fmt(remaining)}`;
     } else {
-      label.textContent = `Дневной лимит по счёту. Осталось: ${formatRub(remaining)}`;
+      label.textContent = `Дневной лимит по валюте ${currency}. Осталось: ${fmt(remaining)}`;
     }
     fill.style.width = `${percent}%`;
   };
-
-  function formatRub(value) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return "— ₽";
-    return `${n.toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ₽`;
-  }
 
   const homeTransferFromSelect = qs("homeTransferFrom");
   if (homeTransferFromSelect) {
@@ -1899,9 +1905,9 @@ function wireActions() {
     homeByPhoneForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const phoneInput = qs("homeByPhoneNumber");
-      const rawPhone = phoneInput ? phoneInput.value.replace(/\s/g, "") : "";
-      if (!/^\+7\d{10}$/.test(rawPhone)) {
-        showToast("Телефон: +7 и 10 цифр (например +79991234567)", true);
+      const rawPhone = phoneInput ? getRawPhone(phoneInput.value) : "";
+      if (!rawPhone || !/^\+7\d{10}$/.test(rawPhone)) {
+        showToast("Телефон: +7(XXX)XXX-XX-XX (например +7(999)123-45-67)", true);
         return;
       }
       const bankSelect = qs("homeByPhoneBank");
@@ -2095,30 +2101,6 @@ function wireActions() {
       return;
     }
 
-    const topupButton = event.target.closest("[data-topup-id]");
-    if (topupButton) {
-      pendingTopupAccountId = Number(topupButton.dataset.topupId);
-      if (topupModal) {
-        const label = qs("topupAccountLabel");
-        const item = topupButton.closest(".account-item");
-        const fullAccount = item && item.dataset.fullAccount ? item.dataset.fullAccount : "";
-        if (label) {
-          label.textContent = fullAccount
-            ? `Пополнение счёта ${fullAccount}`
-            : "Укажите сумму пополнения.";
-        }
-        topupModal.hidden = false;
-        topupModal.classList.add("show");
-        const amountInput = qs("topupAmount");
-        if (amountInput) {
-          amountInput.value = "";
-          amountInput.focus();
-        }
-        updateAmountHint("topupAmount", amountConfigs.topupAmount);
-      }
-      return;
-    }
-
     const button = event.target.closest("[data-close-id]");
     if (!button) return;
     pendingCloseAccountId = Number(button.dataset.closeId);
@@ -2147,38 +2129,6 @@ function wireActions() {
         hideModal();
         showToast(`Не удалось закрыть счет: ${error.message}`, true);
       }
-    });
-  }
-
-  if (topupCancel) {
-    topupCancel.addEventListener("click", hideTopupModal);
-  }
-
-  if (topupForm) {
-    topupForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (!pendingTopupAccountId) {
-        hideTopupModal();
-        return;
-      }
-      if (!validateAmountField("topupAmount", amountConfigs.topupAmount, { showEmptyError: true })) {
-        return;
-      }
-      const amount = qs("topupAmount").value;
-      openOtpModal({
-        kind: "topup",
-        payload: {
-          account_id: pendingTopupAccountId,
-          amount,
-        },
-        async onSuccess() {
-          topupForm.reset();
-          hideTopupModal();
-          await Promise.all([loadAccounts(), loadTransactions()]);
-        },
-        errorPrefix: "Ошибка пополнения",
-        successMessage: "Счёт пополнен",
-      });
     });
   }
 
@@ -2338,16 +2288,18 @@ function wireActions() {
       if (optionId === "limits_left") {
         try {
           await loadTransfersDailyUsage();
-          const info = state.transfersInfo?.limits;
-          if (!info?.perAccountDaily?.length) {
+          const perCurrency = state.transfersInfo?.limits?.perCurrency || [];
+          if (!perCurrency.length) {
             return "Загрузите данные о лимитах (перейдите в «Переводы» и откройте модалку перевода) или попробуйте позже.";
           }
-          const lines = info.perAccountDaily.map((a) => {
-            const rem = Number(a.remainingRubEquivalent || 0);
-            const limit = Number(a.dailyLimitRubEquivalent || 0);
-            return `Счёт ${a.accountNumber || a.accountId}: осталось ${rem.toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ₽ из ${limit.toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ₽.`;
+          const units = { RUB: "₽", USD: "$", EUR: "€", CNY: "¥" };
+          const lines = perCurrency.map((c) => {
+            const rem = Number(c.remaining || 0);
+            const limit = Number(c.dailyLimit || 0);
+            const u = units[c.currency] ?? c.currency;
+            return `${c.currency}: осталось ${rem.toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ${u} из ${limit.toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ${u}.`;
           });
-          return "Остаток дневного лимита по вашим счетам:\n\n" + lines.join("\n");
+          return "Остаток дневного лимита по валютам:\n\n" + lines.join("\n");
         } catch (_) {
           return "Не удалось загрузить данные. Попробуйте позже.";
         }
@@ -2524,7 +2476,7 @@ function wireActions() {
       const payload = {
         first_name: firstName,
         last_name: lastName,
-        phone: getTrimmed("phone"),
+        phone: getRawPhone(getTrimmed("phone")) || undefined,
         email: getTrimmed("email"),
       };
 
@@ -2593,12 +2545,33 @@ function wireActions() {
   }
 }
 
+let reloadOnReturnTimer = null;
+
+function reloadDataOnReturn() {
+  if (!TOKEN) return;
+  if (reloadOnReturnTimer) clearTimeout(reloadOnReturnTimer);
+  reloadOnReturnTimer = setTimeout(() => {
+    reloadOnReturnTimer = null;
+    loadData().catch((err) => {
+      if (err?.code !== "invalid_token") {
+        showToast("Не удалось обновить данные при возврате на вкладку", true);
+      }
+    });
+  }, 200);
+}
+
 (async function init() {
   try {
     wireTabs();
     wirePages();
     wirePaymentCategories();
     wireActions();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") reloadDataOnReturn();
+    });
+    window.addEventListener("pageshow", (e) => {
+      if (e.persisted) reloadDataOnReturn();
+    });
     await loadData();
     const shell = document.querySelector(".dashboard-shell");
     if (shell) {

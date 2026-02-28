@@ -1,7 +1,7 @@
 """Автотесты: счета (список, открытие, закрытие, topup)."""
 import pytest
 
-from conftest import helper_increase
+from conftest import get_otp, helper_increase
 
 
 def test_accounts_list_empty_or_returns_own(client, auth_headers):
@@ -75,12 +75,13 @@ def test_accounts_close_already_closed(client, auth_headers):
     assert r.json().get("detail") == "account_already_closed"
 
 
-def test_accounts_topup_success(client, auth_headers, rub_account):
+def test_accounts_topup_success(client, auth_headers, token, rub_account):
     acc = rub_account
+    otp = get_otp(client, token)
     r = client.post(
         f"/accounts/{acc['id']}/topup",
         headers=auth_headers,
-        json={"amount": "500.00", "otp_code": "0000"},
+        json={"amount": "500.00", "otp_code": otp},
     )
     assert r.status_code == 201
     data = r.json()
@@ -89,7 +90,7 @@ def test_accounts_topup_success(client, auth_headers, rub_account):
     assert data["amount"] == "500.00"
 
 
-def test_accounts_topup_invalid_otp(client, auth_headers, rub_account):
+def test_accounts_topup_invalid_otp(client, auth_headers, token, rub_account):
     r = client.post(
         f"/accounts/{rub_account['id']}/topup",
         headers=auth_headers,
@@ -99,21 +100,23 @@ def test_accounts_topup_invalid_otp(client, auth_headers, rub_account):
     assert r.json().get("detail") == "invalid_otp_code"
 
 
-def test_accounts_topup_amount_non_positive(client, auth_headers, rub_account):
+def test_accounts_topup_amount_non_positive(client, auth_headers, token, rub_account):
+    otp = get_otp(client, token)
     r = client.post(
         f"/accounts/{rub_account['id']}/topup",
         headers=auth_headers,
-        json={"amount": "0", "otp_code": "0000"},
+        json={"amount": "0", "otp_code": otp},
     )
     assert r.status_code == 400
     assert r.json().get("detail") == "amount_must_be_positive"
 
 
-def test_accounts_topup_account_not_found(client, auth_headers):
+def test_accounts_topup_account_not_found(client, auth_headers, token):
+    otp = get_otp(client, token)
     r = client.post(
         "/accounts/999999/topup",
         headers=auth_headers,
-        json={"amount": "100.00", "otp_code": "0000"},
+        json={"amount": "100.00", "otp_code": otp},
     )
     assert r.status_code == 404
     assert r.json().get("detail") == "account_not_found"

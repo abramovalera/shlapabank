@@ -8,7 +8,6 @@ import httpx
 import pytest
 
 BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8001/api/v1")
-OTP_MVP = "0000"
 ADMIN_LOGIN = os.getenv("DEFAULT_ADMIN_LOGIN", "admin")
 ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin")
 
@@ -84,7 +83,7 @@ def admin_headers(admin_token):
 
 
 def get_otp(client, token: str) -> str:
-    """Получить OTP через helper (для тестов, где нельзя использовать 0000)."""
+    """Получить OTP через helper. OTP только динамический — фиксированного кода нет."""
     r = client.get("/helper/otp/preview", headers=_headers(token))
     assert r.status_code == 200, (r.status_code, r.json())
     return r.json()["otp"]

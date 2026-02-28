@@ -1,3 +1,6 @@
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -23,12 +26,9 @@ from app.security import get_password_hash
 
 openapi_tags = [
     {"name": "health", "description": "Проверка доступности сервиса."},
-    {"name": "auth", "description": "Регистрация, логин и получение JWT."},
-    {
-        "name": "helper",
-        "description": "Вспомогательные методы для работы с балансом (для тестов).",
-    },
+    {"name": "helper", "description": "Вспомогательные методы для работы с балансом (для тестов)."},
     {"name": "admin", "description": "Административные операции (только ADMIN)."},
+    {"name": "auth", "description": "Регистрация, логин и получение JWT."},
     {"name": "profile", "description": "Профиль текущего пользователя."},
     {"name": "accounts", "description": "Счета пользователя и лимиты."},
     {"name": "transfers", "description": "Правила и операции переводов."},
@@ -49,6 +49,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class NoCacheStaticMiddleware(BaseHTTPMiddleware):
+    """Отключает кеш для UI — чтобы при обновлениях не показывались старые CSS/JS."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/ui"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+
+class NoCacheApiMiddleware(BaseHTTPMiddleware):
+    """Отключает кеш для API — чтобы браузер не кешировал ответы и не показывал устаревшие данные при переключении вкладок."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/api"):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+
+app.add_middleware(NoCacheStaticMiddleware)
+app.add_middleware(NoCacheApiMiddleware)
 
 
 @app.get("/", include_in_schema=False)
@@ -143,9 +171,9 @@ def startup() -> None:
 
 
 app.include_router(health_router)
-app.include_router(auth_router)
 app.include_router(helper_router)
 app.include_router(admin_router)
+app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(accounts_router)
 app.include_router(transfers_router)

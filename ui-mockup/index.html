@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ShlapaBank — вход</title>
-  <link rel="stylesheet" href="./styles.css" />
-  <link rel="stylesheet" href="./swagger-btn.css" />
+  <link rel="stylesheet" href="./styles.css?v=2" />
+  <link rel="stylesheet" href="./swagger-btn.css?v=2" />
 </head>
 <body>
   <a id="swaggerFab" class="swagger-fab" href="/docs" target="_blank" rel="noopener noreferrer" title="Открыть Swagger API в новой вкладке">Swagger</a>
@@ -150,13 +150,13 @@
 
   <div id="loginHelpModal" class="help-modal" hidden>
     <div class="help-modal-backdrop"></div>
-    <div class="help-modal-dialog" role="dialog" aria-modal="true" aria-label="Подсказка при входе">
+    <div class="help-modal-dialog" role="dialog" aria-modal="true" aria-label="Очистка кеша">
       <button id="loginHelpClose" class="help-modal-close" type="button" aria-label="Закрыть окно">×</button>
-      <img
-        class="help-modal-image"
-        src="./login-help.png"
-        alt="Поддерживающая надпись «У тебя все получится и даже не сомневайся!»"
-      />
+      <p class="help-modal-text">Очистить кеш (localStorage, sessionStorage) и обновить страницу?</p>
+      <div class="help-modal-buttons">
+        <button id="loginHelpClearYes" class="help-modal-btn help-modal-btn-yes" type="button">Да</button>
+        <button id="loginHelpClearNo" class="help-modal-btn help-modal-btn-no" type="button">Нет</button>
+      </div>
     </div>
   </div>
 
@@ -376,6 +376,21 @@
 
     if (loginHelpClose) {
       loginHelpClose.addEventListener("click", () => {
+        closeLoginHelpModal();
+      });
+    }
+
+    const loginHelpClearYes = document.getElementById("loginHelpClearYes");
+    const loginHelpClearNo = document.getElementById("loginHelpClearNo");
+    if (loginHelpClearYes) {
+      loginHelpClearYes.addEventListener("click", () => {
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.reload();
+      });
+    }
+    if (loginHelpClearNo) {
+      loginHelpClearNo.addEventListener("click", () => {
         closeLoginHelpModal();
       });
     }

@@ -29,7 +29,7 @@ def test_admin_credit_success(client, admin_headers, registered_user, auth_heade
     r = client.post(
         f"/admin/accounts/{rub_account['id']}/credit",
         headers=admin_headers,
-        json={"amount": "3000.00", "otp_code": "0000"},
+        json={"amount": "3000.00"},
     )
     assert r.status_code == 201
     data = r.json()
@@ -38,21 +38,11 @@ def test_admin_credit_success(client, admin_headers, registered_user, auth_heade
     assert data["amount"] == "3000.00"
 
 
-def test_admin_credit_invalid_otp(client, admin_headers, rub_account):
-    r = client.post(
-        f"/admin/accounts/{rub_account['id']}/credit",
-        headers=admin_headers,
-        json={"amount": "100.00", "otp_code": "1234"},
-    )
-    assert r.status_code == 400
-    assert r.json().get("detail") == "invalid_otp_code"
-
-
 def test_admin_credit_account_not_found(client, admin_headers):
     r = client.post(
         "/admin/accounts/999999/credit",
         headers=admin_headers,
-        json={"amount": "100.00", "otp_code": "0000"},
+        json={"amount": "100.00"},
     )
     assert r.status_code == 404
     assert r.json().get("detail") == "account_not_found"
@@ -68,3 +58,26 @@ def test_admin_forbidden_for_client(client, auth_headers):
     r = client.get("/admin/users", headers=auth_headers)
     assert r.status_code == 403
     assert r.json().get("detail") == "forbidden"
+
+
+def test_admin_delete_user(client, admin_headers, registered_user, auth_headers):
+    """Удаление клиента — для очистки тестовых данных."""
+    _, _, user = registered_user
+    r = client.delete(f"/admin/users/{user['id']}", headers=admin_headers)
+    assert r.status_code == 204
+    r = client.get("/profile", headers=auth_headers)
+    assert r.status_code == 401
+
+
+def test_admin_delete_user_not_found(client, admin_headers):
+    r = client.delete("/admin/users/999999", headers=admin_headers)
+    assert r.status_code == 404
+    assert r.json().get("detail") == "not_found"
+
+
+def test_admin_cannot_delete_admin(client, admin_headers):
+    users = client.get("/admin/users", headers=admin_headers).json()
+    admin = next(u for u in users if u["role"] == "ADMIN")
+    r = client.delete(f"/admin/users/{admin['id']}", headers=admin_headers)
+    assert r.status_code == 400
+    assert r.json().get("detail") == "cannot_delete_admin"

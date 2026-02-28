@@ -33,7 +33,7 @@
 | Вкладки: Главная, Платежи, Чат, Ещё | `[data-page-target="home"]` и т.д. | Ок |
 | Кнопки переводов | `#homeTransferOwnBtn`, `#homeTransferByAccountBtn`, `#homeTransferByPhoneBtn`, `#homeExchangeBtn` | Ок |
 | Формы платежей | `#mobileForm`, `#vendorForm` | Ок |
-| Модалки | `#topupModal`, `#homeTransferModal`, `#otpModal`, `#confirmCloseModal`, `#cheatModal` и т.д. | Ок |
+| Модалки | `#homeTransferModal`, `#otpModal`, `#confirmCloseModal`, `#cheatModal` и т.д. | Ок |
 | Toast | `#toast` | Ок |
 
 ---
@@ -49,7 +49,7 @@
 **Карточки счетов:**
 - Рендерятся в JS, класс `account-item`
 - Есть `data-close-id` на кнопке «Закрыть» — можно найти счёт по id
-- ~~Нет кнопки «Пополнить»~~ — **исправлено:** добавлена кнопка с `data-topup-id` и `data-testid="btn-account-topup"`
+- Кнопки «Пополнить» на карточках нет — пополнение только через читерскую шляпу (Helper) или админа
 - Добавлен `data-account-id` на `.account-item` — можно искать карточку по id счёта
 
 **Транзакции:**
@@ -65,7 +65,7 @@
 |-----|----------|
 | Кнопка «Войти» | `#loginForm button[type="submit"]` или `.submit-btn` — нет уникального id |
 | Кнопка «Зарегистрироваться» | `#registerForm .submit-btn` |
-| Кнопка «Пополнить» в модалке | `#topupForm button[type="submit"]` — нет id |
+| — | Модалка пополнения удалена; пополнение через читерскую шляпу |
 | Кнопка «Перевести» | В каждой форме своя: `#homeTransferForm`, `#homeByAccountForm` и т.д. — кнопка без id |
 | Категории платежей | `[data-pay-target="mobile"]` — ок, но «Интернет», «ЖКХ» и т.д. ведут в одну форму vendor с разными провайдерами |
 | Пустое состояние счетов | Текст «Нет Активных Счетов» в `<p class="empty">` — нет id, только текст |
@@ -92,10 +92,10 @@
    - `data-testid="btn-login"`, `data-testid="btn-register"`
    - `data-testid="btn-logout"`, `data-testid="btn-hat-cheat"`
    - `data-testid="btn-transfer-own"`, `data-testid="btn-transfer-by-account"` и т.д.
-   - `data-testid="modal-topup"`, `data-testid="modal-otp"`
+   - `data-testid="modal-otp"`
    - `data-testid="toast"`
 
-2. **Карточки счетов:** добавить `data-account-id` на `.account-item` и кнопку «Пополнить» с `data-topup-id` (если нужен этот сценарий в UI).
+2. **Карточки счетов:** `data-account-id` на `.account-item`. Кнопки «Пополнить» нет — пополнение через читерскую шляпу.
 
 3. **Формы:** дать id кнопкам submit — например `id="loginSubmit"`, `id="topupSubmit"`.
 
@@ -124,11 +124,11 @@
 |----------|--------|
 | Понятные id на формах и полях | ✅ Хорошо |
 | data-testid для E2E | ✅ Добавлены на ключевые элементы |
-| Стабильные локаторы для динамического контента | ✅ data-account-id, data-topup-id, data-close-id на карточках |
+| Стабильные локаторы для динамического контента | ✅ data-account-id, data-close-id на карточках |
 | Кнопки submit с id | ⚠️ Нет |
 | Toast и модалки | ✅ Есть id |
 
-**Вывод:** Писать UI-тесты можно. Добавлены `data-testid` на ключевые элементы (логин, регистрация, дашборд, toast), `data-account-id` на карточки счетов, кнопка «Пополнить» с `data-topup-id`. Рекомендуется использовать `[data-testid="..."]` в E2E-тестах.
+**Вывод:** Писать UI-тесты можно. Добавлены `data-testid` на ключевые элементы (логин, регистрация, дашборд, toast), `data-account-id` на карточки счетов. Пополнение — через читерскую шляпу. Рекомендуется использовать `[data-testid="..."]` в E2E-тестах.
 
 ---
 
@@ -155,5 +155,5 @@
 
 **Карточки счетов (динамические):**
 - `[data-account-id="123"]` — контейнер счёта
-- `[data-testid="btn-account-topup"]` внутри счёта — «Пополнить»
+- Пополнение счёта — через читерскую шляпу (клик по логотипу)
 - `[data-testid="btn-account-close"]` — «Закрыть»

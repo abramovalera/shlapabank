@@ -102,3 +102,17 @@ def helper_otp_preview(
         "message": f"SMS: ваш код подтверждения {code}",
     }
 
+
+@router.post(
+    "/clear-browser",
+    summary="Супер-очистка: сигнал клиенту очистить localStorage, sessionStorage и перейти на страницу входа",
+)
+def helper_clear_browser(
+    current_user: User = Depends(require_active_user),
+):
+    """Возвращает инструкцию для клиента. Клиент должен вызвать localStorage.clear(), sessionStorage.clear() и выполнить редирект."""
+    return {
+        "detail": "clear_browser",
+        "redirect": "/ui/index.html",
+    }
+

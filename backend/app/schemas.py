@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models import AccountType, Currency, TransactionStatus, TransactionType, UserRole, UserStatus
 
@@ -94,20 +94,28 @@ class ProfileUpdateRequest(BaseModel):
         pattern=r"^[A-Za-zА-Яа-яЁё]+$",
     )
     phone: str | None = Field(default=None, pattern=r"^\+7\d{10}$")
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def normalize_phone_field(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        from app.phone_utils import normalize_phone
+        return normalize_phone(v) or v
+
     email: EmailStr | None = None
     current_password: str | None = Field(default=None, min_length=8, max_length=30)
     new_password: str | None = Field(default=None, min_length=8, max_length=30)
 
 
 class AdminCreditRequest(BaseModel):
-    model_config = ConfigDict(json_schema_extra={"example": {"amount": "10000.00", "otp_code": "0000"}})
+    model_config = ConfigDict(json_schema_extra={"example": {"amount": "10000.00"}})
 
     amount: Decimal = Field(gt=0)
-    otp_code: OtpCode
 
 
 class AccountTopupRequest(BaseModel):
-    model_config = ConfigDict(json_schema_extra={"example": {"amount": "1000.00", "otp_code": "0000"}})
+    model_config = ConfigDict(json_schema_extra={"example": {"amount": "1000.00", "otp_code": "1234"}})
 
     amount: Decimal = Field(gt=0)
     otp_code: OtpCode
@@ -116,7 +124,7 @@ class AccountTopupRequest(BaseModel):
 class TransferCreateRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {"from_account_id": 1, "to_account_id": 2, "amount": "1500.00", "otp_code": "0000"}
+            "example": {"from_account_id": 1, "to_account_id": 2, "amount": "1500.00", "otp_code": "1234"}
         }
     )
 
@@ -133,7 +141,7 @@ class ExchangeRequest(BaseModel):
                 "from_account_id": 1,
                 "to_account_id": 2,
                 "amount": "1000.00",
-                "otp_code": "0000",
+                "otp_code": "1234",
             }
         }
     )
@@ -151,7 +159,7 @@ class TransferByAccountRequest(BaseModel):
                 "from_account_id": 1,
                 "target_account_number": "22020000000000000001",
                 "amount": "1500.00",
-                "otp_code": "0000",
+                "otp_code": "1234",
             }
         }
     )
@@ -170,7 +178,7 @@ class MobilePaymentRequest(BaseModel):
                 "operator": "MTSha",
                 "phone": "+79991234567",
                 "amount": "300.00",
-                "otp_code": "0000",
+                "otp_code": "1234",
             }
         }
     )
@@ -181,6 +189,14 @@ class MobilePaymentRequest(BaseModel):
     amount: Decimal = Field(gt=0)
     otp_code: OtpCode
 
+    @field_validator("phone", mode="before")
+    @classmethod
+    def normalize_phone_field(cls, v: str) -> str:
+        if not v:
+            return v
+        from app.phone_utils import normalize_phone
+        return normalize_phone(v) or v
+
 
 class VendorPaymentRequest(BaseModel):
     model_config = ConfigDict(
@@ -190,7 +206,7 @@ class VendorPaymentRequest(BaseModel):
                 "provider": "CityWater",
                 "account_number": "123456789012345678",
                 "amount": "1200.00",
-                "otp_code": "0000",
+                "otp_code": "1234",
             }
         }
     )
@@ -253,6 +269,14 @@ class TransferByPhoneRequest(BaseModel):
     amount: Decimal = Field(gt=0)
     recipient_bank_id: str = Field(min_length=1, max_length=32)
     otp_code: OtpCode
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def normalize_phone_field(cls, v: str) -> str:
+        if not v:
+            return v
+        from app.phone_utils import normalize_phone
+        return normalize_phone(v) or v
 
 
 class TransactionPublic(BaseModel):

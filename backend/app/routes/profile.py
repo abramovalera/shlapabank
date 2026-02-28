@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import User
+from app.phone_utils import normalize_phone
 from app.schemas import ProfileUpdateRequest, UserPublic
 from app.security import get_password_hash, require_active_user, validate_password_rules, verify_password
 
@@ -24,7 +25,9 @@ def update_profile(
     updates = payload.model_dump(exclude_unset=True)
 
     if "phone" in updates and updates["phone"] is not None:
-        existing = db.scalar(select(User).where(User.phone == updates["phone"]))
+        normalized_phone = normalize_phone(updates["phone"]) or updates["phone"]
+        updates["phone"] = normalized_phone
+        existing = db.scalar(select(User).where(User.phone == normalized_phone))
         if existing and existing.id != current_user.id:
             raise HTTPException(status_code=409, detail="validation_error: phone_not_unique")
 

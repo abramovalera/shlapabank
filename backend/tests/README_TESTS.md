@@ -51,6 +51,6 @@
   - Admin: GET users, GET transactions, POST …/block, …/unblock, POST …/credit
   - Transactions: GET
   - Settings: GET
-- **OTP:** В тестах используется MVP-код `0000` (из конфига), что достаточно для всех сценариев с OTP.
+- **OTP:** Только динамический из `GET /helper/otp/preview`. Фиксированного кода нет. В conftest есть `get_otp(client, token)`.
 
 Этого хватает, чтобы реализовать и запускать описанные автотесты без доступа к БД и без дополнительных сервисов.

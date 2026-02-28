@@ -1,7 +1,7 @@
 """Автотесты: история транзакций (GET /transactions)."""
 import pytest
 
-from conftest import helper_increase
+from conftest import get_otp, helper_increase
 
 
 def test_transactions_list(client, auth_headers):
@@ -11,11 +11,12 @@ def test_transactions_list(client, auth_headers):
     assert isinstance(data, list)
 
 
-def test_transactions_after_topup(client, auth_headers, rub_account):
+def test_transactions_after_topup(client, auth_headers, token, rub_account):
+    otp = get_otp(client, token)
     client.post(
         f"/accounts/{rub_account['id']}/topup",
         headers=auth_headers,
-        json={"amount": "100.00", "otp_code": "0000"},
+        json={"amount": "100.00", "otp_code": otp},
     )
     r = client.get("/transactions", headers=auth_headers)
     assert r.status_code == 200
@@ -26,6 +27,7 @@ def test_transactions_after_topup(client, auth_headers, rub_account):
 def test_transactions_after_transfer(client, auth_headers, token, two_rub_accounts):
     a1, a2 = two_rub_accounts
     helper_increase(client, token, a1["id"], "5000")
+    otp = get_otp(client, token)
     client.post(
         "/transfers",
         headers=auth_headers,
@@ -33,7 +35,7 @@ def test_transactions_after_transfer(client, auth_headers, token, two_rub_accoun
             "from_account_id": a1["id"],
             "to_account_id": a2["id"],
             "amount": "200.00",
-            "otp_code": "0000",
+            "otp_code": otp,
         },
     )
     r = client.get("/transactions", headers=auth_headers)

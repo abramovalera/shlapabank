@@ -14,7 +14,7 @@ class Settings:
     default_admin_login: str = os.getenv("DEFAULT_ADMIN_LOGIN", "admin")
     default_admin_password: str = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin")
     default_admin_email: str = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@shlapabank.local")
-    operation_otp_code: str = os.getenv("OPERATION_OTP_CODE", "0000")
+    operation_otp_code: str = os.getenv("OPERATION_OTP_CODE", "")  # Пусто = OTP только через GET /helper/otp/preview
 
 
 settings = Settings()
