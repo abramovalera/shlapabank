@@ -2408,10 +2408,10 @@ function wireActions() {
     ];
 
     const CHAT_LIMITS_SUBMENU = [
+      { id: "back", label: "← К меню", back: true },
       { id: "limits_once", label: "Разовые лимиты (переводы)" },
       { id: "limits_daily", label: "Дневной лимит" },
       { id: "limits_payments", label: "Лимиты по платежам" },
-      { id: "back", label: "← К меню" },
     ];
 
     function appendChatMessage(text, role, isFile = false) {
@@ -2430,7 +2430,7 @@ function wireActions() {
       items.forEach((item) => {
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "chat-option-btn";
+        btn.className = "chat-option-btn" + (item.back ? " chat-option-btn-back" : "");
         btn.textContent = item.label;
         btn.dataset.chatId = item.id;
         chatMenuContainer.appendChild(btn);

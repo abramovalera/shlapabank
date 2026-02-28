@@ -1083,6 +1083,18 @@ tbody tr:last-child td {
   border-color: #b0b0b8;
 }
 
+.chat-option-btn-back {
+  background: linear-gradient(135deg, #f5f5f9, #e8e8f0);
+  border: 1px solid #12141c;
+  color: #12141c;
+  font-weight: 600;
+}
+
+.chat-option-btn-back:hover {
+  background: linear-gradient(135deg, #e8e8f0, #d8d8e4);
+  border-color: #12141c;
+}
+
 .chat-msg {
   max-width: 85%;
   padding: 8px 12px;
