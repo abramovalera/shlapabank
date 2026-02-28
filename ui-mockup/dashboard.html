@@ -212,8 +212,19 @@
                     <label>Фамилия<input id="lastName" type="text" /></label>
                     <label>Телефон<input id="phone" type="text" inputmode="tel" maxlength="18" placeholder="+7(999)123-45-67" /></label>
                     <label>Email<input id="email" type="email" autocomplete="off" /></label>
-                    <label>Текущий пароль<input id="currentPassword" type="password" autocomplete="new-password" /></label>
-                    <label>Новый пароль<input id="newPassword" type="password" autocomplete="new-password" /></label>
+                    <div class="profile-form__field">
+                      <label>Новый пароль</label>
+                      <div class="password-wrap">
+                        <input id="newPassword" type="password" autocomplete="new-password" />
+                        <button id="toggleNewPassword" type="button" class="eye-btn" aria-label="Показать пароль">
+                          <svg viewBox="0 0 24 24" fill="none">
+                            <path d="M3 12C5.6 8.5 8.5 7 12 7C15.5 7 18.4 8.5 21 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                            <path d="M5.5 16.5L7.2 14.8M9.5 18.2L10.4 16M14.5 18.2L13.6 16M18.5 16.5L16.8 14.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                          </svg>
+                        </button>
+                      </div>
+                      <p id="newPasswordError" class="field-error-text" role="alert" aria-live="polite"></p>
+                    </div>
                     <button class="btn" type="submit">Сохранить профиль</button>
                   </form>
                 </div>
@@ -261,6 +272,32 @@
       <div class="modal-actions">
         <button id="confirmCloseCancel" class="btn light" type="button">Отмена</button>
         <button id="confirmCloseOk" class="btn" type="button">Закрыть Счет</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="confirmCurrentPasswordModal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h2 class="modal-title">Подтвердите текущий пароль</h2>
+      <p class="modal-text">Для смены пароля введите текущий пароль.</p>
+      <div class="modal-form-single">
+        <label>
+          <span>Текущий пароль</span>
+        </label>
+        <div class="password-wrap">
+          <input id="confirmCurrentPasswordInput" type="password" autocomplete="current-password" placeholder="Текущий пароль" />
+          <button id="toggleConfirmCurrentPassword" type="button" class="eye-btn" aria-label="Показать пароль">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M3 12C5.6 8.5 8.5 7 12 7C15.5 7 18.4 8.5 21 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+              <path d="M5.5 16.5L7.2 14.8M9.5 18.2L10.4 16M14.5 18.2L13.6 16M18.5 16.5L16.8 14.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </button>
+        </div>
+        <p id="confirmCurrentPasswordError" class="field-error-text" role="alert" aria-live="polite"></p>
+        <div class="modal-actions">
+          <button id="confirmCurrentPasswordCancel" class="btn light" type="button">Отмена</button>
+          <button id="confirmCurrentPasswordOk" class="btn" type="button">Подтвердить</button>
+        </div>
       </div>
     </div>
   </div>

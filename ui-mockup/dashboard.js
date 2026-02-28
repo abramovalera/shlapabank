@@ -122,19 +122,58 @@ function mapApiError(detail) {
     case "validation_error: email_not_unique":
       return "Этот email уже используется.";
     case "validation_error: password_change_requires_both_fields":
-      return "Для смены пароля укажите текущий и новый пароль.";
+      return "Для смены пароля нужен текущий пароль. Смена пароля в профиле временно недоступна.";
     case "invalid_current_password":
       return "Неверный текущий пароль.";
     case "validation_error: password_reuse_not_allowed":
       return "Новый пароль не должен совпадать с текущим.";
+    case "validation_error: password_equals_login":
+      return "Пароль не должен совпадать с логином.";
+    case "validation_error: password_contains_space":
+      return "Пароль не должен содержать пробелы.";
+    case "validation_error: weak_password":
+      return "Новый пароль не подходит: от 8 до 30 символов, нужны строчная и заглавная буква, цифра и спецсимвол (например !@#$).";
+    case "validation_error":
+    case "value_error":
+      return "Ошибка валидации. Проверьте введённые данные.";
     case "request_failed":
     default:
       return "Не удалось выполнить запрос. Попробуйте позже.";
   }
 }
 
+function validateNewPassword(password, login) {
+  if (!password || password.length < 8) {
+    return "Пароль должен быть не короче 8 символов.";
+  }
+  if (password.length > 30) {
+    return "Пароль должен быть не длиннее 30 символов.";
+  }
+  if (/\s/.test(password)) {
+    return "Пароль не должен содержать пробелы.";
+  }
+  if (login && password === login) {
+    return "Пароль не должен совпадать с логином.";
+  }
+  if (!/[a-z]/.test(password)) {
+    return "Паролю не хватает строчной буквы.";
+  }
+  if (!/[A-Z]/.test(password)) {
+    return "Паролю не хватает заглавной буквы.";
+  }
+  if (!/[0-9]/.test(password)) {
+    return "Паролю не хватает цифры.";
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return "Паролю не хватает спецсимвола (например !@#$).";
+  }
+  return "";
+}
+
 function showToast(message, isError = false) {
   toastEl.textContent = message;
+  toastEl.setAttribute("data-toast-type", isError ? "error" : "success");
+  toastEl.setAttribute("data-toast-message", message);
   toastEl.classList.add("show");
   toastEl.classList.toggle("error", isError);
   window.clearTimeout(showToast.timer);
@@ -153,10 +192,18 @@ async function api(path, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const code = data.detail || "request_failed";
+    let code = data.detail ?? "request_failed";
+    if (Array.isArray(code) && code.length > 0) {
+      const first = code[0];
+      code = first.msg || first.type || "validation_error";
+    }
+    // 401 с пустым телом при PUT /profile часто значит «неверный текущий пароль» — не разлогиниваем
+    if (response.status === 401 && code === "request_failed" && options.method === "PUT" && path === "/profile") {
+      code = "invalid_current_password";
+    }
 
-    // Если токен недействителен — разлогиниваем и отправляем на экран входа
-    if (code === "invalid_token" || response.status === 401) {
+    // Если токен недействителен — разлогиниваем (но не при ошибке «неверный текущий пароль»)
+    if (code === "invalid_token" || (response.status === 401 && code !== "invalid_current_password")) {
       try {
         localStorage.removeItem("sb_access_token");
         localStorage.removeItem("sb_role");
@@ -172,8 +219,10 @@ async function api(path, options = {}) {
       throw error;
     }
 
-    const error = new Error(mapApiError(code));
+    const message = typeof code === "string" ? mapApiError(code) : "Ошибка валидации данных.";
+    const error = new Error(message);
     error.code = code;
+    error.status = response.status;
     throw error;
   }
   return data;
@@ -1720,16 +1769,24 @@ function wireActions() {
     emailInput.addEventListener("keydown", preventSpaceKey);
   }
 
-  const currentPasswordInput = qs("currentPassword");
-  if (currentPasswordInput) {
-    currentPasswordInput.addEventListener("input", () => stripAllSpacesInput(currentPasswordInput));
-    currentPasswordInput.addEventListener("keydown", preventSpaceKey);
+  const newPasswordInput = qs("newPassword");
+  const newPasswordErrorEl = qs("newPasswordError");
+  if (newPasswordInput) {
+    newPasswordInput.addEventListener("input", () => {
+      stripAllSpacesInput(newPasswordInput);
+      if (newPasswordErrorEl) newPasswordErrorEl.textContent = "";
+    });
+    newPasswordInput.addEventListener("keydown", preventSpaceKey);
   }
 
-  const newPasswordInput = qs("newPassword");
-  if (newPasswordInput) {
-    newPasswordInput.addEventListener("input", () => stripAllSpacesInput(newPasswordInput));
-    newPasswordInput.addEventListener("keydown", preventSpaceKey);
+  const toggleNewPasswordBtn = qs("toggleNewPassword");
+  if (toggleNewPasswordBtn && newPasswordInput) {
+    toggleNewPasswordBtn.addEventListener("click", () => {
+      const isPassword = newPasswordInput.type === "password";
+      newPasswordInput.type = isPassword ? "text" : "password";
+      toggleNewPasswordBtn.setAttribute("aria-label", isPassword ? "Скрыть пароль" : "Показать пароль");
+      toggleNewPasswordBtn.classList.toggle("eye-btn--visible", isPassword);
+    });
   }
 
   const homeByAccountNumberInput = qs("homeByAccountNumber");
@@ -2617,53 +2674,148 @@ function wireActions() {
     }
   });
 
+  let pendingProfilePayload = null;
+  const confirmCurrentPasswordModal = qs("confirmCurrentPasswordModal");
+  const confirmCurrentPasswordInput = qs("confirmCurrentPasswordInput");
+  const confirmCurrentPasswordError = qs("confirmCurrentPasswordError");
+  const confirmCurrentPasswordCancel = qs("confirmCurrentPasswordCancel");
+  const confirmCurrentPasswordOk = qs("confirmCurrentPasswordOk");
+
+  const hideConfirmCurrentPasswordModal = () => {
+    if (!confirmCurrentPasswordModal) return;
+    confirmCurrentPasswordModal.classList.remove("show");
+    confirmCurrentPasswordModal.hidden = true;
+    pendingProfilePayload = null;
+    if (confirmCurrentPasswordInput) confirmCurrentPasswordInput.value = "";
+    if (confirmCurrentPasswordError) confirmCurrentPasswordError.textContent = "";
+  };
+
+  if (confirmCurrentPasswordInput) {
+    confirmCurrentPasswordInput.addEventListener("input", () => stripAllSpacesInput(confirmCurrentPasswordInput));
+    confirmCurrentPasswordInput.addEventListener("keydown", preventSpaceKey);
+  }
+
+  const toggleConfirmCurrentPasswordBtn = qs("toggleConfirmCurrentPassword");
+  if (toggleConfirmCurrentPasswordBtn && confirmCurrentPasswordInput) {
+    toggleConfirmCurrentPasswordBtn.addEventListener("click", () => {
+      const isPassword = confirmCurrentPasswordInput.type === "password";
+      confirmCurrentPasswordInput.type = isPassword ? "text" : "password";
+      toggleConfirmCurrentPasswordBtn.setAttribute("aria-label", isPassword ? "Скрыть пароль" : "Показать пароль");
+      toggleConfirmCurrentPasswordBtn.classList.toggle("eye-btn--visible", isPassword);
+    });
+  }
+
   qs("profileForm").addEventListener("submit", async (event) => {
     event.preventDefault();
+    const getTrimmed = (id) => {
+      const el = qs(id);
+      if (!el) return null;
+      const v = el.value.trim();
+      return v === "" ? null : v;
+    };
+
+    const firstName = getTrimmed("firstName");
+    const lastName = getTrimmed("lastName");
+    const namePattern = /^[A-Za-zА-Яа-яЁё]+$/;
+    if (firstName && !namePattern.test(firstName)) {
+      showToast("Имя может содержать только буквы (A–Z, А–Я).", true);
+      return;
+    }
+    if (lastName && !namePattern.test(lastName)) {
+      showToast("Фамилия может содержать только буквы (A–Z, А–Я).", true);
+      return;
+    }
+
+    const payload = {
+      first_name: firstName,
+      last_name: lastName,
+      phone: getRawPhone(getTrimmed("phone")) || undefined,
+      email: getTrimmed("email"),
+    };
+
+    const newPasswordEl = qs("newPassword");
+    const newPasswordValue = newPasswordEl ? newPasswordEl.value : "";
+    if (newPasswordValue) {
+      const login = state.profile ? state.profile.login : "";
+      const passwordError = validateNewPassword(newPasswordValue, login);
+      if (passwordError) {
+        showToast(passwordError, true);
+        newPasswordEl.focus();
+        return;
+      }
+      payload.new_password = newPasswordValue;
+    }
+    if (newPasswordErrorEl) newPasswordErrorEl.textContent = "";
+
+    if (payload.new_password) {
+      pendingProfilePayload = payload;
+      if (confirmCurrentPasswordError) confirmCurrentPasswordError.textContent = "";
+      if (confirmCurrentPasswordModal) {
+        confirmCurrentPasswordModal.hidden = false;
+        confirmCurrentPasswordModal.classList.add("show");
+        if (confirmCurrentPasswordInput) {
+          confirmCurrentPasswordInput.value = "";
+          confirmCurrentPasswordInput.focus();
+        }
+      }
+      return;
+    }
+
     try {
-      const getTrimmed = (id) => {
-        const el = qs(id);
-        if (!el) return null;
-        const v = el.value.trim();
-        return v === "" ? null : v;
-      };
-
-      const firstName = getTrimmed("firstName");
-      const lastName = getTrimmed("lastName");
-      const namePattern = /^[A-Za-zА-Яа-яЁё]+$/;
-      if (firstName && !namePattern.test(firstName)) {
-        showToast("Имя может содержать только буквы (A–Z, А–Я).", true);
-        return;
-      }
-      if (lastName && !namePattern.test(lastName)) {
-        showToast("Фамилия может содержать только буквы (A–Z, А–Я).", true);
-        return;
-      }
-
-      const payload = {
-        first_name: firstName,
-        last_name: lastName,
-        phone: getRawPhone(getTrimmed("phone")) || undefined,
-        email: getTrimmed("email"),
-      };
-
-      if (qs("currentPassword").value || qs("newPassword").value) {
-        payload.current_password = qs("currentPassword").value;
-        payload.new_password = qs("newPassword").value;
-      }
-
       await api("/profile", {
         method: "PUT",
         body: JSON.stringify(payload),
       });
-
-      qs("currentPassword").value = "";
-      qs("newPassword").value = "";
       showToast("Профиль обновлен");
       await loadProfile();
     } catch (error) {
       showToast(`Ошибка обновления профиля: ${error.message}`, true);
     }
   });
+
+  if (confirmCurrentPasswordCancel) {
+    confirmCurrentPasswordCancel.addEventListener("click", hideConfirmCurrentPasswordModal);
+  }
+
+  if (confirmCurrentPasswordOk && confirmCurrentPasswordInput) {
+    confirmCurrentPasswordOk.addEventListener("click", async () => {
+      const currentPassword = confirmCurrentPasswordInput.value;
+      if (confirmCurrentPasswordError) confirmCurrentPasswordError.textContent = "";
+      if (!currentPassword) {
+        showToast("Введите текущий пароль.", true);
+        return;
+      }
+      if (!pendingProfilePayload) {
+        hideConfirmCurrentPasswordModal();
+        return;
+      }
+      const payload = { ...pendingProfilePayload, current_password: currentPassword };
+      try {
+        await api("/profile", {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        const newPwdEl = qs("newPassword");
+        if (newPwdEl) newPwdEl.value = "";
+        hideConfirmCurrentPasswordModal();
+        showToast("Профиль обновлен");
+        await loadProfile();
+      } catch (error) {
+        const isWrongCurrentPassword =
+          error.code === "invalid_current_password" || error.status === 401;
+        const msg = isWrongCurrentPassword
+          ? "Неверный текущий пароль."
+          : (error.message || "Не удалось выполнить запрос. Попробуйте позже.");
+        showToast(msg, true);
+      }
+    });
+  }
+
+  if (confirmCurrentPasswordModal) {
+    confirmCurrentPasswordModal.addEventListener("click", (e) => {
+      if (e.target === confirmCurrentPasswordModal) hideConfirmCurrentPasswordModal();
+    });
+  }
 
   const primaryAccountsModal = qs("primaryAccountsModal");
   const primaryAccountsBtn = qs("primaryAccountsBtn");

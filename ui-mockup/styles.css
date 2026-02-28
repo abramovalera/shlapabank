@@ -173,6 +173,10 @@ body {
   height: 100%;
 }
 
+.eye-btn.eye-btn--visible {
+  color: #000;
+}
+
 .submit-btn {
   height: 82px;
   border: none;

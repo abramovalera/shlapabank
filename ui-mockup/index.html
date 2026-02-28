@@ -138,6 +138,12 @@
             spellcheck="false"
             autocomplete="new-password"
           />
+          <button id="toggleRegPassword" type="button" class="eye-btn" aria-label="Показать пароль">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M3 12C5.6 8.5 8.5 7 12 7C15.5 7 18.4 8.5 21 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+              <path d="M5.5 16.5L7.2 14.8M9.5 18.2L10.4 16M14.5 18.2L13.6 16M18.5 16.5L16.8 14.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </button>
         </div>
         <button class="submit-btn" type="submit" data-testid="btn-register">Зарегистрироваться</button>
       </form>
@@ -195,7 +201,18 @@
       const isPassword = passwordInput.type === "password";
       passwordInput.type = isPassword ? "text" : "password";
       togglePasswordBtn.setAttribute("aria-label", isPassword ? "Скрыть пароль" : "Показать пароль");
+      togglePasswordBtn.classList.toggle("eye-btn--visible", isPassword);
     });
+
+    const toggleRegPasswordBtn = document.getElementById("toggleRegPassword");
+    if (toggleRegPasswordBtn && regPasswordInput) {
+      toggleRegPasswordBtn.addEventListener("click", () => {
+        const isPassword = regPasswordInput.type === "password";
+        regPasswordInput.type = isPassword ? "text" : "password";
+        toggleRegPasswordBtn.setAttribute("aria-label", isPassword ? "Скрыть пароль" : "Показать пароль");
+        toggleRegPasswordBtn.classList.toggle("eye-btn--visible", isPassword);
+      });
+    }
 
     normalizePlaceholders();
 
