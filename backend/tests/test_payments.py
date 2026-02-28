@@ -145,3 +145,48 @@ def test_payments_insufficient_funds(client, auth_headers, token, rub_account):
     )
     assert r.status_code == 400
     assert r.json().get("detail") == "insufficient_funds"
+
+
+def _admin_token(client):
+    r = client.post("/auth/login", json={"login": "admin", "password": "admin"})
+    assert r.status_code == 200, (r.status_code, r.json())
+    return r.json()["access_token"]
+
+
+def _headers(token: str):
+    return {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+
+
+def test_blocked_client_cannot_make_payment(client, unique_login, valid_password):
+    """Blocked user gets 403 on payment API (cannot pay through API)."""
+    r = client.post("/auth/register", json={"login": unique_login, "password": valid_password})
+    assert r.status_code == 201
+    user_id = r.json()["id"]
+
+    r = client.post("/auth/login", json={"login": unique_login, "password": valid_password})
+    assert r.status_code == 200
+    user_token = r.json()["access_token"]
+    user_headers = _headers(user_token)
+
+    admin_tok = _admin_token(client)
+    r = client.post(f"/admin/users/{user_id}/block", headers=_headers(admin_tok))
+    assert r.status_code == 200
+    assert r.json()["status"] == "BLOCKED"
+
+    r = client.get("/payments/mobile/operators", headers=user_headers)
+    assert r.status_code == 403, "blocked user must not access payment endpoints"
+    assert r.json().get("detail") == "user_blocked"
+
+    r = client.post(
+        "/payments/mobile",
+        headers=user_headers,
+        json={
+            "account_id": 1,
+            "operator": "MTSha",
+            "phone": "+79991234567",
+            "amount": "300.00",
+            "otp_code": "0000",
+        },
+    )
+    assert r.status_code == 403, "blocked user must not perform payment"
+    assert r.json().get("detail") == "user_blocked"

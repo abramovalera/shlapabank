@@ -6,13 +6,14 @@ from app.db import get_db
 from app.models import User
 from app.phone_utils import normalize_phone
 from app.schemas import ProfileUpdateRequest, UserPublic
-from app.security import get_password_hash, require_active_user, validate_password_rules, verify_password
+from app.security import get_current_user, get_password_hash, require_active_user, validate_password_rules, verify_password
 
 router = APIRouter(prefix="/api/v1/profile", tags=["profile"])
 
 
 @router.get("", response_model=UserPublic, summary="Получить профиль")
-def get_profile(current_user: User = Depends(require_active_user)):
+def get_profile(current_user: User = Depends(get_current_user)):
+    """Заблокированный может читать профиль (увидеть статус и сообщение)."""
     return current_user
 
 

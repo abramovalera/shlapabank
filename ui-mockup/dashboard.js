@@ -986,6 +986,10 @@ async function handleOtpSubmit() {
   }
 }
 
+function isUserBlocked() {
+  return state.profile?.status === "BLOCKED";
+}
+
 function renderProfile() {
   if (!state.profile) return;
   const firstName = state.profile.first_name || "";
@@ -997,7 +1001,10 @@ function renderProfile() {
     const isActive = state.profile.status === "ACTIVE";
     statusEl.textContent = isActive ? "Активный" : "Заблокирован";
     statusEl.classList.toggle("green", isActive);
+    statusEl.classList.toggle("blocked", !isActive);
   }
+  const supportMsg = qs("profileSupportMessage");
+  if (supportMsg) supportMsg.hidden = !isUserBlocked();
   qs("firstName").value = state.profile.first_name || "";
   qs("lastName").value = state.profile.last_name || "";
   qs("phone").value = state.profile.phone ? formatPhoneDisplay(state.profile.phone) : "";
@@ -1006,7 +1013,48 @@ function renderProfile() {
     const email = state.profile.email;
     emailField.value = email && email !== state.profile.login ? email : "";
   }
+  const blocked = isUserBlocked();
+  const profileForm = qs("profileForm");
+  if (profileForm) {
+    profileForm.querySelectorAll("input").forEach((el) => (el.readOnly = blocked));
+    const submitBtn = profileForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = blocked;
+  }
+  applyBlockedState();
   renderNotifications();
+}
+
+/** Заблокирован: активна только вкладка «Ещё», остальное недоступно. */
+function applyBlockedState() {
+  const blocked = isUserBlocked();
+  const c = "blocked-disabled";
+  document.querySelectorAll('.topnav-tab[data-page-target="home"], .topnav-tab[data-page-target="payments"], .topnav-tab[data-page-target="chat"]').forEach((el) => {
+    el.classList.toggle(c, blocked);
+    el.disabled = blocked;
+  });
+  [
+    "homeTransferOwnBtn", "homeTransferByAccountBtn", "homeTransferByPhoneBtn", "homeExchangeBtn",
+    "showMoreTxBtn", "chatSendBtn", "chatAttachBtn", "chatInput", "primaryAccountsBtn", "superClearBtn",
+  ].forEach((id) => {
+    const el = qs(id);
+    if (el) {
+      el.classList.toggle(c, blocked);
+      el.disabled = blocked;
+      if (el.tagName === "INPUT") el.readOnly = blocked;
+    }
+  });
+  const openBtn = qs("createAccountForm")?.querySelector('button[type="submit"]');
+  if (openBtn) {
+    openBtn.classList.toggle(c, blocked);
+    openBtn.disabled = blocked;
+  }
+  ["mobileForm", "vendorForm"].forEach((formId) => {
+    const btn = qs(formId)?.querySelector('button[type="submit"]');
+    if (btn) {
+      btn.classList.toggle(c, blocked);
+      btn.disabled = blocked;
+    }
+  });
 }
 
 function renderNotifications() {
@@ -1660,11 +1708,17 @@ async function loadProfile() {
 }
 
 async function loadAccounts() {
-  const data = await api("/accounts");
-  state.accounts = data;
-  renderBalances();
-  renderAccounts();
-  fillAccountSelects();
+  try {
+    const data = await api("/accounts");
+    if (Array.isArray(data)) {
+      state.accounts = data;
+      renderBalances();
+      renderAccounts();
+      fillAccountSelects();
+    }
+  } catch (_) {
+    // не перезаписываем state.accounts при ошибке — данные на экране остаются
+  }
 }
 
 async function loadTransfersInfo() {
@@ -1962,6 +2016,7 @@ function wirePages() {
         window.history.pushState({ page: pageId }, "", path);
       }
     }
+
   };
 
   window.__applyPage = applyPage;
@@ -2012,14 +2067,15 @@ async function loadData() {
 
   const map = (index, fallback) => (results[index].status === "fulfilled" ? results[index].value : fallback);
   state.profile = map(0, null);
-  state.accounts = map(1, []);
-  state.transactions = map(2, []);
+  state.accounts = results[1].status === "fulfilled" && Array.isArray(results[1].value) ? results[1].value : (state.accounts ?? []);
+  state.transactions = results[2].status === "fulfilled" && Array.isArray(results[2].value) ? results[2].value : (state.transactions ?? []);
   state.operators = map(3, { operators: [] }).operators || [];
   state.providers = map(4, { providers: [] }).providers || [];
   state.settings = map(5, null);
   state.exchangeRates = map(6, null);
 
   renderProfile();
+  if (isUserBlocked() && typeof window.__applyPage === "function") window.__applyPage("more", true);
   renderBalances();
   renderAccounts();
   fillAccountSelects();
@@ -2396,7 +2452,7 @@ function wireActions() {
       try {
         const typeSelect = qs("openAccountType");
         const currencySelect = qs("openAccountCurrency");
-        await api("/accounts", {
+        const newAccount = await api("/accounts", {
           method: "POST",
           body: JSON.stringify({
             account_type: typeSelect ? typeSelect.value : "DEBIT",
@@ -2405,6 +2461,12 @@ function wireActions() {
         });
         showToast("Счет Открыт");
         hideOpenModal();
+        if (newAccount && typeof newAccount.id !== "undefined") {
+          state.accounts = [...(state.accounts || []), newAccount];
+          renderBalances();
+          renderAccounts();
+          fillAccountSelects();
+        }
         await loadAccounts();
       } catch (error) {
         hideOpenModal();

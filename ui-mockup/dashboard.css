@@ -179,6 +179,8 @@ body {
   overflow: hidden;
 }
 
+
+
 .notifications-panel-header {
   padding: 12px 14px;
   font-size: 14px;
@@ -374,6 +376,24 @@ body {
 .pill.green {
   background: var(--ok-bg);
   color: var(--ok-text);
+}
+
+.pill.blocked {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  font-weight: 600;
+}
+
+.profile-support-msg {
+  margin: 0 0 12px 0;
+  color: var(--warn-text);
+  font-weight: 500;
+}
+
+.blocked-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
 }
 
 .accounts-list {
