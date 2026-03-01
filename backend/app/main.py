@@ -7,13 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
-from sqlalchemy import or_, select
-from sqlalchemy.exc import IntegrityError
 
-from app.banks import BANKS_CATALOG
 from app.core.config import settings
-from app.db import Base, SessionLocal, engine
-from app.models import Bank, User, UserRole
 from app.routes.accounts import router as accounts_router
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
@@ -24,7 +19,7 @@ from app.routes.profile import router as profile_router
 from app.routes.settings import router as settings_router
 from app.routes.transactions import router as transactions_router
 from app.routes.transfers import router as transfers_router
-from app.security import get_password_hash
+from app.startup import init_db
 
 openapi_tags = [
     {"name": "health", "description": "Проверка доступности."},
@@ -149,84 +144,7 @@ def confirm_page():
 
 @app.on_event("startup")
 def startup() -> None:
-    Base.metadata.create_all(bind=engine)
-    # Миграции: добавить колонки, если их нет (is_primary, fee)
-    with engine.connect() as conn:
-        from sqlalchemy import text
-        for stmt in (
-            "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT FALSE",
-            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS fee NUMERIC(14, 2) DEFAULT 0",
-        ):
-            try:
-                conn.execute(text(stmt))
-                conn.commit()
-            except Exception:
-                conn.rollback()
-    db = SessionLocal()
-    try:
-        for code, label in BANKS_CATALOG:
-            bank = db.scalar(select(Bank).where(Bank.code == code))
-            if not bank:
-                db.add(Bank(code=code, label=label))
-            else:
-                bank.label = label
-        db.commit()
-    except Exception:
-        db.rollback()
-    finally:
-        db.close()
-
-    db = SessionLocal()
-    try:
-        admin = db.scalar(
-            select(User).where(
-                or_(
-                    User.login == settings.default_admin_login,
-                    User.email == settings.default_admin_email,
-                )
-            )
-        )
-        if not admin:
-            admin = User(
-                login=settings.default_admin_login,
-                email=settings.default_admin_email,
-                password_hash=get_password_hash(settings.default_admin_password),
-                role=UserRole.ADMIN,
-            )
-            db.add(admin)
-        else:
-            admin.role = UserRole.ADMIN
-            admin.login = settings.default_admin_login
-            email_conflict = db.scalar(
-                select(User).where(
-                    User.email == settings.default_admin_email,
-                    User.id != admin.id,
-                )
-            )
-            if not email_conflict:
-                admin.email = settings.default_admin_email
-            admin.password_hash = get_password_hash(settings.default_admin_password)
-            db.add(admin)
-
-        try:
-            db.commit()
-        except IntegrityError:
-            db.rollback()
-            fallback_admin = db.scalar(
-                select(User).where(
-                    or_(
-                        User.login == settings.default_admin_login,
-                        User.email == settings.default_admin_email,
-                    )
-                )
-            )
-            if fallback_admin:
-                fallback_admin.role = UserRole.ADMIN
-                fallback_admin.password_hash = get_password_hash(settings.default_admin_password)
-                db.add(fallback_admin)
-                db.commit()
-    finally:
-        db.close()
+    init_db()
 
 
 app.include_router(health_router)

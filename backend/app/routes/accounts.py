@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.dependencies import get_own_account, get_own_active_account
 from app.db import get_db
 from app.models import Account, Currency, Transaction, TransactionStatus, TransactionType, User
 from app.otp import validate_otp_for_user
@@ -137,9 +138,7 @@ def close_account(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ):
-    account = db.scalar(select(Account).where(Account.id == account_id, Account.user_id == current_user.id))
-    if not account:
-        raise HTTPException(status_code=404, detail="account_not_found")
+    account = get_own_account(account_id, current_user, db)
     if not account.is_active:
         raise HTTPException(status_code=400, detail="account_already_closed")
     if account.balance != Decimal("0.00"):
@@ -169,13 +168,7 @@ def topup_account(
     if payload.amount <= Decimal("0.00"):
         raise HTTPException(status_code=400, detail="amount_must_be_positive")
 
-    account = db.scalar(
-        select(Account)
-        .where(Account.id == account_id, Account.user_id == current_user.id, Account.is_active.is_(True))
-        .with_for_update()
-    )
-    if not account:
-        raise HTTPException(status_code=404, detail="account_not_found")
+    account = get_own_active_account(account_id, current_user, db, for_update=True)
 
     account.balance += payload.amount
 

@@ -1,9 +1,9 @@
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.dependencies import get_own_active_account
 from app.db import get_db
 from app.models import Account, Currency, Transaction, TransactionStatus, TransactionType, User
 from app.otp import validate_otp_for_user
@@ -69,13 +69,7 @@ def pay_mobile(
     if payload.amount < MOBILE_MIN or payload.amount > MOBILE_MAX:
         raise HTTPException(status_code=400, detail="payment_amount_out_of_range")
 
-    account = db.scalar(
-        select(Account)
-        .where(Account.id == payload.account_id, Account.user_id == current_user.id, Account.is_active.is_(True))
-        .with_for_update()
-    )
-    if not account:
-        raise HTTPException(status_code=404, detail="account_not_found")
+    account = get_own_active_account(payload.account_id, current_user, db, for_update=True)
     if account.currency != Currency.RUB:
         raise HTTPException(status_code=400, detail="payment_requires_rub_account")
     if account.balance < payload.amount:
@@ -128,13 +122,7 @@ def _execute_vendor_payment(
     if payload.amount < VENDOR_MIN or payload.amount > VENDOR_MAX:
         raise HTTPException(status_code=400, detail="payment_amount_out_of_range")
 
-    account = db.scalar(
-        select(Account)
-        .where(Account.id == payload.account_id, Account.user_id == current_user.id, Account.is_active.is_(True))
-        .with_for_update()
-    )
-    if not account:
-        raise HTTPException(status_code=404, detail="account_not_found")
+    account = get_own_active_account(payload.account_id, current_user, db, for_update=True)
     if account.currency != Currency.RUB:
         raise HTTPException(status_code=400, detail="payment_requires_rub_account")
     if account.balance < payload.amount:
