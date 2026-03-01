@@ -244,12 +244,18 @@ async function api(path, options = {}) {
   return data;
 }
 
+/** Нормализует пробелы в строке суммы: toLocaleString("ru-RU") даёт U+202F (narrow no-break space), в DOM/тестах удобнее обычный пробел. */
+function normalizeAmountSpaces(str) {
+  return String(str).replace(/\u202F/g, " ").replace(/\u00A0/g, " ");
+}
+
 function formatAmount(value, currency) {
   const num = Number(value);
   if (Number.isNaN(num) || typeof value === "object") {
     return `0,00 ${currency || "RUB"}`;
   }
-  return `${num.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || "RUB"}`;
+  const formatted = num.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${normalizeAmountSpaces(formatted)} ${currency || "RUB"}`;
 }
 
 function maskAccount(accountNumber) {
@@ -1219,13 +1225,18 @@ function renderBalances() {
 
   container.innerHTML = "";
   if (!state.accounts.length) {
-    container.innerHTML = `<span class="balance-chip">${formatAmount(0, "RUB")}</span>`;
+    const chip = document.createElement("span");
+    chip.className = "balance-chip";
+    chip.setAttribute("data-testid", "balance-chip-RUB");
+    chip.textContent = formatAmount(0, "RUB");
+    container.appendChild(chip);
     return;
   }
 
   Object.entries(totals).forEach(([currency, value]) => {
     const chip = document.createElement("span");
     chip.className = "balance-chip";
+    chip.setAttribute("data-testid", `balance-chip-${currency}`);
     chip.textContent = `${formatAmount(value, currency)}`;
     container.appendChild(chip);
   });
