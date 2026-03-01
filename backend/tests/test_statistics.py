@@ -74,8 +74,9 @@ def compute_stats(transactions: list, owned_ids: list[int]) -> dict:
 
     for tx in transactions:
         meta = get_transaction_meta(tx, owned_ids)
-        amount = float(tx.get("amount") or 0)
-        currency = tx.get("currency") or "RUB"
+        money = tx.get("money") or {}
+        amount = float(money.get("amount") or tx.get("amount") or 0)
+        currency = money.get("currency") or tx.get("currency") or "RUB"
         owns_from = tx.get("from_account_id") and tx["from_account_id"] in owned_ids
         owns_to = tx.get("to_account_id") and tx["to_account_id"] in owned_ids
         desc = tx.get("description") or ""
@@ -121,7 +122,7 @@ def http_client():
 @pytest.fixture(scope="module")
 def stats_test_user(http_client):
     """Пользователь с полным набором операций для теста статистики."""
-    login = f"stats_{int(time.time() * 1000)}"
+    login = f"stats{int(time.time() * 1000)}"
     password = "ValidPass123!"
     r = http_client.post("/auth/register", json={"login": login, "password": password})
     assert r.status_code == 201, (r.status_code, r.json())
@@ -208,7 +209,12 @@ def test_statistics_income_topup_salary(stats_test_user, stats_accounts):
     )
     assert r.status_code == 201
     r = client.get("/transactions", headers=h)
-    txs = [t for t in r.json() if t.get("description") == "self_topup:salary" and t.get("amount") == "5000.00"]
+    txs = [
+        t
+        for t in r.json()
+        if t.get("description") == "self_topup:salary"
+        and str((t.get("money") or {}).get("amount", t.get("amount"))) == "5000.00"
+    ]
     assert len(txs) >= 1
     owned = [a["id"] for a in stats_accounts.values()]
     stats = compute_stats(r.json(), owned)
@@ -250,7 +256,7 @@ def test_statistics_expense_transfer(stats_test_user, stats_accounts):
     client = stats_test_user["client"]
     token = stats_test_user["token"]
     h = _headers(token)
-    login2 = f"stats2_{int(time.time() * 1000)}"
+    login2 = f"stats2{int(time.time() * 1000)}"
     r = client.post("/auth/register", json={"login": login2, "password": "ValidPass123!"})
     if r.status_code != 201:
         pytest.skip("Не удалось создать второго пользователя")

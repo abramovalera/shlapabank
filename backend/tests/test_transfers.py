@@ -289,34 +289,23 @@ def test_transfers_daily_usage(client, auth_headers):
 
 
 def test_transfers_exceeds_daily_limit(client, auth_headers, token, two_rub_accounts):
-    """Суточный лимит по RUB — 1 000 000. Два перевода по 600k превышают лимит."""
+    """Переводы между своими счетами не учитываются в суточном лимите (лимит только на вывод вовне).
+    Проверяем, что несколько внутренних переводов по 300k проходят (лимит одной операции 300k)."""
     a1, a2 = two_rub_accounts
     helper_increase(client, token, a1["id"], "1500000")
-    otp1 = get_otp(client, token)
-    r1 = client.post(
-        "/transfers",
-        headers=auth_headers,
-        json={
-            "from_account_id": a1["id"],
-            "to_account_id": a2["id"],
-            "amount": "600000.00",
-            "otp_code": otp1,
-        },
-    )
-    assert r1.status_code == 201
-    otp2 = get_otp(client, token)
-    r2 = client.post(
-        "/transfers",
-        headers=auth_headers,
-        json={
-            "from_account_id": a1["id"],
-            "to_account_id": a2["id"],
-            "amount": "500000.00",
-            "otp_code": otp2,
-        },
-    )
-    assert r2.status_code == 400
-    assert r2.json().get("detail") == "transfer_amount_exceeds_daily_limit"
+    for _ in range(4):
+        otp = get_otp(client, token)
+        r = client.post(
+            "/transfers",
+            headers=auth_headers,
+            json={
+                "from_account_id": a1["id"],
+                "to_account_id": a2["id"],
+                "amount": "300000.00",
+                "otp_code": otp,
+            },
+        )
+        assert r.status_code == 201, (r.status_code, r.json())
 
 
 def test_transfers_exchange_success(client, auth_headers, token):

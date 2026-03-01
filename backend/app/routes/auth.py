@@ -23,6 +23,8 @@ def _issue_token_for_credentials(login: str, password: str, db: Session) -> Toke
     user = db.scalar(select(User).where(User.login == login))
     if not user:
         raise HTTPException(status_code=401, detail="invalid_credentials")
+    if user.status == UserStatus.BLOCKED:
+        raise HTTPException(status_code=403, detail="user_blocked")
 
     if not verify_password(password, user.password_hash):
         user.failed_login_attempts += 1

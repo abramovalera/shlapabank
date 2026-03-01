@@ -8,6 +8,8 @@ if (window.location.pathname === "/confirm") {
   window.location.replace("/dashboard");
 }
 
+const DEFAULT_SETTINGS = { theme: "LIGHT", language: "RU", notificationsEnabled: true };
+
 const state = {
   profile: null,
   accounts: [],
@@ -15,7 +17,7 @@ const state = {
   transactions: [],
   operators: [],
   providers: [],
-  settings: null,
+  settings: DEFAULT_SETTINGS,
   exchangeRates: null,
   byAccountIsExternal: false,
   byPhoneIsExternal: false,
@@ -689,6 +691,15 @@ const ACCOUNT_NUMBER_LENGTH = 16;
 const ACCOUNT_NUMBER_MIN = 16;
 const ACCOUNT_NUMBER_MAX = 16;
 
+/** Единообразные сообщения валидации (красные под полем). */
+const VALIDATION_MESSAGES = {
+  phone: "Проверьте корректность введённого номера",
+  personalAccount: "Проверьте корректность введённого лицевого счёта",
+  accountNumber: "Проверьте корректность введённого номера счёта",
+  personalAccountEmpty: "Укажите лицевой счёт",
+  bank: "Выберите банк",
+};
+
 function formatAccountNumberWithSpaces(value) {
   const digits = String(value).replace(/\D/g, "").slice(0, ACCOUNT_NUMBER_LENGTH);
   return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
@@ -720,7 +731,10 @@ function resetOtpInputs() {
   });
 }
 
-function setAmountError(inputId, message) {
+/** Показать ошибку у поля. По умолчанию — toast. При options.showToast === false — только подсветка и текст под полем (как «Максимальная сумма 500 000 ₽»). */
+function setAmountError(inputId, message, options) {
+  options = options || {};
+  const useToast = options.showToast !== false;
   const input = qs(inputId);
   if (!input) return;
   const label = input.closest("label");
@@ -732,17 +746,18 @@ function setAmountError(inputId, message) {
       if (amountHint) amountHint.style.display = ""; // подсказка всегда видна
     }
   }
-  if (errorEl) {
-    errorEl.textContent = message || "";
-  }
+  if (errorEl) errorEl.textContent = useToast ? "" : (message || "");
+  if (message && useToast) showToast(message, true);
 }
 
-/** Обновляет подсказку по лимитам: минимум всегда показан, при превышении — максимум. */
+/** Обновляет подсказку по лимитам: минимум всегда показан, при превышении — максимум.
+ *  showToastOnError: true только при отправке формы — тогда ошибка в toast и без текста под полем.
+ *  При вводе (input/blur) showToastOnError не передаётся — подсказка остаётся под полем, toast не показываем. */
 function updateAmountHint(inputId, config, options) {
   options = options || {};
   const { min, max } = config || {};
   const unit = config?.unit ?? getUnitForAmountField(inputId);
-  const { showEmptyError = false } = options;
+  const { showEmptyError = false, showToastOnError = false } = options;
   const input = qs(inputId);
   if (!input) return true;
   const label = input.closest("label");
@@ -785,8 +800,9 @@ function updateAmountHint(inputId, config, options) {
     hintText = hintText + suffix;
   }
 
-  hintEl.textContent = hintText;
-  hintEl.classList.toggle("limit-hint-accent", /Минимальная сумма|Максимальная сумма/.test(hintText));
+  if (showToastOnError && isError && hintText) showToast(hintText, true);
+  hintEl.textContent = showToastOnError && isError ? "" : hintText;
+  hintEl.classList.toggle("limit-hint-accent", !isError && /Минимальная сумма|Максимальная сумма/.test(hintText));
   if (label) label.classList.toggle("has-error", isError);
   return !isError;
 }
@@ -806,7 +822,8 @@ function validateAmountField(inputId, config, options = {}) {
 }
 
 function validateVendorAccountNumber(options = {}) {
-  const { showEmptyError = false } = options || {};
+  const { showEmptyError = false, showToast = true } = options || {};
+  const errOpts = { showToast };
   const inputId = "vendorAccountNumber";
   const input = qs(inputId);
   const providerSelect = qs("vendorProvider");
@@ -815,24 +832,31 @@ function validateVendorAccountNumber(options = {}) {
   const value = input.value.trim();
   if (!value) {
     if (showEmptyError) {
-      setAmountError(inputId, "Укажите лицевой счёт");
+      setAmountError(inputId, VALIDATION_MESSAGES.personalAccountEmpty, errOpts);
+      input.focus();
       return false;
     }
-    setAmountError(inputId, "");
+    setAmountError(inputId, "", errOpts);
     return false;
   }
 
   const provider = providerSelect.value;
   const rule = PROVIDER_PREFIX_RULES[provider];
   if (rule && rule.prefix && !value.startsWith(rule.prefix)) {
-    setAmountError(
-      inputId,
-      `Лицевой счёт для ${provider} должен начинаться с \"${rule.prefix}\"`
-    );
+    setAmountError(inputId, VALIDATION_MESSAGES.personalAccount, errOpts);
+    input.focus();
     return false;
   }
 
-  setAmountError(inputId, "");
+  const opt = providerSelect.options[providerSelect.selectedIndex];
+  const expectedLen = opt && opt.dataset.accountLength ? parseInt(opt.dataset.accountLength, 10) : 0;
+  if (expectedLen > 0 && value.length !== expectedLen) {
+    setAmountError(inputId, VALIDATION_MESSAGES.personalAccount, errOpts);
+    input.focus();
+    return false;
+  }
+
+  setAmountError(inputId, "", errOpts);
   return true;
 }
 
@@ -1351,6 +1375,12 @@ async function fillHomeByPhoneBankSelect(phone) {
     const data = await api(`/transfers/by-phone/check?phone=${encodeURIComponent(raw)}`);
     if (warningEl) warningEl.hidden = true;
     const banks = (data && data.availableBanks) || [];
+    if (banks.length > 0) {
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = VALIDATION_MESSAGES.bank;
+      select.appendChild(placeholder);
+    }
     banks.forEach((b) => {
       const opt = document.createElement("option");
       opt.value = b.id;
@@ -1767,9 +1797,8 @@ async function loadExchangeRates() {
   renderExchangeRates();
 }
 
-async function loadSettings() {
-  const data = await api("/settings");
-  state.settings = data;
+function loadSettings() {
+  state.settings = DEFAULT_SETTINGS;
   renderSettings();
 }
 
@@ -2061,7 +2090,6 @@ async function loadData() {
     api("/transactions"),
     api("/payments/mobile/operators"),
     api("/payments/vendor/providers"),
-    api("/settings"),
     api("/transfers/rates"),
   ]);
 
@@ -2083,8 +2111,8 @@ async function loadData() {
   state.transactions = results[2].status === "fulfilled" && Array.isArray(results[2].value) ? results[2].value : (state.transactions ?? []);
   state.operators = map(3, { operators: [] }).operators || [];
   state.providers = map(4, { providers: [] }).providers || [];
-  state.settings = map(5, null);
-  state.exchangeRates = map(6, null);
+  state.settings = DEFAULT_SETTINGS;
+  state.exchangeRates = map(5, null);
 
   renderProfile();
   if (isUserBlocked() && typeof window.__applyPage === "function") window.__applyPage("more", true);
@@ -2376,6 +2404,7 @@ function wireActions() {
   if (transferPhoneInput) {
     transferPhoneInput.addEventListener("input", () => {
       applyPhoneMask(transferPhoneInput);
+      setAmountError("homeByPhoneNumber", "", { showToast: false });
       if (window._homeByPhoneBankDebounce) clearTimeout(window._homeByPhoneBankDebounce);
       window._homeByPhoneBankDebounce = setTimeout(async () => {
         await fillHomeByPhoneBankSelect(transferPhoneInput.value);
@@ -2430,6 +2459,7 @@ function wireActions() {
     homeByAccountNumberInput.addEventListener("input", () => {
       const formatted = formatAccountNumberWithSpaces(homeByAccountNumberInput.value);
       if (homeByAccountNumberInput.value !== formatted) homeByAccountNumberInput.value = formatted;
+      setAmountError("homeByAccountNumber", "", { showToast: false });
     });
     homeByAccountNumberInput.addEventListener("paste", (e) => {
       e.preventDefault();
@@ -2444,7 +2474,7 @@ function wireActions() {
       const max = vendorAccountNumberInput.maxLength || 22;
       const v = vendorAccountNumberInput.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, max);
       if (vendorAccountNumberInput.value !== v) vendorAccountNumberInput.value = v;
-      validateVendorAccountNumber();
+      validateVendorAccountNumber({ showToast: false });
     });
     vendorAccountNumberInput.addEventListener("keydown", preventSpaceKey);
   }
@@ -2467,7 +2497,10 @@ function wireActions() {
 
   const mobilePhoneInput = qs("mobilePhone");
   if (mobilePhoneInput) {
-    mobilePhoneInput.addEventListener("input", () => applyPhoneMask(mobilePhoneInput));
+    mobilePhoneInput.addEventListener("input", () => {
+      applyPhoneMask(mobilePhoneInput);
+      setAmountError("mobilePhone", "", { showToast: false });
+    });
   }
 
   const mobileAmountInput = qs("mobileAmount");
@@ -2617,9 +2650,10 @@ function wireActions() {
       const amountRaw = qs("mobileAmount").value;
       const amount = Number(amountRaw);
       if (!phone || !/^\+7\d{10}$/.test(phone)) {
-        showToast("Телефон: +7(XXX)XXX-XX-XX (например +7(999)123-45-67)", true);
+        setAmountError("mobilePhone", VALIDATION_MESSAGES.phone, { showToast: false });
         return;
       }
+      setAmountError("mobilePhone", "", { showToast: false });
       if (!validateAmountField("mobileAmount", amountConfigs.mobileAmount, { showEmptyError: true })) {
         return;
       }
@@ -2645,12 +2679,14 @@ function wireActions() {
       const accountNumber = qs("vendorAccountNumber").value.replace(/\s/g, "");
       const amountRaw = qs("vendorAmount").value;
       const amount = Number(amountRaw);
+      const inlineOnly = { showToast: false };
+      const vendorAccountInput = qs("vendorAccountNumber");
       if (!accountNumber) {
-        setAmountError("vendorAccountNumber", "Укажите лицевой счёт");
-        showToast("Укажите лицевой счёт", true);
+        setAmountError("vendorAccountNumber", VALIDATION_MESSAGES.personalAccountEmpty, inlineOnly);
+        vendorAccountInput?.focus();
         return;
       }
-      if (!validateVendorAccountNumber({ showEmptyError: true })) {
+      if (!validateVendorAccountNumber({ showEmptyError: true, showToast: false })) {
         return;
       }
       if (!validateAmountField("vendorAmount", amountConfigs.vendorAmount, { showEmptyError: true })) {
@@ -2788,10 +2824,11 @@ function wireActions() {
       const accountNumberDigits = accountNumberEl ? getAccountNumberDigits(accountNumberEl.value) : "";
       const len = accountNumberDigits.length;
       if (len !== ACCOUNT_NUMBER_LENGTH) {
-        showToast("Номер счёта должен содержать 16 цифр", true);
+        setAmountError("homeByAccountNumber", VALIDATION_MESSAGES.accountNumber, { showToast: false });
         accountNumberEl?.focus();
         return;
       }
+      setAmountError("homeByAccountNumber", "", { showToast: false });
       if (
         !validateAmountField("homeByAccountAmount", amountConfigs.homeByAccountAmount, { showEmptyError: true })
       ) {
@@ -2857,15 +2894,18 @@ function wireActions() {
       const phoneInput = qs("homeByPhoneNumber");
       const rawPhone = phoneInput ? getRawPhone(phoneInput.value) : "";
       if (!rawPhone || !/^\+7\d{10}$/.test(rawPhone)) {
-        showToast("Телефон: +7(XXX)XXX-XX-XX (например +7(999)123-45-67)", true);
+        setAmountError("homeByPhoneNumber", VALIDATION_MESSAGES.phone, { showToast: false });
         return;
       }
+      setAmountError("homeByPhoneNumber", "", { showToast: false });
       const bankSelect = qs("homeByPhoneBank");
       const recipientBankId = bankSelect ? bankSelect.value : "";
       if (!recipientBankId) {
-        showToast("Выберите банк получателя", true);
+        setAmountError("homeByPhoneBank", VALIDATION_MESSAGES.bank, { showToast: false });
+        bankSelect?.focus();
         return;
       }
+      setAmountError("homeByPhoneBank", "", { showToast: false });
       if (
         !validateAmountField("homeByPhoneAmount", amountConfigs.homeByPhoneAmount, {
           showEmptyError: true,
@@ -2907,6 +2947,7 @@ function wireActions() {
   const homeByPhoneBankSelect = qs("homeByPhoneBank");
   if (homeByPhoneBankSelect) {
     homeByPhoneBankSelect.addEventListener("change", () => {
+      setAmountError("homeByPhoneBank", "", { showToast: false });
       state.byPhoneIsExternal = homeByPhoneBankSelect.value !== OUR_BANK_CODE;
       updateHomeByPhoneAmountHint();
     });

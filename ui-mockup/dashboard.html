@@ -84,8 +84,8 @@
               <div class="transfers-with-rates">
                 <div class="transfers-buttons">
                   <button id="homeTransferOwnBtn" class="btn" type="button" data-testid="btn-transfer-own">Между своими счетами</button>
-                  <button id="homeTransferByAccountBtn" class="btn light" type="button">По номеру счёта</button>
-                  <button id="homeTransferByPhoneBtn" class="btn light" type="button">По номеру телефона</button>
+                  <button id="homeTransferByAccountBtn" class="btn light" type="button" data-testid="btn-transfer-by-account">По номеру счёта</button>
+                  <button id="homeTransferByPhoneBtn" class="btn light" type="button" data-testid="btn-transfer-by-phone">По номеру телефона</button>
                   <button id="homeExchangeBtn" class="btn light" type="button">Обмен валют</button>
                 </div>
                 <div id="exchangeRatesBox" class="exchange-rates-block" aria-label="Курс валют"></div>
@@ -127,7 +127,7 @@
               </div>
 
               <section class="payments-view payments-view-active" data-pay-view="mobile">
-                <form id="mobileForm" class="form-row">
+                <form id="mobileForm" class="form-row" novalidate>
                   <label>
                     <span>Счёт списания</span>
                     <select id="mobileAccount" required></select>
@@ -139,21 +139,22 @@
                   <label>
                     <span>Телефон</span>
                     <input id="mobilePhone" type="tel" placeholder="+7(999)123-45-67" maxlength="18" required />
+                    <span id="mobilePhoneError" class="field-error-text" data-testid="error-mobile-phone" role="alert"></span>
                   </label>
                   <label>
                     <span>Сумма, ₽</span>
                     <input id="mobileAmount" type="number" min="100" max="12000" step="1" required inputmode="numeric" />
                     <p class="payments-limit-hint">Минимальная сумма 100&nbsp;₽</p>
-                    <span id="mobileAmountError" class="field-error-text"></span>
+                    <span id="mobileAmountError" class="field-error-text" data-testid="error-mobile-amount" role="alert"></span>
                   </label>
                   <div class="payments-submit-row" id="mobileSubmitRow">
-                    <button class="btn" type="submit">Оплатить</button>
+                    <button class="btn" type="submit" data-testid="btn-pay-mobile">Оплатить</button>
                   </div>
                 </form>
               </section>
 
               <section class="payments-view" data-pay-view="vendor">
-                <form id="vendorForm" class="form-row">
+                <form id="vendorForm" class="form-row" novalidate>
                   <label>
                     <span>Счёт списания</span>
                     <select id="vendorAccount" required></select>
@@ -166,16 +167,16 @@
                     <span id="vendorAccountNumberLabel">Лицевой счёт</span>
                     <input id="vendorAccountNumber" type="text" required placeholder="" maxlength="22" />
                     <p id="vendorHint" class="payments-format-hint">Укажите лицевой счёт по договору (12–15 цифр в зависимости от поставщика).</p>
-                    <span id="vendorAccountNumberError" class="field-error-text"></span>
+                    <span id="vendorAccountNumberError" class="field-error-text" data-testid="error-vendor-account-number" role="alert"></span>
                   </label>
                   <label>
                     <span>Сумма, ₽</span>
                     <input id="vendorAmount" type="number" min="100" max="500000" step="1" required inputmode="numeric" />
                     <p class="payments-limit-hint">Минимальная сумма 100&nbsp;₽</p>
-                    <span id="vendorAmountError" class="field-error-text"></span>
+                    <span id="vendorAmountError" class="field-error-text" data-testid="error-vendor-amount" role="alert"></span>
                   </label>
                   <div class="payments-submit-row">
-                    <button class="btn" type="submit">Оплатить</button>
+                    <button class="btn" type="submit" data-testid="btn-pay-vendor">Оплатить</button>
                   </div>
                 </form>
               </section>
@@ -306,11 +307,11 @@
     </div>
   </div>
 
-  <div id="homeTransferModal" class="modal-backdrop" hidden>
+  <div id="homeTransferModal" class="modal-backdrop" hidden data-testid="modal-transfer-own">
     <div class="modal">
       <h2 class="modal-title">Между своими счетами</h2>
       <p class="modal-text">Выберите счёта списания и зачисления и укажите сумму.</p>
-      <form id="homeTransferForm" class="modal-form-grid">
+      <form id="homeTransferForm" class="modal-form-grid" novalidate>
         <label>
           <span>Откуда</span>
           <select id="homeTransferFrom" required></select>
@@ -323,33 +324,35 @@
         <label class="modal-form-grid-full">
           <span>Сумма</span>
           <input id="homeTransferAmount" type="number" step="0.01" required />
-          <span id="homeTransferAmountError" class="field-error-text"></span>
+          <span id="homeTransferAmountError" class="field-error-text" data-testid="error-home-transfer-amount" role="alert"></span>
         </label>
         <div class="modal-actions">
-          <button id="homeTransferCancel" class="btn light" type="button">Отмена</button>
-          <button class="btn" type="submit">Перевести</button>
+          <button id="homeTransferCancel" class="btn light" type="button" data-testid="modal-transfer-own-cancel">Отмена</button>
+          <button class="btn" type="submit" data-testid="modal-transfer-own-submit">Перевести</button>
         </div>
       </form>
     </div>
   </div>
 
-  <div id="homeByAccountModal" class="modal-backdrop" hidden>
+  <div id="homeByAccountModal" class="modal-backdrop" hidden data-testid="modal-by-account">
     <div class="modal">
       <h2 class="modal-title">По номеру счёта</h2>
       <p class="modal-text">Укажите счёт списания, номер счёта получателя и сумму.</p>
-      <form id="homeByAccountForm" class="modal-form-grid modal-form-grid-by-account">
+      <form id="homeByAccountForm" class="modal-form-grid modal-form-grid-by-account" novalidate>
         <label>
           <span>Счёт списания</span>
           <select id="homeByAccountFrom" required></select>
+          <span class="field-error-text" aria-hidden="true"></span>
         </label>
         <label>
           <span>Счёт получателя</span>
           <input id="homeByAccountNumber" class="account-number-input" type="text" inputmode="numeric" autocomplete="off" placeholder="2202 0000 0000 0000" maxlength="19" required />
+          <span id="homeByAccountNumberError" class="field-error-text" data-testid="error-home-by-account-number" role="alert"></span>
         </label>
         <label class="modal-form-grid-full">
           <span>Сумма</span>
           <input id="homeByAccountAmount" type="number" min="10" max="300000" step="0.01" required inputmode="numeric" />
-          <span id="homeByAccountAmountError" class="field-error-text"></span>
+          <span id="homeByAccountAmountError" class="field-error-text" data-testid="error-home-by-account-amount" role="alert"></span>
         </label>
         <div class="limit-progress-row">
           <span class="limit-progress-label" id="homeByAccountLimitLabel"></span>
@@ -358,14 +361,14 @@
           </div>
         </div>
         <div class="modal-actions">
-          <button id="homeByAccountCancel" class="btn light" type="button">Отмена</button>
-          <button class="btn" type="submit">Перевести</button>
+          <button id="homeByAccountCancel" class="btn light" type="button" data-testid="modal-by-account-cancel">Отмена</button>
+          <button class="btn" type="submit" data-testid="modal-by-account-submit">Перевести</button>
         </div>
       </form>
     </div>
   </div>
 
-  <div id="homeByPhoneModal" class="modal-backdrop" hidden>
+  <div id="homeByPhoneModal" class="modal-backdrop" hidden data-testid="modal-by-phone">
     <div class="modal">
       <h2 class="modal-title">По номеру телефона</h2>
       <p class="modal-text">
@@ -374,10 +377,11 @@
       <p id="homeByPhoneNotInBankWarning" class="modal-warning" hidden>
         Такого пользователя нет в нашем банке(((
       </p>
-      <form id="homeByPhoneForm" class="modal-form-grid">
+      <form id="homeByPhoneForm" class="modal-form-grid" novalidate>
         <label>
           <span>Счёт списания</span>
           <select id="homeByPhoneFrom" required></select>
+          <span class="field-error-text" aria-hidden="true"></span>
         </label>
         <label>
           <span>Телефон получателя</span>
@@ -388,15 +392,17 @@
             maxlength="18"
             required
           />
+          <span id="homeByPhoneNumberError" class="field-error-text" data-testid="error-home-by-phone-number" role="alert"></span>
         </label>
         <label>
           <span>Банк получателя</span>
           <select id="homeByPhoneBank" required></select>
+          <span id="homeByPhoneBankError" class="field-error-text" data-testid="error-home-by-phone-bank" role="alert"></span>
         </label>
         <label class="modal-form-grid-full">
           <span>Сумма</span>
           <input id="homeByPhoneAmount" type="number" step="0.01" min="10" max="300000" required />
-          <span id="homeByPhoneAmountError" class="field-error-text"></span>
+          <span id="homeByPhoneAmountError" class="field-error-text" data-testid="error-home-by-phone-amount" role="alert"></span>
         </label>
         <div class="limit-progress-row">
           <span class="limit-progress-label" id="homeByPhoneLimitLabel"></span>
@@ -405,18 +411,18 @@
           </div>
         </div>
         <div class="modal-actions">
-          <button id="homeByPhoneCancel" class="btn light" type="button">Отмена</button>
-          <button class="btn" type="submit">Перевести</button>
+          <button id="homeByPhoneCancel" class="btn light" type="button" data-testid="modal-by-phone-cancel">Отмена</button>
+          <button class="btn" type="submit" data-testid="modal-by-phone-submit">Перевести</button>
         </div>
       </form>
     </div>
   </div>
 
-  <div id="homeExchangeModal" class="modal-backdrop" hidden>
+  <div id="homeExchangeModal" class="modal-backdrop" hidden data-testid="modal-exchange">
     <div class="modal">
       <h2 class="modal-title">Обмен валют</h2>
       <p class="modal-text">Выберите счёт списания и счёт зачисления в другой валюте.</p>
-      <form id="homeExchangeForm" class="modal-form-grid">
+      <form id="homeExchangeForm" class="modal-form-grid" novalidate>
         <label>
           <span>Откуда</span>
           <select id="homeExchangeFrom" required></select>
@@ -428,7 +434,7 @@
         <label class="modal-form-grid-full">
           <span>Сумма</span>
           <input id="homeExchangeAmount" type="number" step="0.01" required />
-          <span id="homeExchangeAmountError" class="field-error-text"></span>
+          <span id="homeExchangeAmountError" class="field-error-text" data-testid="error-home-exchange-amount" role="alert"></span>
         </label>
         <div id="homeExchangeRateWrap" class="exchange-rate-block" hidden>
           <p id="homeExchangeRateInfo" class="exchange-rate-text"></p>
@@ -440,14 +446,14 @@
           </div>
         </div>
         <div class="modal-actions">
-          <button id="homeExchangeCancel" class="btn light" type="button">Отмена</button>
-          <button class="btn" type="submit">Обменять</button>
+          <button id="homeExchangeCancel" class="btn light" type="button" data-testid="modal-exchange-cancel">Отмена</button>
+          <button class="btn" type="submit" data-testid="modal-exchange-submit">Обменять</button>
         </div>
       </form>
     </div>
   </div>
 
-  <div id="otpModal" class="modal-backdrop" hidden>
+  <div id="otpModal" class="modal-backdrop" hidden data-testid="modal-otp">
     <div class="modal">
       <h2 class="modal-title">Введите OTP код</h2>
       <p class="modal-text">На этом этапе вы подтверждаете важную операцию.</p>

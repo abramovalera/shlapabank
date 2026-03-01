@@ -10,7 +10,7 @@ def _admin_token(client):
     """Токен администратора (admin/admin)."""
     r = client.post("/auth/login", json={"login": "admin", "password": "admin"})
     assert r.status_code == 200, (r.status_code, r.json())
-    return r.json()["access_token"}
+    return r.json()["access_token"]
 
 
 def _headers(token: str):

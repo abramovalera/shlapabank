@@ -36,7 +36,8 @@ def test_profile_put_update_name_phone_email(client, auth_headers, unique_login)
 
 
 def test_profile_put_phone_invalid_format(client, auth_headers):
-    r = client.put("/profile", headers=auth_headers, json={"phone": "89991234567"})
+    """Номер, который нельзя привести к +7XXXXXXXXXX, даёт ошибку валидации."""
+    r = client.put("/profile", headers=auth_headers, json={"phone": "123"})
     assert r.status_code == 422
 
 
@@ -80,9 +81,12 @@ def test_profile_put_email_not_unique(client, registered_user, auth_headers, uni
     """Второй пользователь не может взять email первого."""
     email = f"{unique_login}@test.local"
     client.put("/profile", headers=auth_headers, json={"email": email})
-    login2 = f"{unique_login}_second"
+    login2 = f"{unique_login}x"
+    if len(login2) > 20:
+        login2 = unique_login[:19] + "x"
     client.post("/auth/register", json={"login": login2, "password": "ValidPass123!"})
     r2 = client.post("/auth/login", json={"login": login2, "password": "ValidPass123!"})
+    assert r2.status_code == 200, (r2.status_code, r2.json())
     token2 = r2.json()["access_token"]
     r = client.put(
         "/profile",

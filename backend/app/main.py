@@ -16,7 +16,6 @@ from app.routes.helper import router as helper_router
 from app.routes.health import router as health_router
 from app.routes.payments import router as payments_router
 from app.routes.profile import router as profile_router
-from app.routes.settings import router as settings_router
 from app.routes.transactions import router as transactions_router
 from app.routes.transfers import router as transfers_router
 from app.startup import init_db
@@ -31,7 +30,6 @@ openapi_tags = [
     {"name": "transfers", "description": "Переводы и обмен валют."},
     {"name": "transactions", "description": "История операций."},
     {"name": "payments", "description": "Платежи (мобильная связь, поставщики)."},
-    {"name": "settings", "description": "Настройки."},
 ]
 
 app = FastAPI(title=settings.app_name, openapi_tags=openapi_tags)
@@ -156,7 +154,6 @@ app.include_router(accounts_router)
 app.include_router(transfers_router)
 app.include_router(transactions_router)
 app.include_router(payments_router)
-app.include_router(settings_router)
 
 app.mount(
     "/ui",

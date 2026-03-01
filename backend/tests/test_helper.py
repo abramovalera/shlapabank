@@ -35,7 +35,12 @@ def test_helper_increase_creates_transaction(client, auth_headers, token, rub_ac
     )
     r = client.get("/transactions", headers=auth_headers)
     assert r.status_code == 200
-    txs = [t for t in r.json() if t.get("description") == "helper_topup" and str(t.get("amount")) == "250.00"]
+    txs = [
+        t
+        for t in r.json()
+        if t.get("description") == "helper_topup"
+        and str((t.get("money") or {}).get("amount", t.get("amount"))) == "250.00"
+    ]
     assert len(txs) >= 1
 
 

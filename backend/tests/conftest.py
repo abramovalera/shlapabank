@@ -35,8 +35,8 @@ def _headers(token: str | None = None):
 
 @pytest.fixture
 def unique_login():
-    """Уникальный логин для регистрации (избегаем конфликтов между тестами)."""
-    return f"user_{int(time.time() * 1000)}"
+    """Уникальный логин для регистрации (избегаем конфликтов между тестами). Логин только [A-Za-z0-9] по API."""
+    return f"user{int(time.time() * 1000)}"
 
 
 @pytest.fixture

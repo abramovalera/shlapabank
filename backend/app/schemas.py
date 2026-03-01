@@ -67,6 +67,15 @@ class UserPublic(BaseModel):
     last_name: str | None = None
     phone: str | None = None
 
+    @field_validator("email", mode="before")
+    @classmethod
+    def empty_email_to_none(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
+
     @field_serializer("first_name", "last_name")
     def serialize_empty_str(self, v: str | None) -> str:
         return v if v else ""
@@ -273,7 +282,7 @@ class AccountPublic(BaseModel):
 
 class UserBanksUpdateRequest(BaseModel):
     """Список кодов банков для перевода (0–5, только внешние из справочника)."""
-    bank_codes: list[str] = Field(max_length=5, min_length=0)
+    bank_codes: list[str] = Field(min_length=0)
 
 
 class BankOption(BaseModel):

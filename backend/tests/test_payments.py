@@ -131,6 +131,7 @@ def test_payments_vendor_account_number_invalid_length(client, auth_headers, tok
 
 
 def test_payments_insufficient_funds(client, auth_headers, token, rub_account):
+    """Сумма в допустимом диапазоне (100–12000), но баланс счёта нулевой."""
     otp = get_otp(client, token)
     r = client.post(
         "/payments/mobile",
@@ -139,7 +140,7 @@ def test_payments_insufficient_funds(client, auth_headers, token, rub_account):
             "account_id": rub_account["id"],
             "operator": "MTSha",
             "phone": "+79991234567",
-            "amount": "50000.00",
+            "amount": "1000.00",
             "otp_code": otp,
         },
     )
