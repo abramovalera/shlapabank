@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, aliased
 
 from app.banks import OUR_BANK_CODE, BANKS_CATALOG
 from app.constants import DAILY_TRANSFER_LIMIT, MAX_TRANSFER_AMOUNT, MIN_TRANSFER_AMOUNT
@@ -13,6 +13,7 @@ from app.models import Account, AccountType, Bank, Currency, Transaction, Transa
 from app.otp import validate_otp_for_user
 from app.schemas import (
     ExchangeRequest,
+    TransferByAccountCheckResponse,
     TransferByAccountRequest,
     TransferByPhoneCheckResponse,
     TransferByPhoneRequest,
@@ -33,15 +34,21 @@ RATES_TO_RUB: dict[Currency, Decimal] = {
 
 
 def _calc_today_transfers_per_currency(current_user: User, db: Session) -> dict[Currency, Decimal]:
-    """Используется при проверке дневного лимита. Возвращает сумму переводов за сегодня по каждой валюте."""
+    """Сумма переводов за сегодня по валютам: вовне (не между своими) + переводы в другой банк (to_account_id is None)."""
     day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    from_acc = aliased(Account)
+    to_acc = aliased(Account)
     tx_list = db.scalars(
-        select(Transaction).where(
+        select(Transaction)
+        .where(
             Transaction.initiated_by == current_user.id,
             Transaction.type == TransactionType.TRANSFER,
             Transaction.status == TransactionStatus.COMPLETED,
             Transaction.created_at >= day_start,
         )
+        .join(from_acc, Transaction.from_account_id == from_acc.id)
+        .outerjoin(to_acc, Transaction.to_account_id == to_acc.id)
+        .where(or_(to_acc.id.is_(None), from_acc.user_id != to_acc.user_id))
     ).all()
     per_currency: dict[Currency, Decimal] = {}
     for tx in tx_list:
@@ -79,7 +86,8 @@ def create_transfer(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ):
-    if not validate_otp_for_user(current_user.id, payload.otp_code):
+    # OTP не требуется при переводе между своими счетами
+    if payload.otp_code is not None and not validate_otp_for_user(current_user.id, payload.otp_code):
         raise HTTPException(status_code=400, detail="invalid_otp_code")
 
     if payload.from_account_id == payload.to_account_id:
@@ -109,10 +117,7 @@ def create_transfer(
     if source.balance < payload.amount:
         raise HTTPException(status_code=400, detail="insufficient_funds")
 
-    # Проверка суточного лимита по валюте счёта списания
-    used_per_currency = _calc_today_transfers_per_currency(current_user, db)
-    _check_daily_limit(used_per_currency, source.currency, payload.amount)
-
+    # Перевод между своими счетами не тратит дневной лимит
     source.balance -= payload.amount
     target.balance += payload.amount
 
@@ -125,6 +130,7 @@ def create_transfer(
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
         description="p2p_transfer",
+        fee=Decimal("0"),
     )
     db.add(source)
     db.add(target)
@@ -195,9 +201,106 @@ def create_transfer_by_account(
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
         description=f"p2p_transfer_by_account:{source.currency.value}:{masked}",
+        fee=Decimal("0"),
     )
     db.add(source)
     db.add(target)
+    db.add(tx)
+    db.commit()
+    db.refresh(tx)
+    return tx
+
+
+EXTERNAL_TRANSFER_FEE_RATE = Decimal("0.05")  # 5% — перевод по номеру счёта в другой банк
+EXTERNAL_PHONE_FEE_RATE = Decimal("0.02")  # 2% — перевод по телефону в другой банк
+
+
+@router.get(
+    "/by-account/check",
+    response_model=TransferByAccountCheckResponse,
+    summary="Проверить, есть ли счёт в нашем банке",
+)
+def by_account_check(
+    target_account_number: str,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    """Номер счёта 16 цифр. Возвращает found=true если счёт найден у нас, иначе found=false. masked — для отображения (••••1234)."""
+    if len(target_account_number) != 16 or not target_account_number.isdigit():
+        raise HTTPException(status_code=400, detail="invalid_account_number")
+    target = db.scalar(select(Account).where(Account.account_number == target_account_number))
+    masked = _mask_account(target_account_number)
+    return TransferByAccountCheckResponse(found=target is not None, masked=masked)
+
+
+@router.post(
+    "/external-by-account",
+    response_model=TransactionPublic,
+    status_code=201,
+    summary="Перевести на счёт в другом банке (с комиссией 5%)",
+)
+def create_transfer_external_by_account(
+    payload: TransferByAccountRequest,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    """Перевод на счёт, не найденный в нашем банке. Списывается сумма + 5% комиссия. OTP обязателен.
+    Разовый лимит 300k относится только к сумме перевода; комиссия сверху (итого списание до 315k)."""
+    if not validate_otp_for_user(current_user.id, payload.otp_code):
+        raise HTTPException(status_code=400, detail="invalid_otp_code")
+
+    if payload.amount < MIN_TRANSFER_AMOUNT:
+        raise HTTPException(status_code=400, detail="transfer_amount_too_small")
+    if payload.amount > MAX_TRANSFER_AMOUNT:
+        raise HTTPException(status_code=400, detail="transfer_amount_exceeds_single_limit")
+
+    source = db.scalar(
+        select(Account)
+        .where(Account.id == payload.from_account_id, Account.user_id == current_user.id)
+        .with_for_update()
+    )
+    if not source:
+        raise HTTPException(status_code=404, detail="account_not_found")
+
+    # Не переводим на счёт, который есть в нашем банке — только внешний
+    target_in_our_bank = db.scalar(
+        select(Account).where(Account.account_number == payload.target_account_number)
+    )
+    if target_in_our_bank:
+        raise HTTPException(
+            status_code=400,
+            detail="account_found_in_bank",
+        )
+
+    if not source.is_active:
+        raise HTTPException(status_code=400, detail="account_inactive")
+    if source.account_type == AccountType.SAVINGS:
+        raise HTTPException(status_code=400, detail="transfer_not_allowed_from_savings")
+
+    fee = (payload.amount * EXTERNAL_TRANSFER_FEE_RATE).quantize(Decimal("0.01"))
+    total_debit = payload.amount + fee
+
+    if source.balance < total_debit:
+        raise HTTPException(status_code=400, detail="insufficient_funds")
+
+    used_per_currency = _calc_today_transfers_per_currency(current_user, db)
+    _check_daily_limit(used_per_currency, source.currency, payload.amount)
+
+    source.balance -= total_debit
+
+    masked = _mask_account(payload.target_account_number)
+    tx = Transaction(
+        from_account_id=source.id,
+        to_account_id=None,
+        type=TransactionType.TRANSFER,
+        amount=payload.amount,
+        currency=source.currency,
+        status=TransactionStatus.COMPLETED,
+        initiated_by=current_user.id,
+        description=f"external_transfer:{source.currency.value}:{masked}:fee_{fee}",
+        fee=fee,
+    )
+    db.add(source)
     db.add(tx)
     db.commit()
     db.refresh(tx)
@@ -271,13 +374,13 @@ def create_transfer_by_phone(
         raise HTTPException(status_code=400, detail="account_inactive")
     if source.account_type == AccountType.SAVINGS:
         raise HTTPException(status_code=400, detail="transfer_not_allowed_from_savings")
-    if source.balance < amount:
-        raise HTTPException(status_code=400, detail="insufficient_funds")
 
     used_per_currency = _calc_today_transfers_per_currency(current_user, db)
     _check_daily_limit(used_per_currency, source.currency, amount)
 
     if payload.recipient_bank_id == OUR_BANK_CODE:
+        if source.balance < amount:
+            raise HTTPException(status_code=400, detail="insufficient_funds")
         normalized_phone = normalize_phone(payload.phone) or payload.phone
         recipient = db.scalar(select(User).where(User.phone == normalized_phone))
         if not recipient:
@@ -308,6 +411,7 @@ def create_transfer_by_phone(
             status=TransactionStatus.COMPLETED,
             initiated_by=current_user.id,
             description=f"p2p_transfer_by_phone:{source.currency.value}:{masked}",
+            fee=Decimal("0"),
         )
         db.add(source)
         db.add(target)
@@ -316,7 +420,12 @@ def create_transfer_by_phone(
         db.refresh(tx)
         return tx
 
-    source.balance -= amount
+    # Перевод в другой банк: комиссия 2%, списание amount + fee
+    fee = (amount * EXTERNAL_PHONE_FEE_RATE).quantize(Decimal("0.01"))
+    total_debit = amount + fee
+    if source.balance < total_debit:
+        raise HTTPException(status_code=400, detail="insufficient_funds")
+    source.balance -= total_debit
     tx = Transaction(
         from_account_id=source.id,
         to_account_id=None,
@@ -325,7 +434,8 @@ def create_transfer_by_phone(
         currency=source.currency,
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
-        description=f"p2p_by_phone_external:{payload.recipient_bank_id}:{payload.phone}",
+        description=f"p2p_by_phone_external:{payload.recipient_bank_id}:{payload.phone}:fee_{fee}",
+        fee=fee,
     )
     db.add(source)
     db.add(tx)
@@ -398,6 +508,7 @@ def exchange_currency(
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
         description=f"fx_exchange:{source.currency.value}->{target.currency.value}:{target_amount}",
+        fee=Decimal("0"),
     )
     db.add(source)
     db.add(target)

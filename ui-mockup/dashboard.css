@@ -515,250 +515,6 @@ body {
   width: 155px;
 }
 
-/* Статистика */
-.panel-stats {
-  margin-bottom: 14px;
-}
-
-.stats-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.stats-bar-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  background: var(--surface-soft);
-  border-radius: 12px;
-  border: 1px solid var(--line);
-}
-
-.stats-bar-section.stats-income {
-  border-left: 3px solid var(--ok-text);
-}
-
-.stats-bar-section.stats-expense {
-  border-left: 3px solid #b91c1c;
-}
-
-.stats-bar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.stats-bar-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.stats-bar-total {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
-  text-align: right;
-  max-width: 60%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stats-bar-stack {
-  display: flex;
-  height: 14px;
-  border-radius: 7px;
-  overflow: hidden;
-  background: #e2e2e9;
-}
-
-.stats-bar-segment {
-  height: 100%;
-  min-width: 2px;
-  transition: width 0.35s ease;
-}
-
-.stats-bar-segment:first-child {
-  border-radius: 7px 0 0 7px;
-}
-
-.stats-bar-segment:last-child {
-  border-radius: 0 7px 7px 0;
-}
-
-.stats-bar-segment:only-child {
-  border-radius: 7px;
-}
-
-.stats-bar-empty {
-  background: #e2e2e9 !important;
-  opacity: 0.6;
-}
-
-.stats-bar-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.stats-bar-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.stats-bar-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.stats-card {
-  border-radius: 12px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  border: 1px solid var(--line);
-}
-
-.stats-card.stats-income {
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-  border-color: var(--ok-text);
-}
-
-.stats-card.stats-expense {
-  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
-  border-color: #b91c1c;
-}
-
-.stats-label {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.stats-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.stats-card.stats-income .stats-value {
-  color: var(--ok-text);
-}
-
-.stats-card.stats-expense .stats-value {
-  color: #8f1b1b;
-}
-
-.stats-income-breakdown {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.stats-income-tag {
-  background: rgba(27, 106, 58, 0.15);
-  color: var(--ok-text);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.stats-chart-section {
-  border-top: 1px solid var(--line);
-  padding-top: 14px;
-}
-
-.stats-chart-title {
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.stats-chart-wrap {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.stats-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.stats-bar-row {
-  display: grid;
-  grid-template-columns: 100px 1fr;
-  align-items: center;
-  gap: 10px;
-  min-height: 24px;
-}
-
-.stats-bar-track-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.stats-bar-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text);
-}
-
-.stats-bar-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.stats-bar-track {
-  flex: 1 1 0;
-  min-width: 200px;
-  max-width: 462px;
-  height: 12px;
-  background: #e2e2e9;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.stats-bar-fill {
-  height: 100%;
-  border-radius: 6px;
-  min-width: 4px;
-  transition: width 0.3s ease;
-}
-
-.stats-bar-value {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  flex-shrink: 0;
-}
-
-.stats-empty {
-  margin: 0;
-  font-size: 13px;
-  color: var(--muted);
-}
-
 .accounts-primary-btn {
   height: 46px;
   padding: 0 20px;
@@ -1077,6 +833,7 @@ input[inputmode="tel"]::placeholder {
 .form-row label input,
 .form-row label select,
 .form-row label .payments-limit-hint,
+.form-row label .payments-format-hint,
 .form-row label .field-error-text {
   min-width: 0;
   box-sizing: border-box;
@@ -1088,12 +845,20 @@ input[inputmode="tel"]::placeholder {
 }
 
 .form-row label .payments-limit-hint,
+.form-row label .payments-format-hint,
 .form-row label .field-error-text {
   display: block;
 }
 
-.form-row label .payments-limit-hint {
+.form-row label .payments-limit-hint,
+.form-row label .payments-format-hint {
   white-space: pre-line;
+}
+
+/* Подсказка по формату лицевого счёта — нейтральный цвет, не красный */
+.form-row label .payments-format-hint {
+  color: var(--muted, #666);
+  font-size: 0.9em;
 }
 
 #mobileForm.form-row,
@@ -1404,12 +1169,42 @@ tbody tr:last-child td {
   border-radius: 10px;
 }
 
+.transfer-external-offer {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--surface-soft);
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+
+.transfer-external-offer-text,
+.transfer-external-offer-fee {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.transfer-external-offer-fee {
+  font-weight: 600;
+}
+
+.transfer-external-offer .modal-actions {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
 .limit-progress-row {
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-top: 4px;
+}
+
+/* Только текст лимитов (мин/макс сумма) — красный, без фона. Подсказка по формату счёта — в .payments-format-hint (серый). */
+.payments-limit-hint,
+.limit-hint-accent {
+  color: #b71c1c;
 }
 
 .limit-progress-label {
@@ -1712,6 +1507,11 @@ tbody tr:last-child td {
   margin-bottom: 14px;
 }
 
+/* По номеру счёта: счёт списания уже (на 15%), счёт получателя шире — номер влезает */
+.modal-form-grid-by-account {
+  grid-template-columns: 0.85fr 1.15fr;
+}
+
 .modal-form-grid .modal-actions {
   grid-column: 1 / -1;
 }
@@ -1726,12 +1526,29 @@ tbody tr:last-child td {
   gap: 4px;
   font-size: 12px;
   color: var(--muted);
+  align-items: start;
+}
+
+.modal-form-grid input,
+.modal-form-grid select {
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 14px;
 }
 
 .modal-form-grid .field-hint {
   font-size: 12px;
   color: var(--muted);
   margin: 4px 0 0;
+}
+
+/* Номер счёта: маска по 4 цифры, читаемо как на карте */
+.account-number-input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
 }
 
 .page-view {

@@ -22,7 +22,7 @@ def test_transfers_success(client, auth_headers, token, two_rub_accounts):
     data = r.json()
     assert data["type"] == "TRANSFER"
     assert data["description"] == "p2p_transfer"
-    assert data["amount"] == "100.00"
+    assert data["money"]["amount"] == "100.00"
 
 
 def test_transfers_same_account(client, auth_headers, token, two_rub_accounts):
@@ -184,13 +184,86 @@ def test_transfers_by_account_not_found(client, auth_headers, token, rub_account
         headers=auth_headers,
         json={
             "from_account_id": rub_account["id"],
-            "target_account_number": "22020000000000009999",
+            "target_account_number": "2202000000009999",
             "amount": "100.00",
             "otp_code": otp,
         },
     )
     assert r.status_code == 404
     assert r.json().get("detail") == "account_not_found"
+
+
+def test_transfers_by_account_check_found(client, auth_headers, rub_account):
+    """Проверка счёта: счёт из нашего банка — found=true."""
+    r = client.get(
+        "/transfers/by-account/check",
+        headers=auth_headers,
+        params={"target_account_number": rub_account["account_number"]},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["found"] is True
+    assert "masked" in data
+    assert data["masked"].endswith(rub_account["account_number"][-4:])
+
+
+def test_transfers_by_account_check_not_found(client, auth_headers):
+    """Проверка счёта: счёт не в нашем банке — found=false."""
+    r = client.get(
+        "/transfers/by-account/check",
+        headers=auth_headers,
+        params={"target_account_number": "2202000000009999"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["found"] is False
+    assert data.get("masked", "").endswith("9999")
+
+
+def test_transfers_external_by_account_success(client, auth_headers, token, rub_account):
+    """Перевод в другой банк: списание сумма + 5% комиссия, to_account_id=None."""
+    helper_increase(client, token, rub_account["id"], "10000")
+    otp = get_otp(client, token)
+    r = client.post(
+        "/transfers/external-by-account",
+        headers=auth_headers,
+        json={
+            "from_account_id": rub_account["id"],
+            "target_account_number": "2202000000009999",
+            "amount": "1000.00",
+            "otp_code": otp,
+        },
+    )
+    assert r.status_code == 201
+    data = r.json()
+    assert data["type"] == "TRANSFER"
+    assert data["money"]["amount"] == "1000.00"
+    assert data["to_account_id"] is None
+    assert "external_transfer" in (data.get("description") or "")
+    # Баланс: было 10000, списали 1000 + 50 = 1050, осталось 8950
+    r2 = client.get("/accounts", headers=auth_headers)
+    acc = next((a for a in r2.json() if a["id"] == rub_account["id"]), None)
+    assert acc is not None
+    assert float(acc["balance"]) == 8950.00
+
+
+def test_transfers_external_by_account_reject_if_in_bank(client, auth_headers, token, two_rub_accounts):
+    """Если счёт найден в нашем банке — external-by-account возвращает 400."""
+    a1, a2 = two_rub_accounts
+    helper_increase(client, token, a1["id"], "5000")
+    otp = get_otp(client, token)
+    r = client.post(
+        "/transfers/external-by-account",
+        headers=auth_headers,
+        json={
+            "from_account_id": a1["id"],
+            "target_account_number": a2["account_number"],
+            "amount": "100.00",
+            "otp_code": otp,
+        },
+    )
+    assert r.status_code == 400
+    assert r.json().get("detail") == "account_found_in_bank"
 
 
 def test_transfers_rates(client, auth_headers):

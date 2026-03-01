@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, field_validator, model_validator
 
 from app.models import AccountType, Currency, TransactionStatus, TransactionType, UserRole, UserStatus
 
@@ -132,14 +132,14 @@ class AccountTopupRequest(BaseModel):
 class TransferCreateRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {"from_account_id": 1, "to_account_id": 2, "amount": "1500.00", "otp_code": "1234"}
+            "example": {"from_account_id": 1, "to_account_id": 2, "amount": "1500.00"}
         }
     )
 
     from_account_id: int
     to_account_id: int
     amount: Decimal = Field(gt=0)
-    otp_code: OtpCode
+    otp_code: OtpCode | None = None  # не требуется для перевода между своими счетами
 
 
 class ExchangeRequest(BaseModel):
@@ -165,7 +165,7 @@ class TransferByAccountRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "from_account_id": 1,
-                "target_account_number": "22020000000000000001",
+                "target_account_number": "2202000000000001",
                 "amount": "1500.00",
                 "otp_code": "1234",
             }
@@ -173,9 +173,16 @@ class TransferByAccountRequest(BaseModel):
     )
 
     from_account_id: int
-    target_account_number: str = Field(min_length=1, max_length=32)
+    target_account_number: str = Field(min_length=16, max_length=16, pattern=r"^\d{16}$")
     amount: Decimal = Field(gt=0)
     otp_code: OtpCode
+
+
+class TransferByAccountCheckResponse(BaseModel):
+    """Результат проверки счёта: найден в нашем банке или нет."""
+
+    found: bool
+    masked: str  # например "••••1234"
 
 
 class MobilePaymentRequest(BaseModel):
@@ -297,32 +304,72 @@ class TransferByPhoneRequest(BaseModel):
         return normalize_phone(v) or v
 
 
+class TransactionMoney(BaseModel):
+    """Сумма операции: основная сумма, комиссия, итого и валюта."""
+
+    amount: str = Field(description="Сумма операции")
+    fee: str = Field(description="Комиссия (0 если нет)")
+    total: str = Field(description="Итого (amount + fee)")
+    currency: str = Field(description="Код валюты (RUB, USD, ...)")
+
+
 class TransactionPublic(BaseModel):
+    """Ответ по операции: минимум полей, деньги во вложенном объекте money."""
+
     model_config = ConfigDict(
         from_attributes=True,
         json_schema_extra={
             "example": {
                 "id": 15,
-                "from_account_id": 1,
-                "to_account_id": 2,
                 "type": "TRANSFER",
-                "amount": "1500.00",
-                "currency": "RUB",
-                "status": "COMPLETED",
-                "initiated_by": 7,
+                "money": {
+                    "amount": "1500.00",
+                    "fee": "0.00",
+                    "total": "1500.00",
+                    "currency": "RUB",
+                },
                 "description": "p2p_transfer",
                 "created_at": "2026-02-26T12:34:56.000000",
+                "from_account_id": 1,
+                "to_account_id": 2,
+                "status": "COMPLETED",
             }
         },
     )
 
     id: int
-    from_account_id: int | None
-    to_account_id: int | None
     type: TransactionType
-    amount: Decimal
-    currency: Currency
-    status: TransactionStatus
-    initiated_by: int
+    money: TransactionMoney
     description: str | None = None
     created_at: datetime
+    from_account_id: int | None
+    to_account_id: int | None
+    status: TransactionStatus
+
+    @model_validator(mode="before")
+    @classmethod
+    def from_orm_build_money(cls, data: object):
+        """Строит ответ из ORM: считает money из amount/fee/currency, убирает initiated_by."""
+        if not hasattr(data, "amount"):
+            return data
+        orm = data
+        amount = Decimal(orm.amount)
+        fee = Decimal(orm.fee) if getattr(orm, "fee", None) is not None else Decimal("0")
+        total = amount + fee
+        currency = getattr(orm.currency, "value", None) or str(orm.currency)
+        q = Decimal("0.01")
+        return {
+            "id": orm.id,
+            "type": orm.type,
+            "money": {
+                "amount": str(amount.quantize(q)),
+                "fee": str(fee.quantize(q)),
+                "total": str(total.quantize(q)),
+                "currency": currency,
+            },
+            "description": getattr(orm, "description", None),
+            "created_at": orm.created_at,
+            "from_account_id": orm.from_account_id,
+            "to_account_id": orm.to_account_id,
+            "status": orm.status,
+        }

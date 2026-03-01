@@ -32,10 +32,13 @@ def test_admin_user_not_found(client):
     token = _admin_token(client)
     r = client.get("/admin/users/999999/transactions", headers=_headers(token))
     assert r.status_code == 404
+    assert r.json().get("detail") == "user_not_found"
     r = client.post("/admin/users/999999/block", headers=_headers(token))
     assert r.status_code == 404
+    assert r.json().get("detail") == "user_not_found"
     r = client.delete("/admin/users/999999", headers=_headers(token))
     assert r.status_code == 404
+    assert r.json().get("detail") == "user_not_found"
 
 
 def test_admin_block_unblock(client, unique_login, valid_password):
@@ -165,6 +168,24 @@ def test_admin_update_banks_reject_unknown(client, unique_login, valid_password)
     )
     assert r.status_code == 400
     assert r.json().get("detail") == "invalid_bank_codes"
+
+
+def test_admin_update_banks_more_than_five(client, unique_login, valid_password):
+    """Нельзя указать больше 5 банков."""
+    r = client.post("/auth/register", json={"login": unique_login, "password": valid_password})
+    assert r.status_code == 201
+    user_id = r.json()["id"]
+
+    token = _admin_token(client)
+    r = client.put(
+        f"/admin/users/{user_id}/banks",
+        headers=_headers(token),
+        json={
+            "bank_codes": ["alpha", "tinkoff", "sber", "vtb", "gazprombank", "raiffeisen"],
+        },
+    )
+    assert r.status_code == 400
+    assert r.json().get("detail") == "bank_limit_exceeded"
 
 
 def test_admin_get_user_transactions(client, auth_headers, token, rub_account):

@@ -63,7 +63,7 @@ def test_accounts_close_non_zero_balance(client, auth_headers, token, rub_accoun
 def test_accounts_close_not_found(client, auth_headers):
     r = client.delete("/accounts/999999", headers=auth_headers)
     assert r.status_code == 404
-    assert r.json().get("detail") == "not_found"
+    assert r.json().get("detail") == "account_not_found"
 
 
 def test_accounts_close_already_closed(client, auth_headers):
@@ -87,7 +87,7 @@ def test_accounts_topup_success(client, auth_headers, token, rub_account):
     data = r.json()
     assert data["type"] == "TOPUP"
     assert data["description"] == "self_topup"
-    assert data["amount"] == "500.00"
+    assert data["money"]["amount"] == "500.00"
 
 
 def test_accounts_topup_with_purpose_salary(client, auth_headers, token, rub_account):
@@ -102,11 +102,11 @@ def test_accounts_topup_with_purpose_salary(client, auth_headers, token, rub_acc
     data = r.json()
     assert data["type"] == "TOPUP"
     assert data["description"] == "self_topup:salary"
-    assert data["amount"] == "3000.00"
+    assert data["money"]["amount"] == "3000.00"
     # Проверяем, что транзакция есть в истории
     r2 = client.get("/transactions", headers=auth_headers)
     assert r2.status_code == 200
-    txs = [t for t in r2.json() if t.get("description") == "self_topup:salary" and t.get("amount") == "3000.00"]
+    txs = [t for t in r2.json() if t.get("description") == "self_topup:salary" and t.get("money", {}).get("amount") == "3000.00"]
     assert len(txs) >= 1
 
 

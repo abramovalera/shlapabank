@@ -150,14 +150,18 @@ def confirm_page():
 @app.on_event("startup")
 def startup() -> None:
     Base.metadata.create_all(bind=engine)
-    # Миграция: добавить is_primary в accounts, если колонки нет
+    # Миграции: добавить колонки, если их нет (is_primary, fee)
     with engine.connect() as conn:
         from sqlalchemy import text
-        try:
-            conn.execute(text("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT FALSE"))
-            conn.commit()
-        except Exception:
-            conn.rollback()
+        for stmt in (
+            "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS fee NUMERIC(14, 2) DEFAULT 0",
+        ):
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                conn.rollback()
     db = SessionLocal()
     try:
         for code, label in BANKS_CATALOG:
@@ -238,6 +242,6 @@ app.include_router(settings_router)
 
 app.mount(
     "/ui",
-    StaticFiles(directory="ui-mockup", html=True),
+    StaticFiles(directory=str(UI_DIR), html=True),
     name="ui",
 )

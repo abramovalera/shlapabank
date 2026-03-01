@@ -17,6 +17,8 @@ const state = {
   providers: [],
   settings: null,
   exchangeRates: null,
+  byAccountIsExternal: false,
+  byPhoneIsExternal: false,
 };
 
 const qs = (id) => document.getElementById(id);
@@ -75,8 +77,14 @@ function mapApiError(detail) {
       return "Превышен дневной лимит по переводам.";
     case "account_not_found":
       return "Такого счёта нет в нашем банке(((";
+    case "account_found_in_bank":
+      return "Этот счёт принадлежит нашему банку. Выберите перевод по номеру счёта (без комиссии).";
+    case "invalid_account_number":
+      return "Недопустимый номер счёта (требуется 16 цифр).";
     case "recipient_not_found_in_our_bank":
       return "Такого пользователя нет в нашем банке(((";
+    case "recipient_has_no_suitable_account":
+      return "У получателя нет подходящего счёта для перевода.";
     case "forbidden_account_access":
       return "Нет доступа к этому счёту.";
     case "account_inactive":
@@ -136,6 +144,12 @@ function mapApiError(detail) {
     case "validation_error":
     case "value_error":
       return "Ошибка валидации. Проверьте введённые данные.";
+    case "amount_too_large":
+      return "Сумма превышает допустимый лимит (макс. 999 999 999 999,99).";
+    case "database_migration_required":
+      return "Требуется обновление БД: выполните backend/scripts/add_fee_to_transactions.sql";
+    case "salary_credit_admin_only":
+      return "Начисление зарплаты доступно только администратору.";
     case "request_failed":
     default:
       return "Не удалось выполнить запрос. Попробуйте позже.";
@@ -229,8 +243,11 @@ async function api(path, options = {}) {
 }
 
 function formatAmount(value, currency) {
-  const num = Number(value || 0);
-  return `${num.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+  const num = Number(value);
+  if (Number.isNaN(num) || typeof value === "object") {
+    return `0,00 ${currency || "RUB"}`;
+  }
+  return `${num.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || "RUB"}`;
 }
 
 function maskAccount(accountNumber) {
@@ -251,6 +268,23 @@ function getAccountLabelById(accountId) {
   return `${acc.currency} · ${masked}`;
 }
 
+/** Берёт сумму/комиссию/валюту из tx: из объекта money (новый API) или из полей amount, fee, currency (fallback). */
+function getTxMoney(tx) {
+  if (tx.money && typeof tx.money === "object") {
+    return {
+      amount: Number(tx.money.amount) || 0,
+      fee: Number(tx.money.fee) || 0,
+      total: Number(tx.money.total) || 0,
+      currency: tx.money.currency || "RUB",
+    };
+  }
+  const amount = Number(tx.amount) || 0;
+  let fee = typeof tx.fee === "number" ? tx.fee : parseFloat(tx.fee) || 0;
+  if (fee === 0 && tx.description) fee = parseFeeFromDescription(tx.description);
+  fee = Number(fee) || 0;
+  return { amount, fee, total: amount + fee, currency: tx.currency || "RUB" };
+}
+
 function getTransactionMeta(tx) {
   const description = tx.description || "";
   let kind = "other";
@@ -267,7 +301,8 @@ function getTransactionMeta(tx) {
     } else if (
       description.startsWith("p2p_transfer_by_account") ||
       description.startsWith("p2p_transfer_by_phone") ||
-      description.startsWith("p2p_by_phone_external")
+      description.startsWith("p2p_by_phone_external") ||
+      description.startsWith("external_transfer")
     ) {
       kind = "transfer-out";
     } else {
@@ -335,7 +370,8 @@ function getTransactionMeta(tx) {
       amountClass = "";
   }
 
-  const baseAmount = formatAmount(tx.amount, tx.currency);
+  const money = getTxMoney(tx);
+  const baseAmount = formatAmount(money.total, money.currency);
   const signedAmount =
     sign === "+" ? `+${baseAmount}` : sign === "−" ? `-${baseAmount}` : baseAmount;
 
@@ -346,6 +382,8 @@ function getTransactionMeta(tx) {
     iconClass,
     amountClass,
     signedAmount,
+    fee: money.fee,
+    totalAmount: money.total,
   };
 }
 
@@ -384,6 +422,13 @@ function parseTransferExternalDescription(desc) {
   if (!desc?.startsWith("p2p_by_phone_external")) return null;
   const parts = desc.split(":");
   return { bankCode: parts[1] || "", phone: parts[2] || "—" };
+}
+
+/** Извлекает комиссию из description (external_transfer:...:fee_15000 или p2p_by_phone_external:...:fee_6000) */
+function parseFeeFromDescription(desc) {
+  if (!desc || typeof desc !== "string") return 0;
+  const match = desc.match(/:fee_([\d.]+)$/);
+  return match ? parseFloat(match[1]) || 0 : 0;
 }
 
 /** Возвращает массив полей {label, value} для деталей операции в зависимости от типа */
@@ -457,7 +502,13 @@ function getTransactionDetailFields(tx) {
 
   fields.push({ label: "Дата и время", value: dateTime });
   fields.push({ label: "Банк", value: "ShlapaBank" });
-  fields.push({ label: "Сумма", value: meta.signedAmount, amountClass: meta.amountClass || "" });
+  const money = getTxMoney(tx);
+  if (money.fee > 0) {
+    fields.push({ label: "Комиссия", value: formatAmount(money.fee, money.currency), amountClass: meta.amountClass || "" });
+    fields.push({ label: "Сумма", value: formatAmount(money.total, money.currency), amountClass: meta.amountClass || "" });
+  } else {
+    fields.push({ label: "Сумма", value: meta.signedAmount, amountClass: meta.amountClass || "" });
+  }
   return fields;
 }
 
@@ -509,6 +560,7 @@ function getTransactionTitle(tx, meta) {
         const bankCode = description.split(":")[1];
         return BANK_LABELS[bankCode] || bankCode || "Банк получателя";
       }
+      if (description.startsWith("external_transfer")) return "В другой банк";
       if (description.startsWith("p2p_transfer_by_account")) return "По номеру счёта";
       if (description.startsWith("p2p_transfer_by_phone")) return "По номеру телефона";
       return "Перевод";
@@ -632,6 +684,20 @@ function stripAllSpacesInput(input) {
   }
 }
 
+/** Номер счёта: 16 цифр. Форматирование с пробелом каждые 4 цифры. */
+const ACCOUNT_NUMBER_LENGTH = 16;
+const ACCOUNT_NUMBER_MIN = 16;
+const ACCOUNT_NUMBER_MAX = 16;
+
+function formatAccountNumberWithSpaces(value) {
+  const digits = String(value).replace(/\D/g, "").slice(0, ACCOUNT_NUMBER_LENGTH);
+  return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+}
+
+function getAccountNumberDigits(value) {
+  return String(value).replace(/\D/g, "");
+}
+
 function preventSpaceKey(event) {
   if (event.key === " " || event.code === "Space") {
     event.preventDefault();
@@ -672,7 +738,8 @@ function setAmountError(inputId, message) {
 }
 
 /** Обновляет подсказку по лимитам: минимум всегда показан, при превышении — максимум. */
-function updateAmountHint(inputId, config, options = {}) {
+function updateAmountHint(inputId, config, options) {
+  options = options || {};
   const { min, max } = config || {};
   const unit = config?.unit ?? getUnitForAmountField(inputId);
   const { showEmptyError = false } = options;
@@ -713,8 +780,13 @@ function updateAmountHint(inputId, config, options = {}) {
     }
     isError = false;
   }
+  const suffix = options.amountHintMaxSuffix;
+  if (typeof suffix === "string" && suffix && /Максимальная сумма/.test(hintText)) {
+    hintText = hintText + suffix;
+  }
 
   hintEl.textContent = hintText;
+  hintEl.classList.toggle("limit-hint-accent", /Минимальная сумма|Максимальная сумма/.test(hintText));
   if (label) label.classList.toggle("has-error", isError);
   return !isError;
 }
@@ -804,6 +876,11 @@ async function openOtpModal(context) {
 function hideOtpModal() {
   const modal = qs("otpModal");
   if (!modal) return;
+  if (typeof pendingOtp?.onClose === "function") {
+    try {
+      pendingOtp.onClose();
+    } catch (_) {}
+  }
   modal.classList.remove("show");
   modal.hidden = true;
   pendingOtp = null;
@@ -933,8 +1010,13 @@ async function handleOtpSubmit() {
         method: "POST",
         body: JSON.stringify({ ...payload, otp_code: code }),
       });
-    } else if (kind === "transfer-by-account") {
+    } else     if (kind === "transfer-by-account") {
       await api("/transfers/by-account", {
+        method: "POST",
+        body: JSON.stringify({ ...payload, otp_code: code }),
+      });
+    } else if (kind === "transfer-external-by-account") {
+      await api("/transfers/external-by-account", {
         method: "POST",
         body: JSON.stringify({ ...payload, otp_code: code }),
       });
@@ -975,6 +1057,14 @@ async function handleOtpSubmit() {
     if (error && error.code === "invalid_otp_code") {
       showToast("OTP истёк. Отправлен новый код.", true);
       await refreshOtpInModal();
+    } else if (
+      pendingOtp &&
+      (pendingOtp.kind === "transfer-external-by-account" ||
+        (pendingOtp.kind === "transfer-by-phone" &&
+          pendingOtp.payload?.recipient_bank_id !== "shlapabank")) &&
+      (error.code === "insufficient_funds" || error.code === "transfer_amount_exceeds_daily_limit")
+    ) {
+      showToast("Недостаточно средств для перевода с учётом комиссии", true);
     } else {
       showToast(`${errorPrefix || "Ошибка операции"}: ${error.message}`, true);
     }
@@ -1117,14 +1207,7 @@ function renderBalances() {
   });
 }
 
-/** Цвета для полосок по валютам */
-const STATS_CURRENCY_COLORS = {
-  RUB: "#dc2626",
-  USD: "#2563eb",
-  EUR: "#059669",
-  CNY: "#d97706",
-};
-
+/** Цвета для полосок по валютам: рубль — зелёный, доллар — синий, евро — жёлтый, CNY — фиолетовый */
 /** Маппинг description → читаемая подпись дохода */
 function getIncomeTypeLabel(desc) {
   if (!desc) return "Пополнение";
@@ -1133,97 +1216,6 @@ function getIncomeTypeLabel(desc) {
   if (desc.startsWith("self_topup:") || desc.startsWith("helper_topup:")) return desc.split(":")[1] || "Пополнение";
   if (desc === "helper_topup") return "Пополнение";
   return "Пополнение";
-}
-
-const CURRENCY_ORDER = ["RUB", "USD", "EUR", "CNY"];
-
-function computeStats() {
-  const ownedIds = (state.accounts || []).map((a) => a.id);
-  const incomeByCurrency = {};
-  const expenseByCurrency = {};
-
-  (state.transactions || []).forEach((tx) => {
-    const meta = getTransactionMeta(tx);
-    const amount = Number(tx.amount) || 0;
-    const currency = tx.currency || "RUB";
-    const ownsFrom = tx.from_account_id && ownedIds.includes(tx.from_account_id);
-    const ownsTo = tx.to_account_id && ownedIds.includes(tx.to_account_id);
-    const desc = tx.description || "";
-
-    if (meta.kind === "topup") {
-      if (!incomeByCurrency[currency]) incomeByCurrency[currency] = { salary: 0, gift: 0, transfer: 0, topup: 0 };
-      const label = getIncomeTypeLabel(desc);
-      if (label === "Зарплата") incomeByCurrency[currency].salary += amount;
-      else if (label === "Подарок") incomeByCurrency[currency].gift += amount;
-      else if (label === "Перевод") incomeByCurrency[currency].transfer += amount;
-      else incomeByCurrency[currency].topup += amount;
-    } else if (meta.kind === "transfer-out" && !ownsFrom && ownsTo) {
-      if (!incomeByCurrency[currency]) incomeByCurrency[currency] = { salary: 0, gift: 0, transfer: 0, topup: 0 };
-      incomeByCurrency[currency].transfer += amount;
-    } else if (meta.kind === "payment" || (meta.kind === "transfer-out" && ownsFrom && !ownsTo)) {
-      if (!expenseByCurrency[currency]) expenseByCurrency[currency] = { payment: 0, transfer: 0, fx: 0 };
-      if (meta.kind === "payment") expenseByCurrency[currency].payment += amount;
-      else expenseByCurrency[currency].transfer += amount;
-    } else if (meta.kind === "fx") {
-      if (!expenseByCurrency[currency]) expenseByCurrency[currency] = { payment: 0, transfer: 0, fx: 0 };
-      expenseByCurrency[currency].fx += amount;
-    }
-  });
-
-  return { incomeByCurrency, expenseByCurrency };
-}
-
-function renderStats() {
-  const summaryEl = qs("statsSummary");
-  if (!summaryEl) return;
-
-  const { incomeByCurrency, expenseByCurrency } = computeStats();
-
-  const incomeTotals = {};
-  const expenseTotals = {};
-
-  CURRENCY_ORDER.forEach((c) => {
-    const inc = incomeByCurrency[c] || { salary: 0, gift: 0, transfer: 0, topup: 0 };
-    const exp = expenseByCurrency[c] || { payment: 0, transfer: 0, fx: 0 };
-    incomeTotals[c] = inc.salary + inc.gift + inc.transfer + inc.topup;
-    expenseTotals[c] = exp.payment + exp.transfer + exp.fx;
-  });
-
-  function renderBar(label, data, isIncome) {
-    const total = CURRENCY_ORDER.reduce((s, c) => s + (data[c] || 0), 0);
-    let html = `<div class="stats-bar-section ${isIncome ? "stats-income" : "stats-expense"}">`;
-    html += `<div class="stats-bar-header">`;
-    html += `<span class="stats-bar-title">${escapeHtml(label)}</span>`;
-    html += `<span class="stats-bar-total">${total > 0 ? CURRENCY_ORDER.filter((c) => (data[c] || 0) > 0).map((c) => formatAmount(data[c], c)).join(" · ") : "—"}</span>`;
-    html += `</div>`;
-    html += `<div class="stats-bar-stack">`;
-    if (total > 0) {
-      CURRENCY_ORDER.forEach((curr) => {
-        const val = data[curr] || 0;
-        if (val <= 0) return;
-        const pct = (val / total) * 100;
-        const color = STATS_CURRENCY_COLORS[curr] || "#666";
-        html += `<div class="stats-bar-segment" style="width:${pct}%;background:${color}" title="${escapeHtml(curr)}: ${formatAmount(val, curr)}"></div>`;
-      });
-    } else {
-      html += `<div class="stats-bar-segment stats-bar-empty" style="width:100%"></div>`;
-    }
-    html += `</div>`;
-    html += `<div class="stats-bar-legend">`;
-    CURRENCY_ORDER.forEach((curr) => {
-      const val = data[curr] || 0;
-      const color = STATS_CURRENCY_COLORS[curr] || "#666";
-      html += `<span class="stats-bar-legend-item"><span class="stats-bar-dot" style="background:${color}"></span>${escapeHtml(curr)} ${val > 0 ? formatAmount(val, curr) : "—"}</span>`;
-    });
-    html += `</div></div>`;
-    return html;
-  }
-
-  let html = "";
-  html += renderBar("Доход", incomeTotals, true);
-  html += renderBar("Расход", expenseTotals, false);
-
-  summaryEl.innerHTML = html;
 }
 
 function renderAccounts() {
@@ -1357,10 +1349,7 @@ async function fillHomeByPhoneBankSelect(phone) {
   }
   try {
     const data = await api(`/transfers/by-phone/check?phone=${encodeURIComponent(raw)}`);
-    if (warningEl && data && data.inOurBank === false) {
-      warningEl.textContent = "Такого пользователя нет в нашем банке(((";
-      warningEl.hidden = false;
-    }
+    if (warningEl) warningEl.hidden = true;
     const banks = (data && data.availableBanks) || [];
     banks.forEach((b) => {
       const opt = document.createElement("option");
@@ -1554,7 +1543,7 @@ function renderTransactions() {
         <span class="tx-type-label">${tx.type}</span>
       </td>
       <td class="${meta.amountClass}">${meta.signedAmount}</td>
-      <td>${tx.currency}</td>
+      <td>${getTxMoney(tx).currency}</td>
       <td>${tx.status}</td>
       <td>${tx.description || "-"}</td>
       <td>${new Date(tx.created_at).toLocaleString("ru-RU")}</td>
@@ -1637,9 +1626,28 @@ function hideTransactionDetailModal() {
   selectedTransactionForDetail = null;
 }
 
-function downloadReceipt(tx) {
-  const fields = getTransactionDetailFields(tx);
+async function downloadReceipt(tx) {
   const dateStr = new Date(tx.created_at).toLocaleDateString("ru-RU");
+  const filename = `chek-operacii-${tx.id}-${dateStr.replace(/\./g, "-")}.html`;
+  try {
+    const res = await fetch(`${API_BASE}/transactions/${tx.id}/receipt`, {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+  } catch (_) {
+    // fallback to client-built receipt
+  }
+  const fields = getTransactionDetailFields(tx);
   const rowsHtml = fields
     .map(
       (f) =>
@@ -1671,7 +1679,7 @@ function downloadReceipt(tx) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `chek-operacii-${tx.id}-${dateStr.replace(/\./g, "-")}.html`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -1739,7 +1747,6 @@ async function loadTransactions() {
   const data = await api("/transactions");
   state.transactions = data;
   renderTransactions();
-  renderStats();
   recentLimit = 5;
   renderRecentTransactionsHome();
 }
@@ -1925,22 +1932,23 @@ function fillVendorProvidersByCategory(category) {
 function wirePaymentCategories() {
   const buttons = document.querySelectorAll(".payments-category-btn[data-pay-target]");
   const views = document.querySelectorAll(".payments-view[data-pay-view]");
-  buttons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const target = btn.dataset.payTarget;
-      const viewId = PAY_TARGET_TO_VIEW[target] || "mobile";
-      state.currentPaymentCategory = target;
-      buttons.forEach((b) => b.classList.toggle("payments-category-active", b.dataset.payTarget === target));
-      views.forEach((v) => v.classList.toggle("payments-view-active", v.dataset.payView === viewId));
-      if (viewId === "vendor") {
-        fillVendorProvidersByCategory(target);
-      } else if (viewId === "mobile") {
-        const phoneInput = qs("mobilePhone");
-        if (phoneInput && (!phoneInput.value || getRawPhone(phoneInput.value).length < 12))
-          phoneInput.value = "+7";
-      }
+buttons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.dataset.payTarget;
+        const viewId = PAY_TARGET_TO_VIEW[target] || "mobile";
+        state.currentPaymentCategory = target;
+        buttons.forEach((b) => b.classList.toggle("payments-category-active", b.dataset.payTarget === target));
+        views.forEach((v) => v.classList.toggle("payments-view-active", v.dataset.payView === viewId));
+        if (viewId === "vendor") {
+          fillVendorProvidersByCategory(target);
+        } else if (viewId === "mobile") {
+          const phoneInput = qs("mobilePhone");
+          if (phoneInput && (!phoneInput.value || getRawPhone(phoneInput.value).length < 12))
+            phoneInput.value = "+7";
+        }
+        if (window.__updatePaymentsLimitBars) window.__updatePaymentsLimitBars();
+      });
     });
-  });
   if (state.currentPaymentCategory && PAY_TARGET_TO_VIEW[state.currentPaymentCategory] === "vendor") {
     fillVendorProvidersByCategory(state.currentPaymentCategory);
   }
@@ -1998,6 +2006,10 @@ function wirePages() {
     if (pageId === "payments") {
       updateAmountHint("mobileAmount", AMOUNT_CONFIGS.mobileAmount);
       updateAmountHint("vendorAmount", AMOUNT_CONFIGS.vendorAmount);
+      if (window.__updatePaymentsLimitBars) window.__updatePaymentsLimitBars();
+      loadTransfersDailyUsage().then(() => {
+        if (window.__updatePaymentsLimitBars) window.__updatePaymentsLimitBars();
+      });
     }
 
     if (!activated) {
@@ -2082,7 +2094,6 @@ async function loadData() {
   renderRules();
   renderSettings();
   renderTransactions();
-  renderStats();
   recentLimit = 5;
   renderRecentTransactionsHome();
   fillPaymentLookups();
@@ -2115,12 +2126,70 @@ function wireActions() {
 
   const amountConfigs = AMOUNT_CONFIGS;
 
+  const OUR_BANK_CODE = "shlapabank";
+  function getAmountHintOpts(inputId) {
+    if (inputId === "homeByAccountAmount" && state.byAccountIsExternal) {
+      const input = qs("homeByAccountAmount");
+      const val = input && parseFloat(String(input.value).replace(/\s/g, ""));
+      const totalWithFee = Number.isFinite(val) && val > 0 ? Math.round(val * 1.05 * 100) / 100 : null;
+      let suffix = " с учётом комиссии 5% за перевод";
+      if (totalWithFee != null && totalWithFee > 0) {
+        suffix += ". Будет списано: " + formatAmountLimit(totalWithFee) + " ₽";
+      }
+      return { amountHintMaxSuffix: suffix };
+    }
+    if (inputId === "homeByPhoneAmount" && state.byPhoneIsExternal) {
+      const input = qs("homeByPhoneAmount");
+      const val = input && parseFloat(String(input.value).replace(/\s/g, ""));
+      const totalWithFee = Number.isFinite(val) && val > 0 ? Math.round(val * 1.02 * 100) / 100 : null;
+      let suffix = " с учётом комиссии 2% за перевод";
+      if (totalWithFee != null && totalWithFee > 0) {
+        suffix += ". Будет списано: " + formatAmountLimit(totalWithFee) + " ₽";
+      }
+      return { amountHintMaxSuffix: suffix };
+    }
+    return {};
+  }
+
   Object.entries(amountConfigs).forEach(([id, config]) => {
     const input = qs(id);
     if (!input) return;
-    input.addEventListener("input", () => updateAmountHint(id, config));
-    input.addEventListener("blur", () => updateAmountHint(id, config));
+    input.addEventListener("input", () => updateAmountHint(id, config, getAmountHintOpts(id)));
+    input.addEventListener("blur", () => updateAmountHint(id, config, getAmountHintOpts(id)));
   });
+
+  // Ограничение суммы и предупреждение при превышении лимита (перевод по телефону)
+  const homeByAccountAmountInput = qs("homeByAccountAmount");
+  if (homeByAccountAmountInput && amountConfigs.homeByAccountAmount?.max) {
+    const maxAmount = amountConfigs.homeByAccountAmount.max;
+    homeByAccountAmountInput.addEventListener("input", () => {
+      const raw = homeByAccountAmountInput.value;
+      if (!raw) return;
+      const value = Number(raw);
+      if (Number.isFinite(value) && value > maxAmount) {
+        homeByAccountAmountInput.value = String(maxAmount);
+        const unit = getUnitForAmountField("homeByAccountAmount");
+        showToast(`Максимальная сумма перевода — ${formatAmountLimit(maxAmount)} ${unit}. Введённая сумма ограничена.`, true);
+        updateAmountHint("homeByAccountAmount", amountConfigs.homeByAccountAmount, getAmountHintOpts("homeByAccountAmount"));
+      }
+    });
+  }
+
+  const homeByPhoneAmountInput = qs("homeByPhoneAmount");
+  if (homeByPhoneAmountInput && amountConfigs.homeByPhoneAmount?.max) {
+    const maxAmount = amountConfigs.homeByPhoneAmount.max;
+    homeByPhoneAmountInput.addEventListener("input", () => {
+      const raw = homeByPhoneAmountInput.value;
+      if (!raw) return;
+      const value = Number(raw);
+      if (Number.isFinite(value) && value > maxAmount) {
+        homeByPhoneAmountInput.value = String(maxAmount);
+        const unit = getUnitForAmountField("homeByPhoneAmount");
+        showToast(`Максимальная сумма перевода — ${formatAmountLimit(maxAmount)} ${unit}. Введённая сумма ограничена.`, true);
+        updateAmountHint("homeByPhoneAmount", amountConfigs.homeByPhoneAmount, getAmountHintOpts("homeByPhoneAmount"));
+      }
+    });
+  }
 
   const notificationsBtn = qs("notificationsBtn");
   const notificationsPanel = qs("notificationsPanel");
@@ -2218,7 +2287,6 @@ function wireActions() {
       modal.hidden = false;
       modal.classList.add("show");
       setTimeout(() => {
-        updateLimitProgressForSelect("homeTransferFrom", "homeTransferLimitLabel", "homeTransferLimitFill");
         updateAmountHint("homeTransferAmount", amountConfigs.homeTransferAmount);
       }, 0);
     });
@@ -2229,6 +2297,7 @@ function wireActions() {
     homeTransferByAccountBtn.addEventListener("click", async () => {
       const modal = qs("homeByAccountModal");
       if (!modal) return;
+      state.byAccountIsExternal = false;
       await loadTransfersDailyUsage();
       modal.hidden = false;
       modal.classList.add("show");
@@ -2244,13 +2313,14 @@ function wireActions() {
     homeTransferByPhoneBtn.addEventListener("click", async () => {
       const modal = qs("homeByPhoneModal");
       if (!modal) return;
+      state.byPhoneIsExternal = false;
       await loadTransfersDailyUsage();
       fillHomeByPhoneBankSelect("");
       modal.hidden = false;
       modal.classList.add("show");
       setTimeout(() => {
         updateLimitProgressForSelect("homeByPhoneFrom", "homeByPhoneLimitLabel", "homeByPhoneLimitFill");
-        updateAmountHint("homeByPhoneAmount", amountConfigs.homeByPhoneAmount);
+        updateHomeByPhoneAmountHint();
       }, 0);
       const phoneInput = qs("homeByPhoneNumber");
       if (phoneInput && !phoneInput.value) {
@@ -2275,7 +2345,7 @@ function wireActions() {
 
       modal.hidden = false;
       modal.classList.add("show");
-      updateLimitProgressForSelect("homeExchangeFrom", "", "homeExchangeLimitFill");
+      updateLimitProgressForSelect("homeExchangeFrom", "homeExchangeLimitLabel", "homeExchangeLimitFill");
       updateExchangeRateInfo();
       updateAmountHint("homeExchangeAmount", amountConfigs.homeExchangeAmount);
     });
@@ -2307,8 +2377,13 @@ function wireActions() {
     transferPhoneInput.addEventListener("input", () => {
       applyPhoneMask(transferPhoneInput);
       if (window._homeByPhoneBankDebounce) clearTimeout(window._homeByPhoneBankDebounce);
-      window._homeByPhoneBankDebounce = setTimeout(() => {
-        fillHomeByPhoneBankSelect(transferPhoneInput.value);
+      window._homeByPhoneBankDebounce = setTimeout(async () => {
+        await fillHomeByPhoneBankSelect(transferPhoneInput.value);
+        const bankSelect = qs("homeByPhoneBank");
+        if (bankSelect && bankSelect.value) {
+          state.byPhoneIsExternal = bankSelect.value !== OUR_BANK_CODE;
+          updateHomeByPhoneAmountHint();
+        }
       }, 400);
     });
     transferPhoneInput.addEventListener("blur", () => fillHomeByPhoneBankSelect(transferPhoneInput.value));
@@ -2353,11 +2428,14 @@ function wireActions() {
   const homeByAccountNumberInput = qs("homeByAccountNumber");
   if (homeByAccountNumberInput) {
     homeByAccountNumberInput.addEventListener("input", () => {
-      const v = homeByAccountNumberInput.value.replace(/\D/g, "").slice(0, 32);
-      if (homeByAccountNumberInput.value !== v) homeByAccountNumberInput.value = v;
-      stripAllSpacesInput(homeByAccountNumberInput);
+      const formatted = formatAccountNumberWithSpaces(homeByAccountNumberInput.value);
+      if (homeByAccountNumberInput.value !== formatted) homeByAccountNumberInput.value = formatted;
     });
-    homeByAccountNumberInput.addEventListener("keydown", preventSpaceKey);
+    homeByAccountNumberInput.addEventListener("paste", (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData).getData("text");
+      homeByAccountNumberInput.value = formatAccountNumberWithSpaces(pasted);
+    });
   }
 
   const vendorAccountNumberInput = qs("vendorAccountNumber");
@@ -2510,17 +2588,22 @@ function wireActions() {
         to_account_id: Number(toId),
         amount: qs("homeTransferAmount").value,
       };
-      openOtpModal({
-        kind: "transfer-own",
-        payload,
-        async onSuccess() {
-          homeTransferForm.reset();
-          hideHomeTransferModal();
-          await Promise.all([loadAccounts(), loadTransactions()]);
-        },
-        errorPrefix: "Ошибка перевода",
-        successMessage: "Перевод выполнен",
-      });
+      const submitBtnEl = homeTransferForm.querySelector('button[type="submit"]');
+      if (submitBtnEl) submitBtnEl.disabled = true;
+      try {
+        await api("/transfers", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        showToast("Перевод выполнен");
+        homeTransferForm.reset();
+        hideHomeTransferModal();
+        await Promise.all([loadAccounts(), loadTransactions()]);
+      } catch (err) {
+        showToast(`Ошибка перевода: ${err.message || "неизвестная ошибка"}`, true);
+      } finally {
+        if (submitBtnEl) submitBtnEl.disabled = false;
+      }
     });
   }
 
@@ -2633,11 +2716,12 @@ function wireActions() {
     fill.style.width = `${percent}%`;
   };
 
+  window.__updatePaymentsLimitBars = () => {};
+
   const homeTransferFromSelect = qs("homeTransferFrom");
   if (homeTransferFromSelect) {
     homeTransferFromSelect.addEventListener("change", () => {
       fillHomeTransferToSelect();
-      updateLimitProgressForSelect("homeTransferFrom", "homeTransferLimitLabel", "homeTransferLimitFill");
       updateAmountHint("homeTransferAmount", amountConfigs.homeTransferAmount);
     });
   }
@@ -2647,6 +2731,7 @@ function wireActions() {
   const homeByAccountCancel = qs("homeByAccountCancel");
   const hideHomeByAccountModal = () => {
     if (!homeByAccountModal) return;
+    state.byAccountIsExternal = false;
     homeByAccountModal.classList.remove("show");
     homeByAccountModal.hidden = true;
   };
@@ -2655,9 +2740,58 @@ function wireActions() {
     homeByAccountCancel.addEventListener("click", hideHomeByAccountModal);
   }
 
+  function updateHomeByAccountAmountHint() {
+    try {
+      if (typeof state.byAccountIsExternal === "undefined") state.byAccountIsExternal = false;
+      const opts = state.byAccountIsExternal
+        ? { amountHintMaxSuffix: " с учётом комиссии 5% за перевод" }
+        : {};
+      updateAmountHint("homeByAccountAmount", amountConfigs.homeByAccountAmount, opts);
+    } catch (e) {
+      updateAmountHint("homeByAccountAmount", amountConfigs.homeByAccountAmount);
+    }
+  }
+
+  let byAccountCheckTimeout = null;
+  let byAccountLastDigits = "";
+  if (homeByAccountNumberInput) {
+    homeByAccountNumberInput.addEventListener("input", () => {
+      const digits = getAccountNumberDigits(homeByAccountNumberInput.value);
+      if (digits !== byAccountLastDigits) {
+        byAccountLastDigits = digits;
+        state.byAccountIsExternal = false;
+      }
+      updateHomeByAccountAmountHint();
+      if (byAccountCheckTimeout) clearTimeout(byAccountCheckTimeout);
+      if (digits.length === ACCOUNT_NUMBER_LENGTH) {
+        byAccountCheckTimeout = setTimeout(async () => {
+          byAccountCheckTimeout = null;
+          try {
+            const check = await api(
+              `/transfers/by-account/check?target_account_number=${encodeURIComponent(digits)}`
+            );
+            state.byAccountIsExternal = !check.found;
+            updateHomeByAccountAmountHint();
+          } catch {
+            state.byAccountIsExternal = false;
+            updateHomeByAccountAmountHint();
+          }
+        }, 400);
+      }
+    });
+  }
+
   if (homeByAccountForm) {
     homeByAccountForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const accountNumberEl = qs("homeByAccountNumber");
+      const accountNumberDigits = accountNumberEl ? getAccountNumberDigits(accountNumberEl.value) : "";
+      const len = accountNumberDigits.length;
+      if (len !== ACCOUNT_NUMBER_LENGTH) {
+        showToast("Номер счёта должен содержать 16 цифр", true);
+        accountNumberEl?.focus();
+        return;
+      }
       if (
         !validateAmountField("homeByAccountAmount", amountConfigs.homeByAccountAmount, { showEmptyError: true })
       ) {
@@ -2665,20 +2799,34 @@ function wireActions() {
       }
       const payload = {
         from_account_id: Number(qs("homeByAccountFrom").value),
-        target_account_number: qs("homeByAccountNumber").value,
+        target_account_number: accountNumberDigits,
         amount: qs("homeByAccountAmount").value,
       };
-      openOtpModal({
-        kind: "transfer-by-account",
-        payload,
-        async onSuccess() {
-          homeByAccountForm.reset();
-          hideHomeByAccountModal();
-          await Promise.all([loadAccounts(), loadTransactions()]);
-        },
-        errorPrefix: "Ошибка перевода по номеру счёта",
-        successMessage: "Перевод по номеру счёта выполнен",
-      });
+      const submitBtn = homeByAccountForm.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        const check = await api(
+          `/transfers/by-account/check?target_account_number=${encodeURIComponent(accountNumberDigits)}`
+        );
+        const isExternal = !check.found;
+        openOtpModal({
+          kind: isExternal ? "transfer-external-by-account" : "transfer-by-account",
+          payload,
+          async onSuccess() {
+            homeByAccountForm.reset();
+            state.byAccountIsExternal = false;
+            hideHomeByAccountModal();
+            await Promise.all([loadAccounts(), loadTransactions()]);
+          },
+          onClose: isExternal ? () => updateHomeByAccountAmountHint() : undefined,
+          errorPrefix: isExternal ? "Ошибка перевода в другой банк" : "Ошибка перевода по номеру счёта",
+          successMessage: isExternal ? "Перевод в другой банк выполнен" : "Перевод по номеру счёта выполнен",
+        });
+      } catch (err) {
+        showToast(`Ошибка проверки счёта: ${err.message || "неизвестная ошибка"}`, true);
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
     });
   }
 
@@ -2686,7 +2834,7 @@ function wireActions() {
   if (homeByAccountFromSelect) {
     homeByAccountFromSelect.addEventListener("change", () => {
       updateLimitProgressForSelect("homeByAccountFrom", "homeByAccountLimitLabel", "homeByAccountLimitFill");
-      updateAmountHint("homeByAccountAmount", amountConfigs.homeByAccountAmount);
+      updateHomeByAccountAmountHint();
     });
   }
 
@@ -2731,6 +2879,7 @@ function wireActions() {
         amount: qs("homeByPhoneAmount").value,
         recipient_bank_id: recipientBankId,
       };
+      const isExternalPhone = recipientBankId !== "shlapabank";
       openOtpModal({
         kind: "transfer-by-phone",
         payload,
@@ -2739,9 +2888,27 @@ function wireActions() {
           hideHomeByPhoneModal();
           await Promise.all([loadAccounts(), loadTransactions()]);
         },
+        onClose: isExternalPhone ? () => updateHomeByPhoneAmountHint() : undefined,
         errorPrefix: "Ошибка перевода по номеру телефона",
         successMessage: "Перевод по номеру телефона выполнен",
       });
+    });
+  }
+
+  function updateHomeByPhoneAmountHint() {
+    try {
+      if (typeof state.byPhoneIsExternal === "undefined") state.byPhoneIsExternal = false;
+      updateAmountHint("homeByPhoneAmount", amountConfigs.homeByPhoneAmount, getAmountHintOpts("homeByPhoneAmount"));
+    } catch (e) {
+      updateAmountHint("homeByPhoneAmount", amountConfigs.homeByPhoneAmount);
+    }
+  }
+
+  const homeByPhoneBankSelect = qs("homeByPhoneBank");
+  if (homeByPhoneBankSelect) {
+    homeByPhoneBankSelect.addEventListener("change", () => {
+      state.byPhoneIsExternal = homeByPhoneBankSelect.value !== OUR_BANK_CODE;
+      updateHomeByPhoneAmountHint();
     });
   }
 
@@ -2749,7 +2916,7 @@ function wireActions() {
   if (homeByPhoneFromSelect) {
     homeByPhoneFromSelect.addEventListener("change", () => {
       updateLimitProgressForSelect("homeByPhoneFrom", "homeByPhoneLimitLabel", "homeByPhoneLimitFill");
-      updateAmountHint("homeByPhoneAmount", amountConfigs.homeByPhoneAmount);
+      updateHomeByPhoneAmountHint();
     });
   }
 
@@ -2857,6 +3024,7 @@ function wireActions() {
         fillExchangeToSelect();
         updateExchangeRateInfo();
         updateAmountHint("homeExchangeAmount", amountConfigs.homeExchangeAmount);
+        updateLimitProgressForSelect("homeExchangeFrom", "homeExchangeLimitLabel", "homeExchangeLimitFill");
       });
     }
     if (exchangeTo) {

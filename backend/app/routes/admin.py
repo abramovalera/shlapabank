@@ -24,7 +24,7 @@ def _user_is_default_admin(user: User) -> bool:
 @router.get(
     "/users",
     response_model=list[UserPublic],
-    summary="Список пользователей (только админ)",
+    summary="Список пользователей",
 )
 def list_users(
     current_user: User = Depends(require_admin),
@@ -46,7 +46,7 @@ def block_user(
 ):
     user = db.scalar(select(User).where(User.id == user_id))
     if not user:
-        raise HTTPException(status_code=404, detail="not_found")
+        raise HTTPException(status_code=404, detail="user_not_found")
     if _user_is_default_admin(user):
         raise HTTPException(status_code=400, detail="cannot_delete_admin")
     user.status = UserStatus.BLOCKED
@@ -68,7 +68,7 @@ def unblock_user(
 ):
     user = db.scalar(select(User).where(User.id == user_id))
     if not user:
-        raise HTTPException(status_code=404, detail="not_found")
+        raise HTTPException(status_code=404, detail="user_not_found")
     user.status = UserStatus.ACTIVE
     user.failed_login_attempts = 0
     db.add(user)
@@ -80,7 +80,7 @@ def unblock_user(
 @router.delete(
     "/users/{user_id}",
     status_code=200,
-    summary="Удалить пользователя (для очистки тестовых данных)",
+    summary="Удалить пользователя",
 )
 def delete_user(
     user_id: int,
@@ -89,7 +89,7 @@ def delete_user(
 ):
     user = db.scalar(select(User).where(User.id == user_id))
     if not user:
-        raise HTTPException(status_code=404, detail="not_found")
+        raise HTTPException(status_code=404, detail="user_not_found")
     if _user_is_default_admin(user):
         raise HTTPException(status_code=400, detail="cannot_delete_admin")
     db.delete(user)
@@ -100,9 +100,9 @@ def delete_user(
 @router.post(
     "/restore-initial-state",
     status_code=200,
-    summary="Восстановление БД к исходному состоянию (всё к нулю). Только админ.",
+    summary="Восстановление БД к исходному состоянию",
     description="Удаляются все пользователи, счета, транзакции; создаётся заново только дефолтный админ (admin/admin). "
-    "**Не использовать в автотестах** — ручка нужна исключительно для ручной очистки, когда нужно почистить всё и вернуть бекенд к «как после первого запуска».",
+    "Не использовать в автотестах — для ручной очистки.",
 )
 def restore_initial_state(
     current_user: User = Depends(require_admin),
@@ -136,7 +136,7 @@ def get_user_banks(
 ):
     user = db.scalar(select(User).where(User.id == user_id))
     if not user:
-        raise HTTPException(status_code=404, detail="not_found")
+        raise HTTPException(status_code=404, detail="user_not_found")
     banks = list(
         db.scalars(
             select(UserBank).where(UserBank.user_id == user_id).order_by(UserBank.id)
@@ -157,8 +157,10 @@ def update_user_banks(
 ):
     user = db.scalar(select(User).where(User.id == user_id))
     if not user:
-        raise HTTPException(status_code=404, detail="not_found")
+        raise HTTPException(status_code=404, detail="user_not_found")
 
+    if len(payload.bank_codes) > 5:
+        raise HTTPException(status_code=400, detail="bank_limit_exceeded")
     external = set(get_external_bank_codes())
     if OUR_BANK_CODE in payload.bank_codes:
         raise HTTPException(status_code=400, detail="invalid_bank_codes")
@@ -181,7 +183,7 @@ def update_user_banks(
 @router.get(
     "/users/{user_id}/transactions",
     response_model=list[TransactionPublic],
-    summary="Получить транзакции пользователя (только админ)",
+    summary="Транзакции пользователя",
 )
 def get_user_transactions(
     user_id: int,
@@ -190,7 +192,7 @@ def get_user_transactions(
 ):
     user = db.scalar(select(User).where(User.id == user_id))
     if not user:
-        raise HTTPException(status_code=404, detail="not_found")
+        raise HTTPException(status_code=404, detail="user_not_found")
 
     owned_account_ids = db.scalars(
         select(Account.id).where(Account.user_id == user_id)

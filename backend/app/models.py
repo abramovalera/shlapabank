@@ -111,4 +111,5 @@ class Transaction(Base):
     )
     initiated_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    fee: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)

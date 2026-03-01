@@ -20,7 +20,7 @@ def test_transactions_after_topup(client, auth_headers, token, rub_account):
     )
     r = client.get("/transactions", headers=auth_headers)
     assert r.status_code == 200
-    txs = [t for t in r.json() if t.get("description") == "self_topup" and t.get("amount") == "100.00"]
+    txs = [t for t in r.json() if t.get("description") == "self_topup" and t.get("money", {}).get("amount") == "100.00"]
     assert len(txs) >= 1
 
 
@@ -42,12 +42,36 @@ def test_transactions_after_transfer(client, auth_headers, token, two_rub_accoun
     assert r.status_code == 200
     txs = [t for t in r.json() if t.get("description") == "p2p_transfer"]
     assert len(txs) >= 1
-    assert any(t["amount"] == "200.00" for t in txs)
+    assert any(t["money"]["amount"] == "200.00" for t in txs)
 
 
 def test_transactions_fields(client, auth_headers):
     r = client.get("/transactions", headers=auth_headers)
     assert r.status_code == 200
     for t in r.json()[:3]:
-        for key in ("id", "type", "amount", "currency", "status", "initiated_by", "created_at"):
+        for key in ("id", "type", "money", "status", "created_at", "description", "from_account_id", "to_account_id"):
             assert key in t
+        assert "amount" in t["money"] and "fee" in t["money"] and "total" in t["money"] and "currency" in t["money"]
+
+
+def test_receipt_download(client, auth_headers, token, rub_account):
+    """GET /transactions/{id}/receipt возвращает HTML-чек по своей операции."""
+    otp = get_otp(client, token)
+    client.post(
+        f"/accounts/{rub_account['id']}/topup",
+        headers=auth_headers,
+        json={"amount": "50.00", "otp_code": otp},
+    )
+    r = client.get("/transactions", headers=auth_headers)
+    assert r.status_code == 200
+    txs = r.json()
+    assert len(txs) >= 1
+    tx_id = txs[0]["id"]
+    rec = client.get(f"/transactions/{tx_id}/receipt", headers=auth_headers)
+    assert rec.status_code == 200
+    assert "text/html" in rec.headers.get("content-type", "")
+    html = rec.text
+    assert "ShlapaBank" in html
+    assert "Чек операции" in html
+    assert str(tx_id) in html
+    assert "50.00" in html

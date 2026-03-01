@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
@@ -90,6 +91,10 @@ def helper_otp_preview(
     }
 
 
+# Лимит баланса и сумм: Numeric(14, 2) — макс 12 знаков до запятой
+_MAX_BALANCE = Decimal("999999999999.99")
+
+
 @router.post(
     "/accounts/{account_id}/increase",
     response_model=AccountPublic,
@@ -102,9 +107,13 @@ def helper_increase_balance(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ):
+    if amount > _MAX_BALANCE:
+        raise HTTPException(status_code=400, detail="amount_too_large")
     if purpose == "salary" and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="salary_credit_admin_only")
     account = _get_account_for_helper(account_id, current_user, db)
+    if account.balance + amount > _MAX_BALANCE:
+        raise HTTPException(status_code=400, detail="amount_too_large")
     account.balance += amount
     db.add(account)
 
@@ -123,11 +132,22 @@ def helper_increase_balance(
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
         description=desc,
+        fee=Decimal("0"),
     )
     db.add(tx)
-    db.commit()
-    db.refresh(account)
-    return account
+    try:
+        db.commit()
+        db.refresh(account)
+        return account
+    except (OperationalError, ProgrammingError) as e:
+        db.rollback()
+        err_msg = str(e).lower() if e else ""
+        if "fee" in err_msg and ("column" in err_msg or "does not exist" in err_msg):
+            raise HTTPException(
+                status_code=503,
+                detail="database_migration_required",
+            ) from e
+        raise
 
 
 @router.post(

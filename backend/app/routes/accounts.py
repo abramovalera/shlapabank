@@ -139,7 +139,7 @@ def close_account(
 ):
     account = db.scalar(select(Account).where(Account.id == account_id, Account.user_id == current_user.id))
     if not account:
-        raise HTTPException(status_code=404, detail="not_found")
+        raise HTTPException(status_code=404, detail="account_not_found")
     if not account.is_active:
         raise HTTPException(status_code=400, detail="account_already_closed")
     if account.balance != Decimal("0.00"):
@@ -192,6 +192,7 @@ def topup_account(
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
         description=desc,
+        fee=Decimal("0"),
     )
     db.add(account)
     db.add(tx)

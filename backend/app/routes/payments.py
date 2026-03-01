@@ -91,6 +91,7 @@ def pay_mobile(
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
         description=f"mobile:{payload.operator}:{payload.phone}",
+        fee=Decimal("0"),
     )
     db.add(account)
     db.add(tx)
@@ -149,6 +150,7 @@ def _execute_vendor_payment(
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
         description=f"vendor:{payload.provider}:{payload.account_number}",
+        fee=Decimal("0"),
     )
     db.add(account)
     db.add(tx)
