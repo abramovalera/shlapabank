@@ -1813,6 +1813,25 @@ function loadSettings() {
   renderSettings();
 }
 
+/** Перерисовать весь UI из текущего state (после возврата на вкладку — чтобы не было «полупропавшего» экрана). */
+function renderAllFromState() {
+  try {
+    renderProfile();
+    renderBalances();
+    renderAccounts();
+    fillAccountSelects();
+    renderRules();
+    renderSettings();
+    renderTransactions();
+    recentLimit = 5;
+    renderRecentTransactionsHome();
+    fillPaymentLookups();
+    renderExchangeRates();
+  } catch (e) {
+    console.warn("renderAllFromState:", e);
+  }
+}
+
 async function loadData() {
   const results = await Promise.allSettled([
     loadProfile(),
@@ -3731,6 +3750,7 @@ function reloadDataOnReturn() {
         await loadData();
         lastLoadTime = Date.now();
         lastLoadSuccess = true;
+        renderAllFromState();
         return;
       } catch (err) {
         if (err?.code === "invalid_token") return;
@@ -3740,6 +3760,7 @@ function reloadDataOnReturn() {
         } else {
           showToast("Не удалось обновить данные. Нажмите F5 для обновления страницы.", true);
         }
+        renderAllFromState();
       }
     }
   }, 300);
