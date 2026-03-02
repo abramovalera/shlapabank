@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.db import get_db
 from app.models import Account, Transaction, User, UserBank, UserStatus
 from app.models import UserRole
-from app.schemas import TransactionPublic, UserBanksUpdateRequest, UserPublic
+from app.schemas import ActionResponse, RestoreInitialStateResponse, TransactionPublic, UserBanksResponse, UserBanksUpdateRequest, UserBanksUpdateResponse, UserPublic
 from app.security import require_admin, get_password_hash
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -79,6 +79,7 @@ def unblock_user(
 
 @router.delete(
     "/users/{user_id}",
+    response_model=ActionResponse,
     status_code=200,
     summary="Удалить пользователя",
 )
@@ -99,6 +100,7 @@ def delete_user(
 
 @router.post(
     "/restore-initial-state",
+    response_model=RestoreInitialStateResponse,
     status_code=200,
     summary="Восстановление БД к исходному состоянию",
     description="Удаляются все пользователи, счета, транзакции; создаётся заново только дефолтный админ (admin/admin). "
@@ -127,6 +129,7 @@ def restore_initial_state(
 
 @router.get(
     "/users/{user_id}/banks",
+    response_model=UserBanksResponse,
     summary="Получить банки пользователя для перевода по телефону",
 )
 def get_user_banks(
@@ -147,6 +150,7 @@ def get_user_banks(
 
 @router.put(
     "/users/{user_id}/banks",
+    response_model=UserBanksUpdateResponse,
     summary="Настроить банки пользователя (0–5 внешних банков)",
 )
 def update_user_banks(

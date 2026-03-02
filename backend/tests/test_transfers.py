@@ -270,9 +270,9 @@ def test_transfers_rates(client, auth_headers):
     r = client.get("/transfers/rates", headers=auth_headers)
     assert r.status_code == 200
     data = r.json()
-    assert "toRub" in data
+    assert "to_rub" in data
     for c in ("RUB", "USD", "EUR", "CNY"):
-        assert c in data["toRub"]
+        assert c in data["to_rub"]
 
 
 def test_transfers_daily_usage(client, auth_headers):
@@ -280,11 +280,11 @@ def test_transfers_daily_usage(client, auth_headers):
     assert r.status_code == 200
     data = r.json()
     assert "limits" in data
-    assert "perCurrency" in data["limits"]
-    for item in data["limits"]["perCurrency"]:
+    assert "per_currency" in data["limits"]
+    for item in data["limits"]["per_currency"]:
         assert "currency" in item
-        assert "dailyLimit" in item
-        assert "usedToday" in item
+        assert "daily_limit" in item
+        assert "used_today" in item
         assert "remaining" in item
 
 

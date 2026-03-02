@@ -74,7 +74,7 @@ def test_admin_cannot_block_default_admin(client):
 
     r = client.post(f"/admin/users/{admin_id}/block", headers=_headers(token))
     assert r.status_code == 400
-    assert r.json().get("detail") == "cannot_delete_admin"
+    assert r.json().get("detail") == "cannot_block_admin"
 
 
 def test_admin_delete_user(client, unique_login, valid_password):

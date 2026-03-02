@@ -881,7 +881,7 @@ async function openOtpModal(context) {
   try {
     const data = await api("/helper/otp/preview");
     const code = data?.otp || "";
-    const ttlSeconds = data?.ttlSeconds ?? 60;
+    const ttlSeconds = data?.ttl_seconds ?? 60;
     if (preview) {
       if (code) {
         attachOtpPreviewButton(preview, code);
@@ -1007,7 +1007,7 @@ async function refreshOtpInModal() {
   try {
     const data = await api("/helper/otp/preview");
     const code = data?.otp || "";
-    const ttlSeconds = data?.ttlSeconds ?? 60;
+    const ttlSeconds = data?.ttl_seconds ?? 60;
     attachOtpPreviewButton(preview, code);
     startOtpTimer(ttlSeconds);
     resetOtpInputs();
@@ -1385,7 +1385,7 @@ async function fillHomeByPhoneBankSelect(phone) {
   try {
     const data = await api(`/transfers/by-phone/check?phone=${encodeURIComponent(raw)}`);
     if (warningEl) warningEl.hidden = true;
-    const banks = (data && data.availableBanks) || [];
+    const banks = (data && data.available_banks) || [];
     if (banks.length > 0) {
       const placeholder = document.createElement("option");
       placeholder.value = "";
@@ -1528,8 +1528,8 @@ const FALLBACK_RATES = { RUB: "1", USD: "95", EUR: "105", CNY: "13.5" };
 function renderExchangeRates() {
   const el = qs("exchangeRatesBox");
   if (!el) return;
-  const data = state.exchangeRates || { base: "RUB", toRub: FALLBACK_RATES };
-  const rates = data.toRub && typeof data.toRub === "object" ? data.toRub : FALLBACK_RATES;
+  const data = state.exchangeRates || { base: "RUB", to_rub: FALLBACK_RATES };
+  const rates = data.to_rub && typeof data.to_rub === "object" ? data.to_rub : FALLBACK_RATES;
   const base = data.base || "RUB";
 
   const lines = Object.entries(rates)
@@ -1743,8 +1743,8 @@ function fillPaymentLookups() {
     state.providers.forEach((item) => {
       const option = document.createElement("option");
       option.value = item.name;
-      option.textContent = `${item.name} (${item.accountLength})`;
-      option.dataset.accountLength = String(item.accountLength);
+      option.textContent = `${item.name} (${item.account_length})`;
+      option.dataset.accountLength = String(item.account_length);
       providerSelect.appendChild(option);
     });
   }
@@ -1966,8 +1966,8 @@ function fillVendorProvidersByCategory(category) {
   list.forEach((item) => {
     const option = document.createElement("option");
     option.value = item.name;
-    option.textContent = `${item.name} (${item.accountLength})`;
-    option.dataset.accountLength = String(item.accountLength);
+    option.textContent = `${item.name} (${item.account_length})`;
+    option.dataset.accountLength = String(item.account_length);
     providerSelect.appendChild(option);
   });
 
@@ -2167,12 +2167,7 @@ function wireActions() {
 
   const superClearBtn = qs("superClearBtn");
   if (superClearBtn) {
-    superClearBtn.addEventListener("click", async () => {
-      try {
-        await api("/helper/clear-browser", { method: "POST" });
-      } catch (_) {
-        /* при ошибке всё равно выполняем очистку */
-      }
+    superClearBtn.addEventListener("click", () => {
       localStorage.clear();
       sessionStorage.clear();
       showToast("Данные браузера очищены. Перезагрузка…");
@@ -2742,7 +2737,7 @@ function wireActions() {
     const label = qs(labelId);
     const fill = qs(fillId);
     if (!select || !label || !fill) return;
-    if (!state.transfersInfo?.limits?.perCurrency?.length) {
+    if (!state.transfersInfo?.limits?.per_currency?.length) {
       label.textContent = "";
       fill.style.width = "0%";
       return;
@@ -2751,10 +2746,10 @@ function wireActions() {
     const accountId = Number(select.value);
     const account = state.accounts?.find((a) => a.id === accountId);
     const currency = account?.currency || "RUB";
-    const info = state.transfersInfo.limits.perCurrency.find((x) => x.currency === currency);
+    const info = state.transfersInfo.limits.per_currency.find((x) => x.currency === currency);
 
-    const used = info ? Number(info.usedToday) : 0;
-    const limit = info ? Number(info.dailyLimit) : 0;
+    const used = info ? Number(info.used_today) : 0;
+    const limit = info ? Number(info.daily_limit) : 0;
     const remaining = info ? Number(info.remaining) : 0;
 
     if (!limit || limit <= 0) {
@@ -3027,14 +3022,14 @@ function wireActions() {
       return;
     }
 
-    if (!state.exchangeRates.toRub) {
+    if (!state.exchangeRates.to_rub) {
       if (homeExchangeRateWrap) homeExchangeRateWrap.hidden = true;
       homeExchangeRateInfo.textContent = "";
       return;
     }
 
     const base = state.exchangeRates.base || "RUB";
-    const rates = state.exchangeRates.toRub;
+    const rates = state.exchangeRates.to_rub;
     const fromRate = Number(rates[fromAcc.currency]) || 1;
     const toRate = Number(rates[toAcc.currency]) || 1;
     const fx = fromRate / toRate;
@@ -3367,14 +3362,14 @@ function wireActions() {
       if (optionId === "limits_left") {
         try {
           await loadTransfersDailyUsage();
-          const perCurrency = state.transfersInfo?.limits?.perCurrency || [];
+          const perCurrency = state.transfersInfo?.limits?.per_currency || [];
           if (!perCurrency.length) {
             return "Загрузите данные о лимитах (перейдите в «Переводы» и откройте модалку перевода) или попробуйте позже.";
           }
           const units = { RUB: "₽", USD: "$", EUR: "€", CNY: "¥" };
           const lines = perCurrency.map((c) => {
             const rem = Number(c.remaining || 0);
-            const limit = Number(c.dailyLimit || 0);
+            const limit = Number(c.daily_limit || 0);
             const u = units[c.currency] ?? c.currency;
             return `${c.currency}: осталось ${rem.toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ${u} из ${limit.toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ${u}.`;
           });
@@ -3386,7 +3381,7 @@ function wireActions() {
       if (optionId === "rates") {
         try {
           if (!state.exchangeRates) await api("/transfers/rates").then((d) => (state.exchangeRates = d));
-          const r = state.exchangeRates?.toRub || {};
+          const r = state.exchangeRates?.to_rub || {};
           const parts = Object.entries(r).filter(([c]) => c !== "RUB").map(([c, v]) => `1 ${c} = ${Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`);
           return "Курсы к рублю:\n\n" + (parts.length ? parts.join("\n") : "Данные недоступны.");
         } catch (_) {

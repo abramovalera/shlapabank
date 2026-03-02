@@ -123,12 +123,6 @@ class ProfileUpdateRequest(BaseModel):
     new_password: str | None = Field(default=None, min_length=8, max_length=30)
 
 
-class AdminCreditRequest(BaseModel):
-    model_config = ConfigDict(json_schema_extra={"example": {"amount": "10000.00"}})
-
-    amount: Decimal = Field(gt=0)
-
-
 class AccountTopupRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={"example": {"amount": "1000.00", "otp_code": "1234", "purpose": "salary"}}
@@ -229,7 +223,7 @@ class VendorPaymentRequest(BaseModel):
             "example": {
                 "account_id": 1,
                 "provider": "CityWater",
-                "account_number": "123456789012345678",
+                "account_number": "CW123456789012345678",
                 "amount": "1200.00",
                 "otp_code": "1234",
             }
@@ -238,7 +232,7 @@ class VendorPaymentRequest(BaseModel):
 
     account_id: int
     provider: str
-    account_number: str = Field(min_length=1, max_length=30, pattern=r"^\d+$")
+    account_number: str = Field(min_length=1, max_length=30, pattern=r"^[A-Za-z0-9]+$")
     amount: Decimal = Field(gt=0)
     otp_code: OtpCode
 
@@ -292,10 +286,10 @@ class BankOption(BaseModel):
 
 
 class TransferByPhoneCheckResponse(BaseModel):
-    """Если получатель в нашем банке — availableBanks содержит название банка (ShlapaBank) и 0–5 назначенных банков. Иначе — все внешние банки."""
+    """Если получатель в нашем банке — available_banks содержит название банка (ShlapaBank) и 0–5 назначенных банков. Иначе — все внешние банки."""
 
-    inOurBank: bool
-    availableBanks: list[BankOption]
+    in_our_bank: bool
+    available_banks: list[BankOption]
 
 
 class TransferByPhoneRequest(BaseModel):
@@ -383,3 +377,70 @@ class TransactionPublic(BaseModel):
             "to_account_id": orm.to_account_id,
             "status": orm.status,
         }
+
+
+# --- Response models for endpoints that previously returned raw dicts ---
+
+
+class UserBanksResponse(BaseModel):
+    bank_codes: list[str]
+
+
+class UserBanksUpdateResponse(BaseModel):
+    detail: str
+    bank_codes: list[str]
+
+
+class AmountRange(BaseModel):
+    min: int
+    max: int
+
+
+class MobileOperatorsResponse(BaseModel):
+    user_id: int
+    operators: list[str]
+    amount_range_rub: AmountRange
+
+
+class VendorProviderItem(BaseModel):
+    name: str
+    account_length: int
+
+
+class VendorProvidersResponse(BaseModel):
+    user_id: int
+    providers: list[VendorProviderItem]
+    amount_range_rub: AmountRange
+
+
+class DailyLimitItem(BaseModel):
+    currency: str
+    daily_limit: str
+    used_today: str
+    remaining: str
+
+
+class DailyLimits(BaseModel):
+    per_currency: list[DailyLimitItem]
+
+
+class DailyUsageResponse(BaseModel):
+    limits: DailyLimits
+
+
+class ExchangeRatesResponse(BaseModel):
+    user_id: int
+    base: str
+    to_rub: dict[str, str]
+
+
+class RestoreInitialStateResponse(BaseModel):
+    detail: str
+    message: str
+
+
+class OtpPreviewResponse(BaseModel):
+    user_id: int
+    otp: str
+    ttl_seconds: int
+    message: str

@@ -7,7 +7,7 @@ from app.dependencies import get_own_active_account
 from app.db import get_db
 from app.models import Account, Currency, Transaction, TransactionStatus, TransactionType, User
 from app.otp import validate_otp_for_user
-from app.schemas import MobilePaymentRequest, TransactionPublic, VendorPaymentRequest
+from app.schemas import MobileOperatorsResponse, MobilePaymentRequest, TransactionPublic, VendorPaymentRequest, VendorProvidersResponse
 from app.security import require_active_user
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
@@ -40,13 +40,14 @@ VENDOR_MAX = Decimal("500000.00")
 
 @router.get(
     "/mobile/operators",
+    response_model=MobileOperatorsResponse,
     summary="Получить операторов",
 )
 def mobile_operators(current_user: User = Depends(require_active_user)):
     return {
-        "userId": current_user.id,
+        "user_id": current_user.id,
         "operators": MOBILE_OPERATORS,
-        "amountRangeRub": {"min": int(MOBILE_MIN), "max": int(MOBILE_MAX)},
+        "amount_range_rub": {"min": int(MOBILE_MIN), "max": int(MOBILE_MAX)},
     }
 
 
@@ -96,13 +97,14 @@ def pay_mobile(
 
 @router.get(
     "/vendor/providers",
+    response_model=VendorProvidersResponse,
     summary="Получить поставщиков",
 )
 def vendor_providers(current_user: User = Depends(require_active_user)):
     return {
-        "userId": current_user.id,
-        "providers": [{"name": name, "accountLength": length} for name, length in VENDOR_PROVIDERS.items()],
-        "amountRangeRub": {"min": int(VENDOR_MIN), "max": int(VENDOR_MAX)},
+        "user_id": current_user.id,
+        "providers": [{"name": name, "account_length": length} for name, length in VENDOR_PROVIDERS.items()],
+        "amount_range_rub": {"min": int(VENDOR_MIN), "max": int(VENDOR_MAX)},
     }
 
 

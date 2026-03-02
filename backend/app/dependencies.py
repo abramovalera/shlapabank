@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Account, User
+from app.models import Account, User, UserRole
 
 
 def get_own_account(
@@ -48,3 +48,19 @@ def get_own_active_account(
         active_only=True,
         for_update=for_update,
     )
+
+
+def get_account_for_helper(
+    account_id: int,
+    current_user: User,
+    db: Session,
+) -> Account:
+    """Свой счёт — всегда. Чужой — только для админа (начисление зарплаты)."""
+    account = db.scalar(select(Account).where(Account.id == account_id))
+    if not account:
+        raise HTTPException(status_code=404, detail="account_not_found")
+    if not account.is_active:
+        raise HTTPException(status_code=400, detail="account_inactive")
+    if account.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="forbidden_account_access")
+    return account

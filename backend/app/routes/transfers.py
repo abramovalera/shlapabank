@@ -12,6 +12,8 @@ from app.phone_utils import normalize_phone
 from app.models import Account, AccountType, Bank, Currency, Transaction, TransactionStatus, TransactionType, User, UserBank
 from app.otp import validate_otp_for_user
 from app.schemas import (
+    DailyUsageResponse,
+    ExchangeRatesResponse,
     ExchangeRequest,
     TransferByAccountCheckResponse,
     TransferByAccountRequest,
@@ -334,7 +336,7 @@ def by_phone_check(
     """Если получатель в нашем банке — возвращаем название нашего банка (ShlapaBank) + его 0–5 назначенных банков. Иначе — все внешние банки."""
     normalized = normalize_phone(phone)
     if not normalized:
-        return TransferByPhoneCheckResponse(inOurBank=False, availableBanks=_external_banks_list())
+        return TransferByPhoneCheckResponse(in_our_bank=False, available_banks=_external_banks_list())
     recipient = db.scalar(select(User).where(User.phone == normalized))
     if recipient:
         our_bank = next((b for b in BANKS_CATALOG if b[0] == OUR_BANK_CODE), None)
@@ -344,8 +346,8 @@ def by_phone_check(
         ).all()
         for b in user_banks:
             options.append({"id": b.code, "label": b.label})
-        return TransferByPhoneCheckResponse(inOurBank=True, availableBanks=options)
-    return TransferByPhoneCheckResponse(inOurBank=False, availableBanks=_external_banks_list())
+        return TransferByPhoneCheckResponse(in_our_bank=True, available_banks=options)
+    return TransferByPhoneCheckResponse(in_our_bank=False, available_banks=_external_banks_list())
 
 
 @router.post(
@@ -527,6 +529,7 @@ def exchange_currency(
 
 @router.get(
     "/daily-usage",
+    response_model=DailyUsageResponse,
     summary="Получить остаток суточного лимита",
 )
 def daily_usage(
@@ -544,17 +547,17 @@ def daily_usage(
         remaining = max(limit - used, Decimal("0.00"))
         per_currency.append({
             "currency": currency.value,
-            "dailyLimit": str(limit),
-            "usedToday": str(used),
+            "daily_limit": str(limit),
+            "used_today": str(used),
             "remaining": str(remaining),
         })
-    return {"limits": {"perCurrency": per_currency}}
+    return {"limits": {"per_currency": per_currency}}
 
 
-@router.get("/rates", summary="Получить курсы валют")
+@router.get("/rates", response_model=ExchangeRatesResponse, summary="Получить курсы валют")
 def exchange_rates(current_user: User = Depends(require_active_user)):
     return {
-        "userId": current_user.id,
+        "user_id": current_user.id,
         "base": "RUB",
-        "toRub": {currency.value: str(rate) for currency, rate in RATES_TO_RUB.items()},
+        "to_rub": {currency.value: str(rate) for currency, rate in RATES_TO_RUB.items()},
     }

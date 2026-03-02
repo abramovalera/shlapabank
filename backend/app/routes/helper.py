@@ -6,38 +6,13 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
+from app.dependencies import get_own_active_account, get_account_for_helper
 from app.models import Account, Transaction, TransactionStatus, TransactionType, User, UserRole
 from app.otp import OTP_TTL_MINUTES, issue_otp_preview
-from app.schemas import AccountPublic
+from app.schemas import AccountPublic, OtpPreviewResponse
 from app.security import require_active_user
 
 router = APIRouter(prefix="/api/v1/helper", tags=["helper"])
-
-
-def _get_own_account(account_id: int, current_user: User, db: Session) -> Account:
-    account = db.scalar(
-        select(Account).where(
-            Account.id == account_id,
-            Account.user_id == current_user.id,
-        )
-    )
-    if not account:
-        raise HTTPException(status_code=404, detail="account_not_found")
-    if not account.is_active:
-        raise HTTPException(status_code=400, detail="account_inactive")
-    return account
-
-
-def _get_account_for_helper(account_id: int, current_user: User, db: Session) -> Account:
-    """Свой счёт — всегда. Чужой — только для админа (начисление зарплаты)."""
-    account = db.scalar(select(Account).where(Account.id == account_id))
-    if not account:
-        raise HTTPException(status_code=404, detail="account_not_found")
-    if not account.is_active:
-        raise HTTPException(status_code=400, detail="account_inactive")
-    if account.user_id != current_user.id and current_user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="forbidden_account_access")
-    return account
 
 
 @router.get(
@@ -77,6 +52,7 @@ def helper_list_accounts(
 
 @router.get(
     "/otp/preview",
+    response_model=OtpPreviewResponse,
     summary="Получить OTP-код",
 )
 def helper_otp_preview(
@@ -84,9 +60,9 @@ def helper_otp_preview(
 ):
     code = issue_otp_preview(current_user.id)
     return {
-        "userId": current_user.id,
+        "user_id": current_user.id,
         "otp": code,
-        "ttlSeconds": OTP_TTL_MINUTES * 60,
+        "ttl_seconds": OTP_TTL_MINUTES * 60,
         "message": f"SMS: ваш код подтверждения {code}",
     }
 
@@ -111,7 +87,7 @@ def helper_increase_balance(
         raise HTTPException(status_code=400, detail="amount_too_large")
     if purpose == "salary" and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="salary_credit_admin_only")
-    account = _get_account_for_helper(account_id, current_user, db)
+    account = get_account_for_helper(account_id, current_user, db)
     if account.balance + amount > _MAX_BALANCE:
         raise HTTPException(status_code=400, detail="amount_too_large")
     account.balance += amount
@@ -161,7 +137,7 @@ def helper_decrease_balance(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ):
-    account = _get_own_account(account_id, current_user, db)
+    account = get_own_active_account(account_id, current_user, db)
     if account.balance < amount:
         raise HTTPException(status_code=400, detail="insufficient_funds")
     account.balance -= amount
@@ -183,24 +159,11 @@ def helper_zero_balance(
 ):
     from decimal import Decimal as _D
 
-    account = _get_own_account(account_id, current_user, db)
+    account = get_own_active_account(account_id, current_user, db)
     account.balance = _D("0.00")
     db.add(account)
     db.commit()
     db.refresh(account)
     return account
 
-
-@router.post(
-    "/clear-browser",
-    summary="Очистить кеш браузера",
-)
-def helper_clear_browser(
-    current_user: User = Depends(require_active_user),
-):
-    """Возвращает инструкцию для клиента. Клиент должен вызвать localStorage.clear(), sessionStorage.clear() и выполнить редирект."""
-    return {
-        "detail": "clear_browser",
-        "redirect": "/login",
-    }
 

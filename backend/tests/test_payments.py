@@ -9,9 +9,9 @@ def test_payments_mobile_operators(client, auth_headers):
     assert r.status_code == 200
     data = r.json()
     assert "operators" in data
-    assert "amountRangeRub" in data
-    assert data["amountRangeRub"]["min"] == 100
-    assert data["amountRangeRub"]["max"] == 12000
+    assert "amount_range_rub" in data
+    assert data["amount_range_rub"]["min"] == 100
+    assert data["amount_range_rub"]["max"] == 12000
 
 
 def test_payments_mobile_success(client, auth_headers, token, rub_account):

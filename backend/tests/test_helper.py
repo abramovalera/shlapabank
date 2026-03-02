@@ -8,9 +8,9 @@ def test_helper_otp_preview(client, auth_headers):
     r = client.get("/helper/otp/preview", headers=auth_headers)
     assert r.status_code == 200
     data = r.json()
-    assert "userId" in data
+    assert "user_id" in data
     assert "otp" in data
-    assert "ttlSeconds" in data
+    assert "ttl_seconds" in data
     assert "message" in data
     assert len(data["otp"]) == 4
 
