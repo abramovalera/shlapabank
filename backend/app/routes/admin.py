@@ -48,7 +48,7 @@ def block_user(
     if not user:
         raise HTTPException(status_code=404, detail="user_not_found")
     if _user_is_default_admin(user):
-        raise HTTPException(status_code=400, detail="cannot_delete_admin")
+        raise HTTPException(status_code=400, detail="cannot_block_admin")
     user.status = UserStatus.BLOCKED
     db.add(user)
     db.commit()

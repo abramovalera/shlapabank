@@ -21,6 +21,8 @@ from app.security import require_active_user
 
 router = APIRouter(prefix="/api/v1/accounts", tags=["accounts"])
 
+_MAX_BALANCE = Decimal("999999999999.99")
+
 MAX_BY_RUB = 3
 MAX_BY_FOREIGN = 3
 
@@ -169,6 +171,9 @@ def topup_account(
         raise HTTPException(status_code=400, detail="amount_must_be_positive")
 
     account = get_own_active_account(account_id, current_user, db, for_update=True)
+
+    if account.balance + payload.amount > _MAX_BALANCE:
+        raise HTTPException(status_code=400, detail="amount_too_large")
 
     account.balance += payload.amount
 
