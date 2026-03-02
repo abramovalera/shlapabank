@@ -106,7 +106,7 @@ def create_transfer(
 
     if not source or not target:
         raise HTTPException(status_code=404, detail="account_not_found")
-    if source.user_id != current_user.id:
+    if source.user_id != current_user.id or target.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="forbidden_account_access")
     if source.account_type == AccountType.SAVINGS:
         raise HTTPException(status_code=400, detail="transfer_not_allowed_from_savings")
@@ -228,7 +228,12 @@ def by_account_check(
     """Номер счёта 16 цифр. Возвращает found=true если счёт найден у нас, иначе found=false. masked — для отображения (••••1234)."""
     if len(target_account_number) != 16 or not target_account_number.isdigit():
         raise HTTPException(status_code=400, detail="invalid_account_number")
-    target = db.scalar(select(Account).where(Account.account_number == target_account_number))
+    target = db.scalar(
+        select(Account).where(
+            Account.account_number == target_account_number,
+            Account.is_active.is_(True),
+        )
+    )
     masked = _mask_account(target_account_number)
     return TransferByAccountCheckResponse(found=target is not None, masked=masked)
 
@@ -461,8 +466,10 @@ def exchange_currency(
     if payload.from_account_id == payload.to_account_id:
         raise HTTPException(status_code=400, detail="transfer_same_account")
 
-    if payload.amount <= Decimal("0.00"):
+    if payload.amount < MIN_TRANSFER_AMOUNT:
         raise HTTPException(status_code=400, detail="transfer_amount_too_small")
+    if payload.amount > MAX_TRANSFER_AMOUNT:
+        raise HTTPException(status_code=400, detail="transfer_amount_exceeds_single_limit")
 
     account_ids = sorted([payload.from_account_id, payload.to_account_id])
     locked = db.scalars(select(Account).where(Account.id.in_(account_ids)).with_for_update()).all()
