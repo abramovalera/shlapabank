@@ -102,7 +102,7 @@ def create_account(
 @router.put(
     "/primary",
     response_model=ActionResponse,
-    summary="Установить приоритетные счета (по одному на валюту)",
+    summary="Установить приоритетные счета",
 )
 def set_primary_accounts(
     payload: PrimaryAccountsRequest,

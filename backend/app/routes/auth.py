@@ -74,7 +74,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 @router.post(
     "/login",
     response_model=TokenResponse,
-    summary="Войти",
+    summary="Авторизоваться",
 )
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     return _issue_token_for_credentials(payload.login, payload.password, db)

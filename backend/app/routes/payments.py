@@ -41,7 +41,7 @@ VENDOR_MAX = Decimal("500000.00")
 @router.get(
     "/mobile/operators",
     response_model=MobileOperatorsResponse,
-    summary="Получить операторов",
+    summary="Получить список мобильных операторов",
 )
 def mobile_operators(current_user: User = Depends(require_active_user)):
     return {
@@ -98,7 +98,7 @@ def pay_mobile(
 @router.get(
     "/vendor/providers",
     response_model=VendorProvidersResponse,
-    summary="Получить поставщиков",
+    summary="Получить список поставщиков услуг",
 )
 def vendor_providers(current_user: User = Depends(require_active_user)):
     return {
@@ -153,7 +153,7 @@ def _execute_vendor_payment(
     "/vendor",
     response_model=TransactionPublic,
     status_code=201,
-    summary="Оплатить поставщику",
+    summary="Оплатить услугу поставщика",
 )
 def pay_vendor(
     payload: VendorPaymentRequest,

@@ -102,7 +102,7 @@ def delete_user(
     "/restore-initial-state",
     response_model=RestoreInitialStateResponse,
     status_code=200,
-    summary="Восстановление БД к исходному состоянию",
+    summary="Сбросить БД к исходному состоянию",
     description="Удаляются все пользователи, счета, транзакции; создаётся заново только дефолтный админ (admin/admin). "
     "Не использовать в автотестах — для ручной очистки.",
 )
@@ -130,7 +130,7 @@ def restore_initial_state(
 @router.get(
     "/users/{user_id}/banks",
     response_model=UserBanksResponse,
-    summary="Получить банки пользователя для перевода по телефону",
+    summary="Получить банки пользователя",
 )
 def get_user_banks(
     user_id: int,
@@ -151,7 +151,7 @@ def get_user_banks(
 @router.put(
     "/users/{user_id}/banks",
     response_model=UserBanksUpdateResponse,
-    summary="Настроить банки пользователя (0–5 внешних банков)",
+    summary="Настроить банки пользователя",
 )
 def update_user_banks(
     user_id: int,
@@ -187,7 +187,7 @@ def update_user_banks(
 @router.get(
     "/users/{user_id}/transactions",
     response_model=list[TransactionPublic],
-    summary="Транзакции пользователя",
+    summary="Получить транзакции пользователя",
 )
 def get_user_transactions(
     user_id: int,

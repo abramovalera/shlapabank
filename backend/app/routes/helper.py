@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/v1/helper", tags=["helper"])
 
 @router.get(
     "/accounts",
-    summary="Список счетов для шляпы. Админ видит все счета, клиент — только свои.",
+    summary="Получить список счетов (админ — все, клиент — свои)",
 )
 def helper_list_accounts(
     current_user: User = Depends(require_active_user),
@@ -74,7 +74,7 @@ _MAX_BALANCE = Decimal("999999999999.99")
 @router.post(
     "/accounts/{account_id}/increase",
     response_model=AccountPublic,
-    summary="Увеличить баланс счёта (без OTP). Создаёт транзакцию для статистики.",
+    summary="Увеличить баланс счёта (без OTP)",
 )
 def helper_increase_balance(
     account_id: int,

@@ -21,15 +21,15 @@ from app.routes.transfers import router as transfers_router
 from app.startup import init_db
 
 openapi_tags = [
-    {"name": "health", "description": "Проверка доступности."},
-    {"name": "helper", "description": "OTP, баланс, очистка (для тестов)."},
-    {"name": "admin", "description": "Администрирование (список пользователей, блокировка, банки)."},
-    {"name": "auth", "description": "Регистрация и вход."},
-    {"name": "profile", "description": "Профиль пользователя."},
-    {"name": "accounts", "description": "Счета пользователя."},
-    {"name": "transfers", "description": "Переводы и обмен валют."},
-    {"name": "transactions", "description": "История операций."},
-    {"name": "payments", "description": "Платежи (мобильная связь, поставщики)."},
+    {"name": "health", "description": "Проверка доступности сервера."},
+    {"name": "helper", "description": "Вспомогательные эндпоинты: OTP-коды, управление балансом (для тестов)."},
+    {"name": "admin", "description": "Администрирование: пользователи, блокировка, банки, транзакции."},
+    {"name": "auth", "description": "Регистрация и авторизация."},
+    {"name": "profile", "description": "Профиль пользователя: просмотр и редактирование."},
+    {"name": "accounts", "description": "Счета пользователя: открытие, закрытие, пополнение."},
+    {"name": "transfers", "description": "Переводы между счетами, по номеру счёта, по телефону, обмен валют."},
+    {"name": "transactions", "description": "История операций и чеки."},
+    {"name": "payments", "description": "Платежи: мобильная связь, ЖКХ, образование, благотворительность."},
 ]
 
 app = FastAPI(title=settings.app_name, openapi_tags=openapi_tags)

@@ -220,7 +220,7 @@ EXTERNAL_PHONE_FEE_RATE = Decimal("0.02")  # 2% — перевод по теле
 @router.get(
     "/by-account/check",
     response_model=TransferByAccountCheckResponse,
-    summary="Проверить, есть ли счёт в нашем банке",
+    summary="Проверить счёт по номеру",
 )
 def by_account_check(
     target_account_number: str,
@@ -244,7 +244,7 @@ def by_account_check(
     "/external-by-account",
     response_model=TransactionPublic,
     status_code=201,
-    summary="Перевести на счёт в другом банке (с комиссией 5%)",
+    summary="Перевести на внешний счёт (комиссия 5%)",
 )
 def create_transfer_external_by_account(
     payload: TransferByAccountRequest,
@@ -326,7 +326,7 @@ def _external_banks_list() -> list[dict]:
 @router.get(
     "/by-phone/check",
     response_model=TransferByPhoneCheckResponse,
-    summary="Проверить телефон, получить банки",
+    summary="Проверить получателя по телефону",
 )
 def by_phone_check(
     phone: str,
@@ -530,7 +530,7 @@ def exchange_currency(
 @router.get(
     "/daily-usage",
     response_model=DailyUsageResponse,
-    summary="Получить остаток суточного лимита",
+    summary="Получить суточные лимиты переводов",
 )
 def daily_usage(
     current_user: User = Depends(require_active_user),
