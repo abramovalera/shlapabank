@@ -1770,11 +1770,6 @@ async function loadAccounts() {
   }
 }
 
-async function loadTransfersInfo() {
-  state.transfersInfo = null;
-  renderRules();
-}
-
 async function loadTransfersDailyUsage() {
   try {
     const data = await api("/transfers/daily-usage");
@@ -1792,12 +1787,6 @@ async function loadTransactions() {
   renderRecentTransactionsHome();
 }
 
-async function loadPaymentsLookups() {
-  // Заглушка: справочники платежей пока не используются на UI
-  state.operators = [];
-  state.providers = [];
-}
-
 async function loadExchangeRates() {
   try {
     const data = await api("/transfers/rates");
@@ -1806,11 +1795,6 @@ async function loadExchangeRates() {
     state.exchangeRates = null;
   }
   renderExchangeRates();
-}
-
-function loadSettings() {
-  state.settings = DEFAULT_SETTINGS;
-  renderSettings();
 }
 
 /** Перерисовать весь UI из текущего state (после возврата на вкладку — чтобы не было «полупропавшего» экрана). */
@@ -1829,23 +1813,6 @@ function renderAllFromState() {
     renderExchangeRates();
   } catch (e) {
     console.warn("renderAllFromState:", e);
-  }
-}
-
-async function loadData() {
-  const results = await Promise.allSettled([
-    loadProfile(),
-    loadAccounts(),
-    loadTransfersInfo(),
-    loadTransactions(),
-    loadPaymentsLookups(),
-    loadExchangeRates(),
-    loadSettings(),
-  ]);
-
-  const hasError = results.some((r) => r.status === "rejected");
-  if (hasError) {
-    showToast("Некоторые данные не удалось загрузить. Проверьте сервер.", true);
   }
 }
 
@@ -3739,7 +3706,6 @@ function reloadDataOnReturn() {
   const token = localStorage.getItem("sb_access_token");
   if (!token) return;
   const now = Date.now();
-  // Если последняя загрузка была успешной и недавно — не перегружаем (защита от спама)
   if (lastLoadSuccess && now - lastLoadTime < 5000) return;
   if (reloadOnReturnTimer) clearTimeout(reloadOnReturnTimer);
   reloadOnReturnTimer = setTimeout(async () => {
@@ -3758,9 +3724,9 @@ function reloadDataOnReturn() {
         if (retries >= 0) {
           await new Promise((r) => setTimeout(r, 1500));
         } else {
+          lastLoadSuccess = false;
           showToast("Не удалось обновить данные. Нажмите F5 для обновления страницы.", true);
         }
-        renderAllFromState();
       }
     }
   }, 300);
