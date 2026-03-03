@@ -1,6 +1,5 @@
 """Автотесты: авторизация (регистрация, логин)."""
 import pytest
-import httpx
 
 
 def test_register_success(client, unique_login, valid_password):
@@ -21,6 +20,7 @@ def test_login_success(client, registered_user):
     data = r.json()
     assert "access_token" in data
     assert data.get("token_type") == "bearer"
+    assert data.get("role") == "CLIENT"
 
 
 def test_register_login_not_unique(client, registered_user):
@@ -55,10 +55,18 @@ def test_register_login_too_long(client):
     assert r.status_code == 422
 
 
+def test_register_login_boundary_valid(client):
+    """Логин ровно 6 символов (мин) и 20 символов (макс) — допустимы."""
+    r = client.post("/auth/register", json={"login": "abcdef", "password": "ValidPass123!"})
+    assert r.status_code == 201
+    r = client.post("/auth/register", json={"login": "a" * 20, "password": "ValidPass123!"})
+    assert r.status_code == 201
+
+
 def test_register_login_invalid_chars(client):
     r = client.post("/auth/register", json={"login": "user 123", "password": "ValidPass123!"})
     assert r.status_code == 422
-    r = client.post("/auth/register", json={"login": "юзер", "password": "ValidPass123!"})
+    r = client.post("/auth/register", json={"login": "юзер12", "password": "ValidPass123!"})
     assert r.status_code == 422
 
 
@@ -74,3 +82,26 @@ def test_register_weak_password(client, unique_login):
     assert r.json().get("detail") == "validation_error: weak_password"
 
 
+def test_register_password_no_digit(client, unique_login):
+    r = client.post("/auth/register", json={"login": unique_login, "password": "NoDigitHere!"})
+    assert r.status_code == 400
+    assert r.json().get("detail") == "validation_error: weak_password"
+
+
+def test_register_password_no_special(client, unique_login):
+    r = client.post("/auth/register", json={"login": unique_login, "password": "NoSpecial123"})
+    assert r.status_code == 400
+    assert r.json().get("detail") == "validation_error: weak_password"
+
+
+def test_register_password_contains_space(client, unique_login):
+    r = client.post("/auth/register", json={"login": unique_login, "password": "Valid Pass123!"})
+    assert r.status_code == 400
+    assert r.json().get("detail") == "validation_error: password_contains_space"
+
+
+def test_login_nonexistent_user(client):
+    """Вход с несуществующим логином — 401."""
+    r = client.post("/auth/login", json={"login": "nonexistent999", "password": "SomePass123!"})
+    assert r.status_code == 401
+    assert r.json().get("detail") == "invalid_credentials"

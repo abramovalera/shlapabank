@@ -23,15 +23,15 @@ def _headers(token: str | None = None):
     return {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
 
 
-def get_otp(client, token: str) -> str:
-    r = client.get(f"{BASE_URL}/helper/otp/preview", headers=_headers(token))
+def _get_otp(client, token: str) -> str:
+    r = client.get("/helper/otp/preview", headers=_headers(token))
     assert r.status_code == 200, (r.status_code, r.json())
     return r.json()["otp"]
 
 
-def helper_increase(client, token: str, account_id: int, amount: str | float):
+def _helper_increase(client, token: str, account_id: int, amount: str | float):
     r = client.post(
-        f"{BASE_URL}/helper/accounts/{account_id}/increase",
+        f"/helper/accounts/{account_id}/increase",
         params={"amount": amount},
         headers=_headers(token),
     )
@@ -155,7 +155,7 @@ def test_statistics_income_topup_rub(stats_test_user, stats_accounts):
     token = stats_test_user["token"]
     h = _headers(token)
     acc = stats_accounts["RUB"]
-    otp = get_otp(client, token)
+    otp = _get_otp(client, token)
     r = client.post(
         f"/accounts/{acc['id']}/topup",
         headers=h,
@@ -178,7 +178,7 @@ def test_statistics_income_topup_usd(stats_test_user, stats_accounts):
     token = stats_test_user["token"]
     h = _headers(token)
     acc = stats_accounts["USD"]
-    otp = get_otp(client, token)
+    otp = _get_otp(client, token)
     r = client.post(
         f"/accounts/{acc['id']}/topup",
         headers=h,
@@ -201,7 +201,7 @@ def test_statistics_income_topup_salary(stats_test_user, stats_accounts):
     token = stats_test_user["token"]
     h = _headers(token)
     acc = stats_accounts["RUB"]
-    otp = get_otp(client, token)
+    otp = _get_otp(client, token)
     r = client.post(
         f"/accounts/{acc['id']}/topup",
         headers=h,
@@ -226,12 +226,12 @@ def test_statistics_expense_payment(stats_test_user, stats_accounts):
     client = stats_test_user["client"]
     token = stats_test_user["token"]
     h = _headers(token)
-    helper_increase(client, token, stats_accounts["RUB"]["id"], "10000")
+    _helper_increase(client, token, stats_accounts["RUB"]["id"], "10000")
     r = client.get("/payments/mobile/operators", headers=h)
     assert r.status_code == 200
     ops = r.json().get("operators", [])
     assert ops, "Нужен справочник операторов"
-    otp = get_otp(client, token)
+    otp = _get_otp(client, token)
     r = client.post(
         "/payments/mobile",
         headers=h,
@@ -266,8 +266,8 @@ def test_statistics_expense_transfer(stats_test_user, stats_accounts):
     if r.status_code != 201:
         pytest.skip("Не удалось создать счёт получателя")
     target_acc = r.json()
-    helper_increase(client, token, stats_accounts["RUB"]["id"], "5000")
-    otp = get_otp(client, token)
+    _helper_increase(client, token, stats_accounts["RUB"]["id"], "5000")
+    otp = _get_otp(client, token)
     r = client.post(
         "/transfers/by-account",
         headers=h,
@@ -291,9 +291,9 @@ def test_statistics_expense_fx(stats_test_user, stats_accounts):
     client = stats_test_user["client"]
     token = stats_test_user["token"]
     h = _headers(token)
-    helper_increase(client, token, stats_accounts["RUB"]["id"], "10000")
-    helper_increase(client, token, stats_accounts["USD"]["id"], "100")
-    otp = get_otp(client, token)
+    _helper_increase(client, token, stats_accounts["RUB"]["id"], "10000")
+    _helper_increase(client, token, stats_accounts["USD"]["id"], "100")
+    otp = _get_otp(client, token)
     r = client.post(
         "/transfers/exchange",
         headers=h,
@@ -321,8 +321,14 @@ def test_statistics_transfer_own_not_counted(stats_test_user, stats_accounts):
     client = stats_test_user["client"]
     token = stats_test_user["token"]
     h = _headers(token)
-    helper_increase(client, token, stats_accounts["RUB"]["id"], "5000")
-    otp = get_otp(client, token)
+
+    r = client.get("/transactions", headers=h)
+    owned = [a["id"] for a in stats_accounts.values()]
+    stats_before = compute_stats(r.json(), owned)
+    transfer_expense_before = sum(c.get("transfer", 0) for c in stats_before["expenseByCurrency"].values())
+
+    _helper_increase(client, token, stats_accounts["RUB"]["id"], "5000")
+    otp = _get_otp(client, token)
     r = client.post(
         "/transfers",
         headers=h,
@@ -335,7 +341,7 @@ def test_statistics_transfer_own_not_counted(stats_test_user, stats_accounts):
     )
     assert r.status_code == 201
     r = client.get("/transactions", headers=h)
-    owned = [a["id"] for a in stats_accounts.values()]
-    stats = compute_stats(r.json(), owned)
-    transfer_expense = sum(c.get("transfer", 0) for c in stats["expenseByCurrency"].values())
-    assert transfer_expense == 0, "p2p_transfer между своими счетами не должен учитываться в расходах"
+    stats_after = compute_stats(r.json(), owned)
+    transfer_expense_after = sum(c.get("transfer", 0) for c in stats_after["expenseByCurrency"].values())
+    assert transfer_expense_after == transfer_expense_before, \
+        "p2p_transfer между своими счетами не должен учитываться в расходах"

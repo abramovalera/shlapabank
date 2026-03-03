@@ -1,6 +1,4 @@
 """Автотесты: Admin API (список пользователей, блокировка, удаление, банки, транзакции)."""
-import time
-
 import pytest
 
 from conftest import get_otp, helper_increase
@@ -74,7 +72,7 @@ def test_admin_cannot_block_default_admin(client):
 
     r = client.post(f"/admin/users/{admin_id}/block", headers=_headers(token))
     assert r.status_code == 400
-    assert r.json().get("detail") == "cannot_delete_admin"
+    assert r.json().get("detail") == "cannot_block_admin"
 
 
 def test_admin_delete_user(client, unique_login, valid_password):
@@ -96,6 +94,7 @@ def test_admin_cannot_delete_default_admin(client):
     """Нельзя удалить администратора по умолчанию."""
     token = _admin_token(client)
     r = client.get("/admin/users", headers=_headers(token))
+    assert r.status_code == 200
     admin_user = next(u for u in r.json() if u["login"] == "admin")
     admin_id = admin_user["id"]
 
@@ -136,6 +135,26 @@ def test_admin_update_user_banks(client, unique_login, valid_password):
     r = client.get(f"/admin/users/{user_id}/banks", headers=_headers(token))
     assert r.status_code == 200
     assert set(r.json()["bank_codes"]) == {"tinkoff", "sber"}
+
+
+def test_admin_update_user_banks_empty(client, unique_login, valid_password):
+    """Установить пустой список банков."""
+    r = client.post("/auth/register", json={"login": unique_login, "password": valid_password})
+    assert r.status_code == 201
+    user_id = r.json()["id"]
+
+    token = _admin_token(client)
+    r = client.put(
+        f"/admin/users/{user_id}/banks",
+        headers=_headers(token),
+        json={"bank_codes": []},
+    )
+    assert r.status_code == 200
+    assert r.json().get("detail") == "banks_updated"
+
+    r = client.get(f"/admin/users/{user_id}/banks", headers=_headers(token))
+    assert r.status_code == 200
+    assert r.json()["bank_codes"] == []
 
 
 def test_admin_update_banks_reject_our_bank(client, unique_login, valid_password):
@@ -209,6 +228,40 @@ def test_client_cannot_access_admin(client, auth_headers):
     assert r.status_code == 403
 
 
+def test_admin_unauthenticated(client):
+    """Без токена Admin API возвращает 401."""
+    r = client.get("/admin/users")
+    assert r.status_code == 401
+
+
+def test_admin_unblock_not_found(client):
+    """Разблокировка несуществующего пользователя — 404."""
+    token = _admin_token(client)
+    r = client.post("/admin/users/999999/unblock", headers=_headers(token))
+    assert r.status_code == 404
+    assert r.json().get("detail") == "user_not_found"
+
+
+def test_admin_get_banks_not_found(client):
+    """Получение банков несуществующего пользователя — 404."""
+    token = _admin_token(client)
+    r = client.get("/admin/users/999999/banks", headers=_headers(token))
+    assert r.status_code == 404
+    assert r.json().get("detail") == "user_not_found"
+
+
+def test_admin_update_banks_not_found(client):
+    """Обновление банков несуществующего пользователя — 404."""
+    token = _admin_token(client)
+    r = client.put(
+        "/admin/users/999999/banks",
+        headers=_headers(token),
+        json={"bank_codes": ["tinkoff"]},
+    )
+    assert r.status_code == 404
+    assert r.json().get("detail") == "user_not_found"
+
+
 def test_admin_restore_initial_state(client, unique_login, valid_password):
     """POST /admin/restore-initial-state возвращает БД к исходному состоянию (только дефолтный админ).
     Ручка не предназначена для использования в автотестах — тест проверяет лишь её работоспособность."""
@@ -221,7 +274,6 @@ def test_admin_restore_initial_state(client, unique_login, valid_password):
     data = r.json()
     assert data.get("detail") == "database_reset"
 
-    # После сброса старый токен невалиден (пользователь удалён). Вход заново как admin.
     r = client.post("/auth/login", json={"login": "admin", "password": "admin"})
     assert r.status_code == 200
     token = r.json()["access_token"]

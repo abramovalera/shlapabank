@@ -1,4 +1,4 @@
-"""Автотесты: история транзакций (GET /transactions)."""
+"""Автотесты: история транзакций (GET /transactions, receipt)."""
 import pytest
 
 from conftest import get_otp, helper_increase
@@ -45,10 +45,41 @@ def test_transactions_after_transfer(client, auth_headers, token, two_rub_accoun
     assert any(t["money"]["amount"] == "200.00" for t in txs)
 
 
-def test_transactions_fields(client, auth_headers):
+def test_transactions_after_payment(client, auth_headers, token, rub_account):
+    """Платёж мобильной связи отображается в истории."""
+    helper_increase(client, token, rub_account["id"], "5000")
+    otp = get_otp(client, token)
+    r = client.post(
+        "/payments/mobile",
+        headers=auth_headers,
+        json={
+            "account_id": rub_account["id"],
+            "operator": "MTSha",
+            "phone": "+79991234567",
+            "amount": "300.00",
+            "otp_code": otp,
+        },
+    )
+    assert r.status_code == 201
     r = client.get("/transactions", headers=auth_headers)
     assert r.status_code == 200
-    for t in r.json()[:3]:
+    txs = [t for t in r.json() if t.get("type") == "PAYMENT" and "mobile:MTSha:" in (t.get("description") or "")]
+    assert len(txs) >= 1
+
+
+def test_transactions_fields(client, auth_headers, token, rub_account):
+    """Поля транзакции содержат все обязательные ключи."""
+    otp = get_otp(client, token)
+    client.post(
+        f"/accounts/{rub_account['id']}/topup",
+        headers=auth_headers,
+        json={"amount": "10.00", "otp_code": otp},
+    )
+    r = client.get("/transactions", headers=auth_headers)
+    assert r.status_code == 200
+    txs = r.json()
+    assert len(txs) >= 1
+    for t in txs[:3]:
         for key in ("id", "type", "money", "status", "created_at", "description", "from_account_id", "to_account_id"):
             assert key in t
         assert "amount" in t["money"] and "fee" in t["money"] and "total" in t["money"] and "currency" in t["money"]
@@ -75,3 +106,9 @@ def test_receipt_download(client, auth_headers, token, rub_account):
     assert "Чек операции" in html
     assert str(tx_id) in html
     assert "50.00" in html
+
+
+def test_receipt_not_found(client, auth_headers):
+    """Чек несуществующей транзакции — 404."""
+    r = client.get("/transactions/999999/receipt", headers=auth_headers)
+    assert r.status_code == 404
