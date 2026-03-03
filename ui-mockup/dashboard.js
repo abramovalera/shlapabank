@@ -2094,7 +2094,9 @@ async function loadData() {
     (r) => r.status === "rejected" && (r.reason?.code === "invalid_token" || r.reason?.status === 401)
   );
   if (hasAuthError) {
-    return;
+    const authErr = new Error("invalid_token");
+    authErr.code = "invalid_token";
+    throw authErr;
   }
 
   // Если профиль не загрузился — пробрасываем ошибку для retry
@@ -3708,7 +3710,7 @@ function reloadDataOnReturn() {
   const now = Date.now();
   if (lastLoadSuccess && now - lastLoadTime < 5000) return;
   if (reloadOnReturnTimer) clearTimeout(reloadOnReturnTimer);
-  reloadOnReturnTimer = setTimeout(async () => {
+    reloadOnReturnTimer = setTimeout(async () => {
     reloadOnReturnTimer = null;
     let retries = 2;
     while (retries >= 0) {
@@ -3716,7 +3718,7 @@ function reloadDataOnReturn() {
         await loadData();
         lastLoadTime = Date.now();
         lastLoadSuccess = true;
-        renderAllFromState();
+        // loadData() уже вызывает все render-функции внутри — повторный вызов не нужен
         return;
       } catch (err) {
         if (err?.code === "invalid_token") return;
