@@ -1,6 +1,13 @@
 import os
 
 
+def _env_bool(name: str, *, default: bool) -> bool:
+    v = os.getenv(name)
+    if v is None or v == "":
+        return default
+    return v.lower() in ("1", "true", "yes")
+
+
 class Settings:
     app_name: str = os.getenv("APP_NAME", "ShlapaBank")
     app_env: str = os.getenv("APP_ENV", "dev")
@@ -13,8 +20,13 @@ class Settings:
     )
     default_admin_login: str = os.getenv("DEFAULT_ADMIN_LOGIN", "admin")
     default_admin_password: str = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin")
-    default_admin_email: str = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@shlapabank.local")
+    default_admin_email: str = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@shlapabank.com")
     operation_otp_code: str = os.getenv("OPERATION_OTP_CODE", "")  # Пусто = OTP только через GET /helper/otp/preview
+    # Учебная трассировка API/БД и панель Log на UI; в проде задать ENABLE_DEV_TRACE=false
+    enable_dev_trace: bool = _env_bool(
+        "ENABLE_DEV_TRACE",
+        default=os.getenv("APP_ENV", "dev").lower() != "production",
+    )
 
 
 settings = Settings()
