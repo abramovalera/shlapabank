@@ -165,12 +165,16 @@
   padding: 8px 12px 14px;
   white-space: pre-wrap;
   word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .sb-dev-log-line {
   margin-bottom: 6px;
   padding-bottom: 6px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .sb-dev-log-line:last-child {
@@ -188,6 +192,13 @@
 
 .sb-dev-log-src-client {
   color: #7eb6ff;
+}
+
+.sb-dev-log-chain {
+  color: #c4b5fd;
+  font-weight: 500;
+  margin-left: 2px;
+  margin-right: 2px;
 }
 
 .sb-dev-log-warn {

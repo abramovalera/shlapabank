@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
 
 from app.core.config import settings
-from app.dev_trace import clear_request_context, record_http_event, reset_request_context
+from app.dev_trace import clear_request_context, record_http_event, reset_request_context, sanitize_correlation_id
 from app.routes.accounts import router as accounts_router
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
@@ -108,6 +108,7 @@ class DevTraceMiddleware(BaseHTTPMiddleware):
                     query=request.url.query or "",
                     status_code=status,
                     duration_ms=ms,
+                    correlation_id=sanitize_correlation_id(request.headers.get("X-SB-Correlation-Id")),
                 )
             finally:
                 clear_request_context()

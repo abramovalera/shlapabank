@@ -11,6 +11,22 @@
   var pollTimer = null;
   var paused = false;
   var LOG_H_KEY = "sb_dev_log_panel_h_px";
+  var freezeLogRender = false;
+  var pendingLogRender = false;
+  var selectionFlushTimer = null;
+  var logSelectionGuardsBound = false;
+
+  function newCorrelationId() {
+    try {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+    } catch (_) {}
+    return "sb-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  }
+
+  /** Один id на «цепочку» запросов с этой вкладки; смена — кнопка или sbNewCorrelationChain(). */
+  var correlationChainId = newCorrelationId();
 
   function apiOrigin() {
     var b = "";
@@ -51,7 +67,7 @@
     }
   }
 
-  function pushClientLine(method, url, status, ms, bodyInit, preview) {
+  function pushClientLine(method, url, status, ms, bodyInit, preview, correlationId) {
     var tsIso = new Date().toISOString();
     clientEntries.push({
       tsIso: tsIso,
@@ -62,6 +78,7 @@
       ms: ms,
       initSummary: bodyInit,
       preview: preview,
+      correlationId: correlationId || "",
     });
     if (clientEntries.length > MAX_CLIENT) clientEntries.shift();
     if (panelOpen && !paused) render();
@@ -78,9 +95,53 @@
     }
   }
 
+  function wantsCorrelationHeader(url) {
+    try {
+      var u = String(url);
+      if (u.indexOf("/api/v1") === -1) return false;
+      if (u.indexOf("/api/v1/dev/trace") !== -1) return false;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function applyCorrelationToFetch(input, init) {
+    var url = typeof input === "string" ? input : input && input.url ? input.url : String(input);
+    if (!wantsCorrelationHeader(url)) {
+      return { input: input, init: init };
+    }
+    if (typeof Request !== "undefined" && input instanceof Request) {
+      var hReq = new Headers(input.headers);
+      hReq.set("X-SB-Correlation-Id", correlationChainId);
+      return { input: new Request(input, { headers: hReq }), init: undefined };
+    }
+    var nextInit = init ? Object.assign({}, init) : {};
+    if (typeof Headers !== "undefined" && nextInit.headers instanceof Headers) {
+      var h2 = new Headers(nextInit.headers);
+      h2.set("X-SB-Correlation-Id", correlationChainId);
+      nextInit.headers = h2;
+    } else if (nextInit.headers && typeof nextInit.headers === "object" && !Array.isArray(nextInit.headers)) {
+      nextInit.headers = Object.assign({}, nextInit.headers);
+      nextInit.headers["X-SB-Correlation-Id"] = correlationChainId;
+    } else {
+      nextInit.headers = { "X-SB-Correlation-Id": correlationChainId };
+    }
+    return { input: input, init: nextInit };
+  }
+
   var origFetch = window.fetch;
   window.fetch = function (input, init) {
-    var method = (init && init.method) || "GET";
+    var applied = applyCorrelationToFetch(input, init);
+    input = applied.input;
+    init = applied.init;
+
+    var method = "GET";
+    if (init && init.method) {
+      method = init.method;
+    } else if (typeof Request !== "undefined" && input instanceof Request && input.method) {
+      method = input.method;
+    }
     var url = typeof input === "string" ? input : input && input.url ? input.url : String(input);
     var t0 = typeof performance !== "undefined" ? performance.now() : 0;
     var bodyInit = "";
@@ -88,7 +149,7 @@
       bodyInit = summarizeBody(init.body);
     }
 
-    return origFetch.apply(this, arguments).then(function (res) {
+    return origFetch.call(window, input, init).then(function (res) {
       if (!shouldLogFetch(url)) return res;
       var t1 = typeof performance !== "undefined" ? performance.now() : 0;
       var ms = Math.round(t1 - t0);
@@ -105,11 +166,29 @@
         preview = Promise.resolve("");
       }
       Promise.resolve(preview).then(function (pv) {
-        pushClientLine(method, url, res.status, ms, bodyInit, pv);
+        pushClientLine(method, url, res.status, ms, bodyInit, pv, correlationChainId);
       });
       return res;
     });
   };
+
+  function isNonCollapsedSelectionInLog() {
+    if (!panelOpen) return false;
+    var body = document.getElementById("sbDevLogBody");
+    if (!body) return false;
+    try {
+      var sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return false;
+      var r = sel.getRangeAt(0);
+      return body.contains(r.commonAncestorContainer);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function shouldSkipRenderToPreserveLogUi() {
+    return freezeLogRender || isNonCollapsedSelectionInLog();
+  }
 
   function escapeHtml(s) {
     return String(s)
@@ -119,18 +198,34 @@
       .replace(/"/g, "&quot;");
   }
 
+  /** Id цепочки в квадратных скобках; тот же текст во всплывающей подсказке с пояснением. */
+  function formatChainBracket(id, titlePrefix) {
+    if (!id) return "";
+    var fullTitle = titlePrefix + id;
+    return (
+      '<span class="sb-dev-log-chain" title="' +
+      escapeHtml(fullTitle) +
+      '">[' +
+      escapeHtml(id) +
+      "]</span>"
+    );
+  }
+
   function formatServerLine(e) {
     var warn = e.warn ? '<span class="sb-dev-log-warn"> ⚠ ' + escapeHtml(e.warn) + "</span>" : "";
     var stClass = e.status >= 500 ? "sb-dev-log-err" : e.status >= 400 ? "sb-dev-log-warn" : "";
     var db = e.db
       ? '<span class="sb-dev-log-db">БД: ' + escapeHtml(e.db) + "</span>"
       : '<span class="sb-dev-log-db">БД: —</span>';
+    var chainS = e.correlation_id ? formatChainBracket(e.correlation_id, "Цепочка запросов, полный id: ") : "";
     return (
       '<div class="sb-dev-log-line">' +
       '<span class="sb-dev-log-ts">' +
       escapeHtml((e.ts || "").replace("T", " ").replace("Z", "")) +
       "</span>" +
-      '<span class="sb-dev-log-src-server" title="Обработка на сервере: API, время ответа, обращения к БД">[backend]</span> ' +
+      '<span class="sb-dev-log-src-server" title="Обработка на сервере: API, время ответа, обращения к БД">[backend]</span>' +
+      chainS +
+      " " +
       escapeHtml(e.method || "") +
       " " +
       escapeHtml(e.path || "") +
@@ -154,7 +249,22 @@
   function rowSearchBlob(m) {
     if (m.k === "c") {
       var e = m.row;
-      return String(e.method + " " + e.url + " " + (e.initSummary || "") + " " + (e.preview || "") + " " + e.status + " " + e.ms).toLowerCase();
+      return String(
+        e.method +
+          " " +
+          e.url +
+          " " +
+          (e.initSummary || "") +
+          " " +
+          (e.preview || "") +
+          " " +
+          e.status +
+          " " +
+          e.ms +
+          " " +
+          (e.correlationId || "") +
+          (e.correlationId ? " [" + e.correlationId + "]" : "")
+      ).toLowerCase();
     }
     var s = m.row;
     return String(
@@ -170,6 +280,9 @@
         " " +
         (s.trace_id || "") +
         " " +
+        (s.correlation_id || "") +
+        (s.correlation_id ? " [" + s.correlation_id + "]" : "") +
+        " " +
         (s.warn || "") +
         " " +
         (s.db || "")
@@ -184,12 +297,15 @@
     var ini = e.initSummary
       ? '<span class="sb-dev-log-resp">запрос: ' + escapeHtml(e.initSummary) + "</span>"
       : "";
+    var chainC = e.correlationId ? formatChainBracket(e.correlationId, "Цепочка запросов, полный id: ") : "";
     return (
       '<div class="sb-dev-log-line">' +
       '<span class="sb-dev-log-ts">' +
       escapeHtml(e.ts) +
       "</span>" +
-      '<span class="sb-dev-log-src-client" title="Вид со стороны страницы: что ушло и что пришло в fetch (JSON маскируется)">[UI]</span> ' +
+      '<span class="sb-dev-log-src-client" title="Вид со стороны страницы: что ушло и что пришло в fetch (JSON маскируется)">[UI]</span>' +
+      chainC +
+      " " +
       escapeHtml(e.method) +
       " " +
       escapeHtml(e.url) +
@@ -206,9 +322,15 @@
     );
   }
 
-  function render() {
+  function render(force) {
     var body = document.getElementById("sbDevLogBody");
     if (!body) return;
+    if (!force && shouldSkipRenderToPreserveLogUi()) {
+      pendingLogRender = true;
+      return;
+    }
+    pendingLogRender = false;
+
     var filterEl = document.getElementById("sbDevLogFilter");
     var q = (filterEl && filterEl.value ? String(filterEl.value) : "").trim().toLowerCase();
     var merged = [];
@@ -232,14 +354,32 @@
     });
     var emptyMsg;
     if (q && !parts.length) {
-      emptyMsg = "Нет строк по запросу «" + escapeHtml(q) + "». Попробуйте фрагмент номера счёта или пути API.";
+      emptyMsg =
+        "Нет строк по запросу «" + escapeHtml(q) + "». Попробуйте путь API, номер счёта или хеш в квадратных скобках.";
     } else if (!parts.length) {
       emptyMsg = "Пока пусто. Сделайте запрос к API — строки появятся здесь.";
     } else {
       emptyMsg = "";
     }
+
+    var clientH = body.clientHeight;
+    var prevST = body.scrollTop;
+    var prevSH = body.scrollHeight;
+    var bottomSlack = 80;
+    var wasAtBottom = prevSH <= clientH + 2 || prevSH - prevST - clientH < bottomSlack;
+
     body.innerHTML = parts.length ? parts.join("") : '<div class="sb-dev-log-line">' + emptyMsg + "</div>";
-    body.scrollTop = body.scrollHeight;
+
+    var nh = body.scrollHeight;
+    var maxScroll = Math.max(0, nh - clientH);
+    if (wasAtBottom) {
+      body.scrollTop = nh;
+    } else if (prevSH > clientH + 2) {
+      var ratio = prevST / (prevSH - clientH);
+      body.scrollTop = Math.min(maxScroll, Math.max(0, Math.round(ratio * maxScroll)));
+    } else {
+      body.scrollTop = Math.min(maxScroll, prevST);
+    }
   }
 
   function pollServer() {
@@ -296,14 +436,15 @@
       '<div class="sb-dev-log-resize-handle" id="sbDevLogResizeHandle" title="Потяните вверх или вниз, чтобы изменить высоту. Двойной щелчок — сброс."></div>' +
       '<div class="sb-dev-log-panel-header">' +
       '<span class="sb-dev-log-panel-title">Учебный лог</span>' +
-      '<span class="sb-dev-log-panel-hint">UI — что уходит со страницы (fetch). Backend — обработка на сервере (API и БД). Пароли скрыты.</span>' +
+      '<span class="sb-dev-log-panel-hint">UI — fetch. Backend — сервер. Метка [хеш] — один id на цепочку; в поиске вставьте его целиком или фрагмент. «Новая цепочка» — другой id для следующих запросов.</span>' +
       '<div class="sb-dev-log-actions">' +
       '<button type="button" id="sbDevLogPause">Пауза</button>' +
       '<button type="button" id="sbDevLogClear">Очистить</button>' +
+      '<button type="button" id="sbDevLogNewChain" title="Сгенерировать новый id: дальше в логе отличите новую группу запросов">Новая цепочка</button>' +
       "</div></div>" +
       '<div class="sb-dev-log-filter-wrap">' +
       '<label class="sb-dev-log-filter-label" for="sbDevLogFilter">Поиск</label>' +
-      '<input type="search" id="sbDevLogFilter" class="sb-dev-log-filter" placeholder="Номер счёта, id, путь API, фрагмент URL…" autocomplete="off" />' +
+      '<input type="search" id="sbDevLogFilter" class="sb-dev-log-filter" placeholder="Путь API, счёт, URL или [хеш] цепочки…" autocomplete="off" />' +
       "</div>" +
       '<div id="sbDevLogBody" class="sb-dev-log-body"></div>';
 
@@ -411,13 +552,31 @@
       } else {
         stopPoll();
       }
-      if (panelOpen) render();
+      if (panelOpen) render(true);
+    });
+
+    if (!logSelectionGuardsBound) {
+      logSelectionGuardsBound = true;
+      document.addEventListener("selectionchange", function () {
+        clearTimeout(selectionFlushTimer);
+        selectionFlushTimer = setTimeout(function () {
+          if (!pendingLogRender) return;
+          if (shouldSkipRenderToPreserveLogUi()) return;
+          pendingLogRender = false;
+          render(false);
+        }, 200);
+      });
+    }
+
+    document.getElementById("sbDevLogNewChain").addEventListener("click", function () {
+      correlationChainId = newCorrelationId();
+      if (panelOpen && !paused) render(true);
     });
 
     document.getElementById("sbDevLogClear").addEventListener("click", function () {
       clientEntries = [];
       serverEntries = [];
-      render();
+      render(true);
       var o = apiOrigin();
       origFetch
         .call(window, o + "/api/v1/dev/trace/clear", {
@@ -433,8 +592,27 @@
     });
 
     document.getElementById("sbDevLogFilter").addEventListener("input", function () {
-      render();
+      render(true);
     });
+
+    (function bindLogPointerGuard() {
+      var logBody = document.getElementById("sbDevLogBody");
+      if (!logBody || logBody._sbPointerBound) return;
+      logBody._sbPointerBound = true;
+      logBody.addEventListener("mousedown", function () {
+        freezeLogRender = true;
+      });
+      window.addEventListener("mouseup", function () {
+        if (!freezeLogRender) return;
+        freezeLogRender = false;
+        window.setTimeout(function () {
+          if (pendingLogRender && !shouldSkipRenderToPreserveLogUi()) {
+            pendingLogRender = false;
+            render(false);
+          }
+        }, 0);
+      });
+    })();
 
     document.getElementById("sbDevLogPause").addEventListener("click", function () {
       paused = !paused;
@@ -442,6 +620,13 @@
       if (!paused && panelOpen) pollServer();
     });
   }
+
+  try {
+    window.sbNewCorrelationChain = function () {
+      correlationChainId = newCorrelationId();
+      return correlationChainId;
+    };
+  } catch (e1) {}
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", buildUi);

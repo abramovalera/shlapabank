@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import uuid
 from collections import Counter, deque
@@ -20,6 +21,18 @@ logger = logging.getLogger("shlapabank.dev_trace")
 MAX_ENTRIES = 200
 _buffer: deque[dict[str, Any]] = deque(maxlen=MAX_ENTRIES)
 _lock = threading.Lock()
+
+_CORRELATION_HEADER_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
+
+
+def sanitize_correlation_id(raw: str | None) -> str | None:
+    """Значение из заголовка X-SB-Correlation-Id: только безопасные символы, ограниченная длина."""
+    if not raw:
+        return None
+    s = raw.strip()[:80]
+    if _CORRELATION_HEADER_RE.match(s):
+        return s
+    return None
 
 trace_id_var: ContextVar[str | None] = ContextVar("trace_id", default=None)
 _db_notes_var: ContextVar[list[str] | None] = ContextVar("db_notes", default=None)
@@ -93,6 +106,7 @@ def record_http_event(
     query: str,
     status_code: int,
     duration_ms: float,
+    correlation_id: str | None = None,
 ) -> None:
     tid = trace_id_var.get() or "-"
     notes = _db_notes_var.get()
@@ -118,6 +132,8 @@ def record_http_event(
         "db": db_summary,
         "warn": "; ".join(warns) if warns else None,
     }
+    if correlation_id:
+        entry["correlation_id"] = correlation_id
     with _lock:
         _buffer.append(entry)
 
