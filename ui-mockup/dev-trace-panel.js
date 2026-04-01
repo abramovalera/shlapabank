@@ -366,19 +366,39 @@
     var prevST = body.scrollTop;
     var prevSH = body.scrollHeight;
     var bottomSlack = 80;
-    var wasAtBottom = prevSH <= clientH + 2 || prevSH - prevST - clientH < bottomSlack;
+    var scrollable = prevSH > clientH + 2;
+    var wasAtBottom = !scrollable || prevSH - prevST - clientH < bottomSlack;
 
     body.innerHTML = parts.length ? parts.join("") : '<div class="sb-dev-log-line">' + emptyMsg + "</div>";
 
-    var nh = body.scrollHeight;
-    var maxScroll = Math.max(0, nh - clientH);
-    if (wasAtBottom) {
-      body.scrollTop = nh;
-    } else if (prevSH > clientH + 2) {
-      var ratio = prevST / (prevSH - clientH);
-      body.scrollTop = Math.min(maxScroll, Math.max(0, Math.round(ratio * maxScroll)));
-    } else {
-      body.scrollTop = Math.min(maxScroll, prevST);
+    var clientHBefore = clientH;
+    var prevSTSnap = prevST;
+    var prevSHSnap = prevSH;
+    var scrollableSnap = scrollable;
+    var wasAtBottomSnap = wasAtBottom;
+
+    function applyLogBodyScroll() {
+      var newClientH = body.clientHeight;
+      var nh = body.scrollHeight;
+      var maxScroll = Math.max(0, nh - newClientH);
+      if (wasAtBottomSnap) {
+        body.scrollTop = maxScroll;
+        return;
+      }
+      if (!scrollableSnap) {
+        body.scrollTop = Math.min(maxScroll, prevSTSnap);
+        return;
+      }
+      var distFromBottom = Math.max(0, prevSHSnap - prevSTSnap - clientHBefore);
+      var target = nh - newClientH - distFromBottom;
+      body.scrollTop = Math.min(maxScroll, Math.max(0, Math.round(target)));
+    }
+
+    applyLogBodyScroll();
+    if (typeof requestAnimationFrame !== "undefined") {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(applyLogBodyScroll);
+      });
     }
   }
 
