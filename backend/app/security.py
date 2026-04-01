@@ -12,18 +12,19 @@ from app.core.config import settings
 from app.db import get_db
 from app.models import User, UserRole, UserStatus
 
+# passlib оставлен только для проверки старых записей, где пароль ещё хранился как bcrypt ($2...).
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
 
 PASSWORD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])\S{8,30}$")
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+def verify_password(plain_password: str, stored: str) -> bool:
+    """Учебный режим: в колонке password_hash лежит пароль открытым текстом.
+    Если значение начинается с $2 — это старый bcrypt (до смены режима), проверяем через passlib."""
+    if stored.startswith("$2"):
+        return pwd_context.verify(plain_password, stored)
+    return plain_password == stored
 
 
 def validate_password_rules(login: str, password: str) -> None:

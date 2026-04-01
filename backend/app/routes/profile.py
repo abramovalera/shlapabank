@@ -6,7 +6,7 @@ from app.db import get_db
 from app.models import User
 from app.phone_utils import normalize_phone
 from app.schemas import ProfileUpdateRequest, UserPublic
-from app.security import get_current_user, get_password_hash, require_active_user, validate_password_rules, verify_password
+from app.security import get_current_user, require_active_user, validate_password_rules, verify_password
 
 router = APIRouter(prefix="/api/v1/profile", tags=["profile"])
 
@@ -50,9 +50,9 @@ def update_profile(
             raise HTTPException(status_code=401, detail="invalid_current_password")
 
         validate_password_rules(current_user.login, new_password)
-        if verify_password(new_password, current_user.password_hash):
+        if new_password == current_user.password_hash:
             raise HTTPException(status_code=400, detail="validation_error: password_reuse_not_allowed")
-        current_user.password_hash = get_password_hash(new_password)
+        current_user.password_hash = new_password
 
     for field, value in updates.items():
         if field in {"current_password", "new_password"}:

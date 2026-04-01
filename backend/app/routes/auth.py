@@ -9,12 +9,7 @@ from app.constants import FAILED_LOGIN_THRESHOLD
 from app.db import get_db
 from app.models import User, UserBank, UserStatus
 from app.schemas import LoginRequest, RegisterRequest, TokenResponse, UserPublic
-from app.security import (
-    create_access_token,
-    get_password_hash,
-    validate_password_rules,
-    verify_password,
-)
+from app.security import create_access_token, validate_password_rules, verify_password
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -55,7 +50,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
     user = User(
         login=payload.login,
-        password_hash=get_password_hash(payload.password),
+        password_hash=payload.password,
     )
     db.add(user)
     db.commit()

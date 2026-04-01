@@ -9,7 +9,7 @@ from app.db import get_db
 from app.models import Account, Transaction, User, UserBank, UserStatus
 from app.models import UserRole
 from app.schemas import TransactionPublic, UserBanksUpdateRequest, UserPublic
-from app.security import require_admin, get_password_hash
+from app.security import require_admin
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -117,7 +117,7 @@ def restore_initial_state(
     admin = User(
         login=settings.default_admin_login,
         email=settings.default_admin_email,
-        password_hash=get_password_hash(settings.default_admin_password),
+        password_hash=settings.default_admin_password,
         role=UserRole.ADMIN,
     )
     db.add(admin)

@@ -11,7 +11,6 @@ from app.banks import BANKS_CATALOG, get_external_bank_codes
 from app.core.config import settings
 from app.db import Base, SessionLocal, engine
 from app.models import Account, AccountType, Bank, Currency, User, UserBank, UserRole, UserStatus
-from app.security import get_password_hash
 
 
 # Тестовый клиент с полным набором счетов (логин/пароль/телефон — в docs/FULL_CLIENT_CREDENTIALS.md)
@@ -74,7 +73,7 @@ def _seed_admin() -> None:
             admin = User(
                 login=settings.default_admin_login,
                 email=settings.default_admin_email,
-                password_hash=get_password_hash(settings.default_admin_password),
+                password_hash=settings.default_admin_password,
                 role=UserRole.ADMIN,
             )
             db.add(admin)
@@ -89,7 +88,7 @@ def _seed_admin() -> None:
             )
             if not email_conflict:
                 admin.email = settings.default_admin_email
-            admin.password_hash = get_password_hash(settings.default_admin_password)
+            admin.password_hash = settings.default_admin_password
             db.add(admin)
 
         try:
@@ -106,7 +105,7 @@ def _seed_admin() -> None:
             )
             if fallback_admin:
                 fallback_admin.role = UserRole.ADMIN
-                fallback_admin.password_hash = get_password_hash(settings.default_admin_password)
+                fallback_admin.password_hash = settings.default_admin_password
                 db.add(fallback_admin)
                 db.commit()
     finally:
@@ -135,7 +134,7 @@ def _seed_full_client() -> None:
         if not user:
             user = User(
                 login=FULL_CLIENT_LOGIN,
-                password_hash=get_password_hash(FULL_CLIENT_PASSWORD),
+                password_hash=FULL_CLIENT_PASSWORD,
                 role=UserRole.CLIENT,
                 status=UserStatus.ACTIVE,
                 phone=FULL_CLIENT_PHONE,
