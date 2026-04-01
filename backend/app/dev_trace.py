@@ -129,3 +129,9 @@ def record_http_event(
 def get_recent_entries() -> list[dict[str, Any]]:
     with _lock:
         return list(_buffer)
+
+
+def clear_trace_buffer() -> None:
+    """Сбросить учебный журнал на сервере (кнопка «Очистить» в UI)."""
+    with _lock:
+        _buffer.clear()

@@ -70,7 +70,9 @@
   function shouldLogFetch(url) {
     try {
       var u = String(url);
-      return u.indexOf("/api/v1") !== -1;
+      if (u.indexOf("/api/v1") === -1) return false;
+      if (u.indexOf("/api/v1/dev/trace") !== -1) return false;
+      return true;
     } catch (_) {
       return false;
     }
@@ -416,7 +418,18 @@
       clientEntries = [];
       serverEntries = [];
       render();
-      if (panelOpen && !paused) pollServer();
+      var o = apiOrigin();
+      origFetch
+        .call(window, o + "/api/v1/dev/trace/clear", {
+          method: "POST",
+          headers: { Accept: "application/json" },
+        })
+        .then(function () {
+          if (panelOpen && !paused) pollServer();
+        })
+        .catch(function () {
+          if (panelOpen && !paused) pollServer();
+        });
     });
 
     document.getElementById("sbDevLogFilter").addEventListener("input", function () {
