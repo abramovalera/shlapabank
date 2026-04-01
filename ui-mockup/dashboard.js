@@ -197,11 +197,12 @@ function showToast(message, isError = false) {
 }
 
 async function api(path, options = {}) {
+  const currentToken = localStorage.getItem("sb_access_token") || TOKEN;
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${TOKEN}`,
+      Authorization: `Bearer ${currentToken}`,
       ...(options.headers || {}),
     },
   });
@@ -1672,7 +1673,7 @@ async function downloadReceipt(tx) {
   const filename = `chek-operacii-${tx.id}-${dateStr.replace(/\./g, "-")}.html`;
   try {
     const res = await fetch(`${API_BASE}/transactions/${tx.id}/receipt`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
+      headers: { Authorization: `Bearer ${localStorage.getItem("sb_access_token") || TOKEN}` },
     });
     if (res.ok) {
       const html = await res.text();
@@ -2106,12 +2107,25 @@ async function loadData() {
 
   const map = (index, fallback) => (results[index].status === "fulfilled" ? results[index].value : fallback);
   state.profile = map(0, null);
-  state.accounts = results[1].status === "fulfilled" && Array.isArray(results[1].value) ? results[1].value : (state.accounts ?? []);
-  state.transactions = results[2].status === "fulfilled" && Array.isArray(results[2].value) ? results[2].value : (state.transactions ?? []);
+
+  const newAccounts = results[1].status === "fulfilled" && Array.isArray(results[1].value) ? results[1].value : null;
+  if (newAccounts !== null) {
+    state.accounts = newAccounts;
+  } else if (!Array.isArray(state.accounts)) {
+    state.accounts = [];
+  }
+
+  const newTransactions = results[2].status === "fulfilled" && Array.isArray(results[2].value) ? results[2].value : null;
+  if (newTransactions !== null) {
+    state.transactions = newTransactions;
+  } else if (!Array.isArray(state.transactions)) {
+    state.transactions = [];
+  }
+
   state.operators = map(3, { operators: [] }).operators || [];
   state.providers = map(4, { providers: [] }).providers || [];
   state.settings = DEFAULT_SETTINGS;
-  state.exchangeRates = map(5, null);
+  state.exchangeRates = map(5, null) ?? state.exchangeRates ?? null;
 
   renderProfile();
   if (isUserBlocked() && typeof window.__applyPage === "function") window.__applyPage("more", true);
@@ -2562,7 +2576,7 @@ function wireActions() {
       try {
         const typeSelect = qs("openAccountType");
         const currencySelect = qs("openAccountCurrency");
-        const newAccount = await api("/accounts", {
+        await api("/accounts", {
           method: "POST",
           body: JSON.stringify({
             account_type: typeSelect ? typeSelect.value : "DEBIT",
@@ -2571,12 +2585,6 @@ function wireActions() {
         });
         showToast("Счет Открыт");
         hideOpenModal();
-        if (newAccount && typeof newAccount.id !== "undefined") {
-          state.accounts = [...(state.accounts || []), newAccount];
-          renderBalances();
-          renderAccounts();
-          fillAccountSelects();
-        }
         await loadAccounts();
       } catch (error) {
         hideOpenModal();
@@ -3710,28 +3718,28 @@ function reloadDataOnReturn() {
   const now = Date.now();
   if (lastLoadSuccess && now - lastLoadTime < 5000) return;
   if (reloadOnReturnTimer) clearTimeout(reloadOnReturnTimer);
-    reloadOnReturnTimer = setTimeout(async () => {
+  reloadOnReturnTimer = setTimeout(async () => {
     reloadOnReturnTimer = null;
-    let retries = 2;
-    while (retries >= 0) {
+    const maxRetries = 4;
+    let delay = 500;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         await loadData();
         lastLoadTime = Date.now();
         lastLoadSuccess = true;
-        // loadData() уже вызывает все render-функции внутри — повторный вызов не нужен
         return;
       } catch (err) {
         if (err?.code === "invalid_token") return;
-        retries--;
-        if (retries >= 0) {
-          await new Promise((r) => setTimeout(r, 1500));
+        if (attempt < maxRetries - 1) {
+          await new Promise((r) => setTimeout(r, delay));
+          delay = Math.min(delay * 2, 5000);
         } else {
           lastLoadSuccess = false;
           showToast("Не удалось обновить данные. Нажмите F5 для обновления страницы.", true);
         }
       }
     }
-  }, 300);
+  }, 150);
 }
 
 (async function init() {
@@ -3744,11 +3752,33 @@ function reloadDataOnReturn() {
       if (document.visibilityState === "visible") reloadDataOnReturn();
     });
     window.addEventListener("pageshow", (e) => {
-      if (e.persisted) reloadDataOnReturn();
+      if (e.persisted) {
+        lastLoadSuccess = false;
+        lastLoadTime = 0;
+        reloadDataOnReturn();
+      }
     });
-    await loadData();
-    lastLoadTime = Date.now();
-    lastLoadSuccess = true;
+    window.addEventListener("focus", () => reloadDataOnReturn());
+
+    let loaded = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await loadData();
+        lastLoadTime = Date.now();
+        lastLoadSuccess = true;
+        loaded = true;
+        break;
+      } catch (err) {
+        if (err?.code === "invalid_token") throw err;
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 800));
+      }
+    }
+    if (!loaded) {
+      await loadData();
+      lastLoadTime = Date.now();
+      lastLoadSuccess = true;
+    }
+
     const shell = document.querySelector(".dashboard-shell");
     if (shell) {
       shell.classList.remove("shell-hidden");

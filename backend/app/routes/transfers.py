@@ -501,7 +501,7 @@ def exchange_currency(
     _check_daily_limit(used_per_currency, source.currency, payload.amount)
 
     rub_equivalent = payload.amount * source_rate
-    target_amount = rub_equivalent / target_rate
+    target_amount = (rub_equivalent / target_rate).quantize(Decimal("0.01"))
 
     source.balance -= payload.amount
     target.balance += target_amount

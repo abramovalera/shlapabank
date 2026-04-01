@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, field_validator, model_validator
 
@@ -136,7 +136,7 @@ class AccountTopupRequest(BaseModel):
 
     amount: Decimal = Field(gt=0)
     otp_code: OtpCode
-    purpose: str | None = Field(default=None, max_length=32, pattern=r"^[a-z_]+$")
+    purpose: Literal["salary", "gift"] | None = None
 
 
 class TransferCreateRequest(BaseModel):
