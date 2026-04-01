@@ -220,6 +220,7 @@
     var chainS = e.correlation_id ? formatChainBracket(e.correlation_id, "Цепочка запросов, полный id: ") : "";
     return (
       '<div class="sb-dev-log-line">' +
+      '<div class="sb-dev-log-line-main">' +
       '<span class="sb-dev-log-ts">' +
       escapeHtml((e.ts || "").replace("T", " ").replace("Z", "")) +
       "</span>" +
@@ -241,6 +242,7 @@
       " " +
       escapeHtml(e.trace_id || "") +
       warn +
+      "</div>" +
       db +
       "</div>"
     );
@@ -300,6 +302,7 @@
     var chainC = e.correlationId ? formatChainBracket(e.correlationId, "Цепочка запросов, полный id: ") : "";
     return (
       '<div class="sb-dev-log-line">' +
+      '<div class="sb-dev-log-line-main">' +
       '<span class="sb-dev-log-ts">' +
       escapeHtml(e.ts) +
       "</span>" +
@@ -316,6 +319,7 @@
       "</span> " +
       escapeHtml(String(e.ms)) +
       " ms" +
+      "</div>" +
       ini +
       prev +
       "</div>"

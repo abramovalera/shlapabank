@@ -177,6 +177,12 @@
   -webkit-user-select: text;
 }
 
+/* Отдельный блок «шапки» строки: тройной щелчок выделяет только его, а не всю запись с телами JSON/БД. */
+.sb-dev-log-line-main {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .sb-dev-log-line:last-child {
   border-bottom: none;
 }
