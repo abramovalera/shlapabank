@@ -4,7 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>ShlapaBank — вход</title>
-  <link rel="stylesheet" href="/ui/styles.css?v=2" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400..700;1,400..700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/ui/styles.css?v=21" />
   <link rel="stylesheet" href="/ui/swagger-btn.css?v=2" />
   <link rel="stylesheet" href="/ui/dev-trace-panel.css?v=8" />
 </head>
@@ -19,11 +25,21 @@
     })();
   </script>
   <main class="login-page">
+    <div class="login-card-shell">
     <section id="screenLogin" class="login-card screen screen-active">
-      <img class="hat-logo hat-logo-side" src="/ui/hat-side.png" alt="" aria-hidden="true" />
-      <h1 class="login-title">Вход в <span>ShlapaBank</span></h1>
+      <aside class="login-card-visual" aria-hidden="true">
+        <div class="login-card-visual__glow"></div>
+      </aside>
+      <div class="login-card-content">
+      <div class="login-heading-row">
+        <span class="login-heading-row__spacer" aria-hidden="true"></span>
+        <h1 class="login-title">
+          <span class="login-title__prefix">Вход в</span>
+          <span class="login-title__brand">ShlapaBank</span>
+        </h1>
+      </div>
 
-      <form id="loginForm" class="login-form">
+      <form id="loginForm" class="login-form" novalidate>
         <label class="sr-only" for="login">Логин</label>
         <div class="input-wrap">
           <span class="input-icon" aria-hidden="true">
@@ -38,9 +54,9 @@
             type="text"
             data-testid="input-login"
             placeholder="Логин"
-            required
             spellcheck="false"
             autocomplete="username"
+            aria-required="true"
           />
         </div>
 
@@ -58,32 +74,50 @@
             type="password"
             data-testid="input-password"
             placeholder="Пароль"
-            required
             spellcheck="false"
             autocomplete="current-password"
+            aria-required="true"
           />
-          <button id="togglePassword" type="button" class="eye-btn" aria-label="Показать пароль">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M3 12C5.6 8.5 8.5 7 12 7C15.5 7 18.4 8.5 21 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-              <path d="M5.5 16.5L7.2 14.8M9.5 18.2L10.4 16M14.5 18.2L13.6 16M18.5 16.5L16.8 14.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          <button
+            id="togglePassword"
+            type="button"
+            class="eye-btn"
+            aria-label="Показать пароль"
+            onclick="window.sbTogglePasswordField('password','togglePassword'); return false;"
+          >
+            <svg class="eye-btn__svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <g class="eye-icon eye-icon--off" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </g>
+              <g class="eye-icon eye-icon--open" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </g>
             </svg>
           </button>
         </div>
 
         <button class="submit-btn" type="submit" data-testid="btn-login">Войти</button>
-        <div id="loginLoader" class="submit-loader" aria-hidden="true"></div>
       </form>
+      <div class="login-loader-slot">
+        <div id="loginLoader" class="submit-loader" aria-hidden="true"></div>
+      </div>
 
       <div class="support-links">
         <p id="loginError" class="login-error" role="status" aria-live="polite" data-testid="login-error"></p>
         <a id="loginHelpLink" class="help-link" href="#">Не можете войти?</a>
         <a id="linkToRegister" class="help-link" href="#" data-testid="link-register">Зарегистрироваться</a>
       </div>
+      </div>
     </section>
 
     <section id="screenRegister" class="login-card screen" aria-hidden="true">
-      <img class="hat-logo hat-logo-side" src="/ui/hat-side.png" alt="" aria-hidden="true" />
-      <div class="register-header">
+      <aside class="login-card-visual" aria-hidden="true">
+        <div class="login-card-visual__glow"></div>
+      </aside>
+      <div class="login-card-content">
+      <div class="login-heading-row">
         <a
           id="linkToLogin"
           class="back-link"
@@ -97,10 +131,13 @@
             </svg>
           </span>
         </a>
-        <h1 class="login-title">Регистрация в <span>ShlapaBank</span></h1>
+        <h1 class="login-title">
+          <span class="login-title__prefix">Регистрация в</span>
+          <span class="login-title__brand">ShlapaBank</span>
+        </h1>
       </div>
 
-      <form id="registerForm" class="login-form">
+      <form id="registerForm" class="login-form" novalidate>
         <label class="sr-only" for="regLogin">Логин</label>
         <div class="input-wrap">
           <span class="input-icon" aria-hidden="true">
@@ -115,9 +152,9 @@
             type="text"
             data-testid="input-reg-login"
             placeholder="Логин"
-            required
             spellcheck="false"
             autocomplete="username"
+            aria-required="true"
           />
         </div>
 
@@ -135,24 +172,41 @@
             type="password"
             data-testid="input-reg-password"
             placeholder="Пароль"
-            required
             spellcheck="false"
             autocomplete="new-password"
+            aria-required="true"
           />
-          <button id="toggleRegPassword" type="button" class="eye-btn" aria-label="Показать пароль">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M3 12C5.6 8.5 8.5 7 12 7C15.5 7 18.4 8.5 21 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-              <path d="M5.5 16.5L7.2 14.8M9.5 18.2L10.4 16M14.5 18.2L13.6 16M18.5 16.5L16.8 14.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          <button
+            id="toggleRegPassword"
+            type="button"
+            class="eye-btn"
+            aria-label="Показать пароль"
+            onclick="window.sbTogglePasswordField('regPassword','toggleRegPassword'); return false;"
+          >
+            <svg class="eye-btn__svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <g class="eye-icon eye-icon--off" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </g>
+              <g class="eye-icon eye-icon--open" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </g>
             </svg>
           </button>
         </div>
         <button class="submit-btn" type="submit" data-testid="btn-register">Зарегистрироваться</button>
       </form>
+      <div class="login-loader-slot" aria-hidden="true"></div>
 
       <div class="support-links">
         <p id="registerError" class="login-error" role="status" aria-live="polite" data-testid="register-error"></p>
+        <span class="support-links__pad" aria-hidden="true"></span>
+        <span class="support-links__pad" aria-hidden="true"></span>
+      </div>
       </div>
     </section>
+    </div>
   </main>
 
   <div id="loginHelpModal" class="help-modal" hidden>
@@ -169,6 +223,17 @@
 
   <script src="/ui/dev-trace-panel.js?v=10"></script>
   <script>
+    /** Видимость пароля: onclick + глобальная функция (надёжно в любом браузере) */
+    window.sbTogglePasswordField = function (inputId, btnId) {
+      var input = document.getElementById(inputId);
+      var btn = document.getElementById(btnId);
+      if (!input || !btn) return;
+      var isPassword = input.type === "password";
+      input.type = isPassword ? "text" : "password";
+      btn.setAttribute("aria-label", isPassword ? "Скрыть пароль" : "Показать пароль");
+      btn.classList.toggle("eye-btn--visible", isPassword);
+    };
+
     const API_BASE = localStorage.getItem("sb_api_base") || "http://localhost:8001/api/v1";
     if (localStorage.getItem("sb_access_token")) {
       window.location.replace("/dashboard");
@@ -176,9 +241,8 @@
     const loginForm = document.getElementById("loginForm");
     const loginInput = document.getElementById("login");
     const passwordInput = document.getElementById("password");
-    const togglePasswordBtn = document.getElementById("togglePassword");
     const loginError = document.getElementById("loginError");
-    const submitButton = loginForm.querySelector(".submit-btn");
+    const submitButton = loginForm ? loginForm.querySelector(".submit-btn") : null;
     const loginLoader = document.getElementById("loginLoader");
     const screenLogin = document.getElementById("screenLogin");
     const screenRegister = document.getElementById("screenRegister");
@@ -192,29 +256,30 @@
     const loginHelpModal = document.getElementById("loginHelpModal");
     const loginHelpClose = document.getElementById("loginHelpClose");
 
+    const setWrapInvalid = (input, invalid) => {
+      if (!input) return;
+      const wrap = input.closest(".input-wrap");
+      if (wrap) wrap.classList.toggle("input-wrap--invalid", !!invalid);
+      if (invalid) input.setAttribute("aria-invalid", "true");
+      else input.removeAttribute("aria-invalid");
+    };
+
+    const clearLoginFieldHighlights = () => {
+      setWrapInvalid(loginInput, false);
+      setWrapInvalid(passwordInput, false);
+    };
+
+    const clearRegisterFieldHighlights = () => {
+      setWrapInvalid(regLoginInput, false);
+      setWrapInvalid(regPasswordInput, false);
+    };
+
     const normalizePlaceholders = () => {
       if (loginInput) loginInput.placeholder = "Логин";
       if (passwordInput) passwordInput.placeholder = "Пароль";
       if (regLoginInput) regLoginInput.placeholder = "Логин";
       if (regPasswordInput) regPasswordInput.placeholder = "Пароль";
     };
-
-    togglePasswordBtn.addEventListener("click", () => {
-      const isPassword = passwordInput.type === "password";
-      passwordInput.type = isPassword ? "text" : "password";
-      togglePasswordBtn.setAttribute("aria-label", isPassword ? "Скрыть пароль" : "Показать пароль");
-      togglePasswordBtn.classList.toggle("eye-btn--visible", isPassword);
-    });
-
-    const toggleRegPasswordBtn = document.getElementById("toggleRegPassword");
-    if (toggleRegPasswordBtn && regPasswordInput) {
-      toggleRegPasswordBtn.addEventListener("click", () => {
-        const isPassword = regPasswordInput.type === "password";
-        regPasswordInput.type = isPassword ? "text" : "password";
-        toggleRegPasswordBtn.setAttribute("aria-label", isPassword ? "Скрыть пароль" : "Показать пароль");
-        toggleRegPasswordBtn.classList.toggle("eye-btn--visible", isPassword);
-      });
-    }
 
     normalizePlaceholders();
 
@@ -342,11 +407,13 @@
 
     loginInput.addEventListener("input", () => {
       stripAllSpacesInput(loginInput);
+      setWrapInvalid(loginInput, false);
       if (loginError) loginError.textContent = "";
     });
     loginInput.addEventListener("keydown", preventSpaceKey);
     passwordInput.addEventListener("input", () => {
       stripAllSpacesInput(passwordInput);
+      setWrapInvalid(passwordInput, false);
       if (loginError) loginError.textContent = "";
     });
     passwordInput.addEventListener("keydown", preventSpaceKey);
@@ -354,6 +421,7 @@
     if (regLoginInput) {
       regLoginInput.addEventListener("input", () => {
         stripAllSpacesInput(regLoginInput);
+        setWrapInvalid(regLoginInput, false);
         registerError.textContent = "";
       });
       regLoginInput.addEventListener("keydown", preventSpaceKey);
@@ -361,6 +429,7 @@
     if (regPasswordInput) {
       regPasswordInput.addEventListener("input", () => {
         stripAllSpacesInput(regPasswordInput);
+        setWrapInvalid(regPasswordInput, false);
         registerError.textContent = "";
       });
       regPasswordInput.addEventListener("keydown", preventSpaceKey);
@@ -372,6 +441,7 @@
       linkToRegister.addEventListener("click", (event) => {
         event.preventDefault();
         loginError.textContent = "";
+        clearLoginFieldHighlights();
         showScreen("register");
         try {
           window.history.pushState(null, "", "/register");
@@ -388,6 +458,7 @@
       linkToLogin.addEventListener("click", (event) => {
         event.preventDefault();
         registerError.textContent = "";
+        clearRegisterFieldHighlights();
         showScreen("login");
         try {
           window.history.pushState(null, "", "/login");
@@ -438,9 +509,24 @@
       });
     }
 
-    loginForm.addEventListener("submit", async (event) => {
+    if (!loginForm || !submitButton) {
+      console.error("ShlapaBank: форма входа не найдена");
+    } else loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       loginError.textContent = "";
+      clearLoginFieldHighlights();
+
+      const loginVal = loginInput.value.trim();
+      const passVal = passwordInput.value;
+      if (!loginVal || !passVal) {
+        setWrapInvalid(loginInput, !loginVal);
+        setWrapInvalid(passwordInput, !passVal);
+        if (!loginVal && !passVal) loginError.textContent = "Введите логин и пароль.";
+        else if (!loginVal) loginError.textContent = "Введите логин.";
+        else loginError.textContent = "Введите пароль.";
+        return;
+      }
+
       submitButton.disabled = true;
       submitButton.textContent = "Входим...";
       setLoaderVisible(loginLoader, true);
@@ -452,8 +538,8 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            login: loginInput.value.trim(),
-            password: passwordInput.value,
+            login: loginVal,
+            password: passVal,
           }),
         });
 
@@ -484,18 +570,38 @@
       registerForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         registerError.textContent = "";
+        clearRegisterFieldHighlights();
 
         const loginValue = regLoginInput.value.trim();
         const passwordValue = regPasswordInput.value;
 
+        if (!loginValue && !passwordValue) {
+          setWrapInvalid(regLoginInput, true);
+          setWrapInvalid(regPasswordInput, true);
+          registerError.textContent = "Введите логин и пароль.";
+          return;
+        }
+        if (!loginValue) {
+          setWrapInvalid(regLoginInput, true);
+          registerError.textContent = "Введите логин.";
+          return;
+        }
+        if (!passwordValue) {
+          setWrapInvalid(regPasswordInput, true);
+          registerError.textContent = "Введите пароль.";
+          return;
+        }
+
         const loginValidationError = validateRegisterLogin(loginValue);
         if (loginValidationError) {
+          setWrapInvalid(regLoginInput, true);
           registerError.textContent = loginValidationError;
           return;
         }
 
         const passwordValidationError = validateRegisterPassword(passwordValue, loginValue);
         if (passwordValidationError) {
+          setWrapInvalid(regPasswordInput, true);
           registerError.textContent = passwordValidationError;
           return;
         }

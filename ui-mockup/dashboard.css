@@ -1,18 +1,25 @@
 :root {
-  --bg: #ececef;
+  --font-sans: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --bg: #e0f2f1;
   --surface: #ffffff;
-  --surface-soft: #f3f3f6;
-  --line: #d0d0d4;
-  --text: #24252b;
-  --muted: #8f9098;
-  --primary: #12141c;
-  --accent: #1a1d27;
-  --btn-start: #12141c;
-  --btn-end: #1a1d27;
-  --ok-bg: #dff3e6;
-  --ok-text: #1b6a3a;
-  --warn-bg: #fff1e1;
-  --warn-text: #8f5714;
+  --surface-soft: #f0fdfa;
+  --line: rgba(15, 23, 42, 0.1);
+  --line-strong: rgba(15, 23, 42, 0.14);
+  --text: #0f1729;
+  --muted: #64748b;
+  --primary: #1e3a5f;
+  --accent: #0d9488;
+  --btn-start: #1e3a5f;
+  --btn-mid: #134e4a;
+  --btn-end: #0d9488;
+  --input-border: rgba(15, 23, 42, 0.12);
+  --topnav-pill-bg: rgba(13, 148, 136, 0.12);
+  --topnav-pill-text: #2f4f5c;
+  --ok-bg: #ccfbf1;
+  --ok-text: #0f766e;
+  --warn-bg: #fff7ed;
+  --warn-text: #9a3412;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * {
@@ -22,15 +29,23 @@
 html {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
 }
 
 body {
   margin: 0;
-  font-family: "Segoe UI", Arial, sans-serif;
+  font-family: var(--font-sans);
   color: var(--text);
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse 85% 65% at 15% 8%, rgba(45, 212, 191, 0.32), transparent 52%),
+    radial-gradient(ellipse 75% 55% at 88% 15%, rgba(129, 140, 248, 0.22), transparent 48%),
+    radial-gradient(ellipse 100% 70% at 50% 95%, rgba(56, 189, 248, 0.16), transparent 55%),
+    linear-gradient(168deg, #ecfdf5 0%, #e0f2fe 38%, #ede9fe 72%, #f0fdfa 100%);
+  background-attachment: fixed;
   overflow-x: hidden;
   min-height: 100%;
+  -webkit-font-smoothing: antialiased;
 }
 
 .dashboard-page {
@@ -44,10 +59,12 @@ body {
   position: relative;
   max-width: 1240px;
   margin: 0 auto;
-  border: 1px solid var(--line);
-  border-radius: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: clamp(16px, 2.5vw, 24px);
   background: var(--surface);
-  box-shadow: 0 14px 30px rgba(21, 34, 66, 0.09);
+  box-shadow:
+    0 22px 50px rgba(15, 23, 42, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.55) inset;
   padding: 16px;
   display: grid;
   gap: 14px;
@@ -81,6 +98,11 @@ body {
 .topbar-bank-name {
   font-weight: 700;
   font-size: 18px;
+  letter-spacing: -0.02em;
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .topnav {
@@ -94,16 +116,38 @@ body {
   border: none;
   border-radius: 999px;
   padding: 8px 18px;
-  background: #e3e3ea;
-  color: #3b3c46;
+  background: var(--topnav-pill-bg);
+  color: var(--topnav-pill-text);
   font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
   cursor: pointer;
-  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  transition:
+    background-color 0.15s var(--ease-out),
+    transform 0.1s var(--ease-out),
+    box-shadow 0.15s var(--ease-out),
+    color 0.15s var(--ease-out);
 }
 
 .topnav-tab-active {
-  background: var(--primary);
+  background: linear-gradient(
+    118deg,
+    var(--btn-start) 0%,
+    var(--btn-mid) 46%,
+    var(--btn-end) 82%,
+    #14b8a6 100%
+  );
   color: #fff;
+  box-shadow:
+    0 4px 16px rgba(13, 148, 136, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.topnav-tab:not(.topnav-tab-active):hover {
+  background: rgba(13, 148, 136, 0.2);
+  color: var(--primary);
 }
 
 .muted {
@@ -140,8 +184,8 @@ body {
 }
 
 .notifications-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--text);
+  background: rgba(13, 148, 136, 0.12);
+  color: var(--accent);
 }
 
 .icon-envelope {
@@ -171,10 +215,10 @@ body {
   right: 12px;
   width: 280px;
   max-height: 240px;
-  background: #1a1c24;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(165deg, #152a45 0%, var(--primary) 50%, #0c2d3d 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.35);
   z-index: 100;
   overflow: hidden;
 }
@@ -186,7 +230,7 @@ body {
   font-size: 14px;
   font-weight: 600;
   color: #fff;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .notifications-list {
@@ -234,9 +278,13 @@ body {
   border-radius: 10px;
   height: 38px;
   padding: 0 14px;
-  background: linear-gradient(120deg, var(--btn-start), var(--btn-end), #11131a);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  background: linear-gradient(120deg, var(--btn-start), var(--btn-mid), var(--btn-end));
   color: #fff;
   cursor: pointer;
+  transition: box-shadow 0.15s var(--ease-out), transform 0.1s var(--ease-out);
 }
 
 #logoutBtn {
@@ -253,25 +301,39 @@ body {
 }
 
 .btn.light {
-  background: transparent;
-  border: 1px solid #c7c7cc;
-  color: #303038;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--input-border);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.btn.light:hover {
+  background: rgba(13, 148, 136, 0.1);
+  border-color: rgba(13, 148, 136, 0.35);
+  color: var(--accent);
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.12);
+  transform: translateY(-1px);
+}
+
+.btn.light:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .btn:hover {
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 26px rgba(13, 148, 136, 0.35);
   transform: translateY(-1px);
 }
 
 .btn:active {
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
   transform: translateY(0);
 }
 
 .balance-shelf {
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: 16px;
-  background: radial-gradient(circle at top left, #fff7ec 0, #f3f3f6 55%, #ececef 100%);
+  background: radial-gradient(circle at top left, rgba(240, 253, 250, 0.98) 0, #f0fdfa 50%, #ecfdf5 100%);
   padding: 14px;
   display: flex;
   justify-content: space-between;
@@ -320,11 +382,12 @@ body {
 
 .balance-chip {
   background: #fff;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: 999px;
   padding: 7px 12px;
   font-size: 13px;
-  color: #38415b;
+  font-weight: 600;
+  color: var(--primary);
 }
 
 .grid-two {
@@ -334,9 +397,9 @@ body {
 }
 
 .panel {
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: 16px;
-  background: radial-gradient(circle at top left, #f7f7fa 0, #ffffff 45%, #f1f1f4 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #fafefe 48%, #f0fdfa 100%);
   padding: 14px;
 }
 
@@ -367,10 +430,11 @@ body {
 
 .pill {
   border-radius: 999px;
-  background: #edf1fb;
-  color: #3f4c72;
+  background: rgba(13, 148, 136, 0.14);
+  color: var(--primary);
   padding: 5px 10px;
   font-size: 12px;
+  font-weight: 600;
 }
 
 .pill.green {
@@ -397,11 +461,10 @@ body {
 }
 
 .accounts-list {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 10px;
-  max-height: 220px;
-  overflow: auto;
 }
 
 .account-item {
@@ -425,8 +488,8 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 12px;
-  background: #e0e0e7;
-  color: #24252b;
+  background: rgba(13, 148, 136, 0.18);
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -468,9 +531,11 @@ body {
   height: 30px;
   padding: 0 10px;
   font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
   cursor: pointer;
-  background: #e0e0e7;
-  color: #303038;
+  background: rgba(13, 148, 136, 0.12);
+  color: var(--primary);
   transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 
@@ -535,11 +600,12 @@ body {
 select,
 input {
   height: 38px;
-  border: 1px solid #d5ddeb;
+  border: 1px solid var(--input-border);
   border-radius: 9px;
   background: #fff;
   padding: 0 10px;
   font-family: inherit;
+  color: var(--text);
 }
 
 /* Маска телефона — более прозрачный placeholder везде */
@@ -548,13 +614,25 @@ input[inputmode="tel"]::placeholder {
   opacity: 0.45;
 }
 
+/* Без стрелок stepper у числовых полей (Chrome / Safari / Edge) */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .rules-box {
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: 12px;
-  background: #f2f2f5;
+  background: var(--surface-soft);
   padding: 10px;
   font-size: 13px;
-  color: #3c4766;
+  color: var(--text);
   margin-bottom: 8px;
 }
 
@@ -587,12 +665,12 @@ input[inputmode="tel"]::placeholder {
   gap: 8px;
   padding: 9px 12px;
   border-radius: 10px;
-  background: #f2f2f5;
+  background: rgba(13, 148, 136, 0.06);
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s var(--ease-out);
 }
 .recent-item:hover {
-  background: #e8e8ed;
+  background: rgba(13, 148, 136, 0.12);
 }
 
 .recent-main {
@@ -622,9 +700,9 @@ input[inputmode="tel"]::placeholder {
   border-radius: 999px;
   padding: 4px 10px;
   font-size: 11px;
-  border: 1px solid var(--line);
-  background: #f5f5fa;
-  color: #3c4766;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-soft);
+  color: var(--primary);
   cursor: pointer;
   white-space: nowrap;
   transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease,
@@ -709,7 +787,7 @@ input[inputmode="tel"]::placeholder {
 }
 
 .recent-amount-pos {
-  color: #1b6a3a;
+  color: var(--ok-text);
 }
 
 .recent-amount-neg {
@@ -750,23 +828,39 @@ input[inputmode="tel"]::placeholder {
   padding: 0 18px;
   font-size: 13px;
   line-height: 1.2;
-  background: #e2e2e9;
-  border: 1px solid #d0d0d7;
+  font-family: inherit;
+  font-weight: 600;
+  background: rgba(13, 148, 136, 0.1);
+  border: 1px solid var(--line-strong);
   border-radius: 10px;
-  color: #303038;
+  color: var(--topnav-pill-text);
   cursor: pointer;
   box-sizing: border-box;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
 }
 
 .payments-category-btn:hover {
-  background: #d5d5dc;
+  background: rgba(13, 148, 136, 0.16);
 }
 
 .payments-category-btn.payments-category-active {
-  background: var(--primary);
-  border-color: var(--primary);
+  /* Светлая обводка вместо transparent — иначе на краю градиента видна тёмная «лесенка» */
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: linear-gradient(
+    118deg,
+    var(--btn-start) 0%,
+    var(--btn-mid) 46%,
+    var(--btn-end) 78%,
+    #14b8a6 100%
+  );
+  -webkit-background-clip: padding-box;
+  background-clip: padding-box;
   color: #fff;
+  box-shadow:
+    0 4px 14px rgba(13, 148, 136, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .payments-view {
@@ -793,15 +887,29 @@ input[inputmode="tel"]::placeholder {
   border-radius: 9px;
   height: 32px;
   padding: 0 12px;
-  background: #edf1f8;
-  color: #44506f;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 12px;
+  background: rgba(13, 148, 136, 0.12);
+  color: var(--primary);
   cursor: pointer;
-  transition: background-color 0.15s ease, transform 0.1s ease;
+  transition: background-color 0.15s var(--ease-out), transform 0.1s var(--ease-out);
 }
 
 .op-tab.active {
-  background: var(--primary);
+  background: linear-gradient(
+    118deg,
+    var(--btn-start) 0%,
+    var(--btn-mid) 46%,
+    var(--btn-end) 82%,
+    #14b8a6 100%
+  );
   color: #fff;
+  box-shadow:
+    0 3px 10px rgba(13, 148, 136, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .op-view {
@@ -823,10 +931,17 @@ input[inputmode="tel"]::placeholder {
   display: grid;
   grid-template-columns: 1fr;
   align-content: start;
-  gap: 4px;
+  gap: 6px;
   font-size: 12px;
-  color: var(--muted);
   min-width: 0;
+}
+
+.form-row label > span:first-of-type {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--primary);
+  letter-spacing: 0.01em;
+  opacity: 0.9;
 }
 
 .form-row label > span,
@@ -850,23 +965,85 @@ input[inputmode="tel"]::placeholder {
   display: block;
 }
 
-/* Сообщения валидации под полем — красные, единообразно для всех форм (мобильная связь, ЖКХ, интернет и т.д.). min-height — чтобы поля не сдвигались при появлении текста */
-.form-row label .field-error-text {
-  color: #c62828;
-  font-size: 0.9em;
-  margin-top: 2px;
-  min-height: 1.25em;
-}
-
-.form-row label .payments-limit-hint,
-.form-row label .payments-format-hint {
+/* Подсказки по формату и лимитам — заметные info-блоки в палитре темы */
+.form-row label .payments-format-hint,
+.form-row label .payments-limit-hint {
+  margin: 0;
+  padding: 8px 11px 8px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  font-weight: 500;
   white-space: pre-line;
 }
 
-/* Подсказка по формату лицевого счёта — нейтральный цвет, не красный */
 .form-row label .payments-format-hint {
-  color: var(--muted, #666);
-  font-size: 0.9em;
+  border: 1px solid rgba(30, 58, 95, 0.14);
+  border-left: 3px solid rgba(30, 58, 95, 0.42);
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.72));
+  color: var(--primary);
+}
+
+.form-row label .payments-limit-hint {
+  border: 1px solid rgba(13, 148, 136, 0.22);
+  border-left: 3px solid var(--accent);
+  background: linear-gradient(180deg, rgba(240, 253, 250, 0.95), rgba(236, 253, 245, 0.78));
+  color: var(--primary);
+}
+
+.form-row label .payments-limit-hint.limit-hint-accent {
+  font-weight: 600;
+  border-left-width: 4px;
+}
+
+.form-row label.has-error .payments-limit-hint {
+  border-color: rgba(220, 38, 38, 0.28);
+  border-left-color: #dc2626;
+  background: linear-gradient(180deg, #fff5f5, #fef2f2);
+  color: #7f1d1d;
+  font-weight: 600;
+}
+
+.form-row label .field-error-text:empty {
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+.form-row label .field-error-text:not(:empty) {
+  margin: 0;
+  padding: 8px 11px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: #991b1b;
+  background: linear-gradient(180deg, #fff5f5, #fef2f2);
+  border: 1px solid rgba(220, 38, 38, 0.22);
+}
+
+.form-row label.has-error input,
+.form-row label.has-error select {
+  border-color: rgba(220, 38, 38, 0.48);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12);
+}
+
+/* Без чёрного UA-outline: фокус в палитре темы; при ошибке — тот же красный, чуть ярче (не «две рамки») */
+.form-row label input:focus,
+.form-row label select:focus {
+  outline: none;
+}
+
+.form-row label:not(.has-error) input:focus,
+.form-row label:not(.has-error) select:focus {
+  border-color: rgba(13, 148, 136, 0.55);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+}
+
+.form-row label.has-error input:focus,
+.form-row label.has-error select:focus {
+  border-color: rgba(220, 38, 38, 0.72);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.16);
 }
 
 #mobileForm.form-row,
@@ -899,13 +1076,13 @@ td {
   font-size: 12px;
   text-align: left;
   padding: 8px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--line);
 }
 
 th {
   color: var(--muted);
   font-weight: 600;
-  background: #f2f2f5;
+  background: var(--surface-soft);
 }
 
 tbody tr:last-child td {
@@ -928,7 +1105,7 @@ tbody tr:last-child td {
   width: 1px;
   align-self: stretch;
   min-height: 120px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--line);
   flex-shrink: 0;
 }
 
@@ -941,8 +1118,8 @@ tbody tr:last-child td {
 }
 
 .panel-debug {
-  border-color: rgba(0, 0, 0, 0.08);
-  background: #fafafa;
+  border-color: var(--line-strong);
+  background: var(--surface-soft);
 }
 
 .panel-debug .panel-head h3 {
@@ -1051,7 +1228,7 @@ tbody tr:last-child td {
 }
 
 .profile-form .eye-btn.eye-btn--visible {
-  color: #000;
+  color: var(--accent);
 }
 
 .modal-form-single .password-wrap {
@@ -1082,7 +1259,7 @@ tbody tr:last-child td {
 }
 
 .modal-form-single .eye-btn.eye-btn--visible {
-  color: #000;
+  color: var(--accent);
 }
 
 /* Уведомление строго сверху под шапкой, не перекрывая навтабы */
@@ -1147,12 +1324,36 @@ tbody tr:last-child td {
 .modal {
   width: min(420px, calc(100vw - 32px));
   max-width: 100%;
-  background: #fff;
-  border-radius: 16px;
-  padding: 18px 20px 14px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
+  background: linear-gradient(180deg, #ffffff 0%, #fafefe 55%, #f4fdfa 100%);
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  padding: 20px 22px 16px;
+  box-shadow:
+    0 24px 52px rgba(15, 23, 42, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset;
   flex-shrink: 0;
   margin: 0 auto;
+}
+
+/* Тестовое окно по клику на шляпу — заголовок в фирменных цветах */
+.modal--cheat .modal-title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-size: 19px;
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.modal--cheat .modal-text {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.modal--cheat .modal-actions {
+  margin-top: 4px;
+  gap: 10px;
 }
 
 .modal--wide {
@@ -1214,10 +1415,23 @@ tbody tr:last-child td {
   margin-top: 4px;
 }
 
-/* Только текст лимитов (мин/макс сумма) — красный, без фона. Подсказка по формату счёта — в .payments-format-hint (серый). */
-.payments-limit-hint,
-.limit-hint-accent {
-  color: #b71c1c;
+/* В модалках — отдельный визуальный блок под полями, не сливается с красным текстом ошибки */
+.modal-form-grid .limit-progress-row {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(240, 253, 250, 0.9), rgba(248, 250, 252, 0.95));
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  border-radius: 10px;
+  border-left: 3px solid var(--accent);
+  gap: 8px;
+}
+
+.modal-form-grid .limit-progress-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary);
+  line-height: 1.45;
+  opacity: 0.92;
 }
 
 .limit-progress-label {
@@ -1238,7 +1452,7 @@ tbody tr:last-child td {
   width: 0;
   min-width: 0;
   border-radius: inherit;
-  background: linear-gradient(90deg, #2e7d5a, #39a96a);
+  background: linear-gradient(90deg, var(--btn-mid), var(--accent));
   transition: width 0.3s ease, background 0.25s ease;
 }
 
@@ -1253,8 +1467,8 @@ tbody tr:last-child td {
 .exchange-rate-block {
   margin-top: 10px;
   padding: 12px 14px;
-  background: linear-gradient(135deg, #f0f4fa 0, #e8ecf4 100%);
-  border: 1px solid #d5ddeb;
+  background: linear-gradient(135deg, #f0fdfa 0, #e6fffa 100%);
+  border: 1px solid rgba(13, 148, 136, 0.22);
   border-radius: 10px;
   font-size: 13px;
 }
@@ -1267,8 +1481,8 @@ tbody tr:last-child td {
 .exchange-rates-block {
   padding: 10px 12px;
   min-height: auto;
-  background: linear-gradient(135deg, #f5f8fc 0, #eef2f8 100%);
-  border: 1px solid #d8dde8;
+  background: linear-gradient(135deg, #f8fffe 0%, #ecfdf5 100%);
+  border: 1px solid rgba(13, 148, 136, 0.2);
   border-radius: 8px;
   font-size: 13px;
 }
@@ -1331,7 +1545,7 @@ tbody tr:last-child td {
 .modal-form-single label input {
   height: 34px;
   padding: 0 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   font-size: 14px;
 }
@@ -1358,9 +1572,9 @@ tbody tr:last-child td {
   overflow-y: auto;
   padding: 10px 0;
   margin-bottom: 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: 10px;
-  background: radial-gradient(ellipse 120% 100% at 25% 10%, #e8ecf4 0, #dce0ec 25%, #f0f3fa 55%, #e4e8f0 100%);
+  background: linear-gradient(180deg, #f0fdfa 0%, #ecfdf5 40%, #ffffff 100%);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1376,32 +1590,33 @@ tbody tr:last-child td {
 .chat-option-btn {
   padding: 8px 14px;
   font-size: 13px;
+  font-family: inherit;
   border-radius: 10px;
-  border: 1px solid #d0d0d7;
+  border: 1px solid var(--input-border);
   background: #fff;
-  color: #303038;
+  color: var(--text);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
   max-width: 100%;
   text-align: center;
   white-space: normal;
 }
 
 .chat-option-btn:hover {
-  background: #f0f0f4;
-  border-color: #b0b0b8;
+  background: var(--surface-soft);
+  border-color: rgba(13, 148, 136, 0.35);
 }
 
 .chat-option-btn-back {
-  background: linear-gradient(135deg, #f5f5f9, #e8e8f0);
-  border: 1px solid #12141c;
-  color: #12141c;
+  background: linear-gradient(135deg, rgba(240, 253, 250, 0.9), #e0f2fe);
+  border: 1px solid var(--primary);
+  color: var(--primary);
   font-weight: 600;
 }
 
 .chat-option-btn-back:hover {
-  background: linear-gradient(135deg, #e8e8f0, #d8d8e4);
-  border-color: #12141c;
+  background: linear-gradient(135deg, #e6fffa, #dbeafe);
+  border-color: var(--accent);
 }
 
 .chat-msg {
@@ -1415,7 +1630,7 @@ tbody tr:last-child td {
 
 .chat-msg.user {
   align-self: flex-end;
-  background: linear-gradient(135deg, #1a1d24, #2d3239);
+  background: linear-gradient(135deg, var(--btn-start), var(--btn-mid), var(--accent));
   color: #fff;
   border-bottom-right-radius: 4px;
 }
@@ -1423,8 +1638,8 @@ tbody tr:last-child td {
 .chat-msg.bot {
   align-self: flex-start;
   background: #fff;
-  border: 1px solid #e0e0e0;
-  color: #333;
+  border: 1px solid var(--line-strong);
+  color: var(--text);
   border-bottom-left-radius: 4px;
   white-space: pre-line;
 }
@@ -1580,8 +1795,8 @@ tbody tr:last-child td {
 
 .modal-form-grid label {
   display: grid;
-  /* Фиксированные строки: подпись, поле, блок ошибки — тогда поля в одной строке выровнены и «Сумма» не сдвигается */
-  grid-template-rows: 1.4em 38px 2.25em;
+  /* Третья строка растёт под многострочные ошибки — иначе текст наезжает на блок лимита ниже */
+  grid-template-rows: 1.4em 38px minmax(2.25em, auto);
   gap: 4px;
   font-size: 12px;
   color: var(--muted);
@@ -1593,9 +1808,40 @@ tbody tr:last-child td {
   height: 38px;
   box-sizing: border-box;
   padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
   font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: #fff;
+  transition:
+    border-color 0.15s var(--ease-out),
+    box-shadow 0.15s var(--ease-out);
+}
+
+.modal-form-grid label > input,
+.modal-form-grid label > select {
+  width: 100%;
+  min-width: 0;
+}
+
+.modal-form-grid input:focus {
+  outline: none;
+  border-color: rgba(13, 148, 136, 0.55);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.14);
+}
+
+/* У select второе «кольцо» часто даёт нативная отрисовка + box-shadow — оставляем один акцент */
+.modal-form-grid select:focus {
+  outline: none;
+  border-color: rgba(13, 148, 136, 0.62);
+  box-shadow: none;
+}
+
+.modal-form-grid label > span {
+  font-weight: 600;
+  color: var(--primary);
+  letter-spacing: 0.01em;
 }
 
 .modal-form-grid .field-hint {
@@ -1615,18 +1861,54 @@ tbody tr:last-child td {
   color: var(--text);
 }
 
-/* Ошибки валидации в модалках — красные (label задаёт серый, переопределяем), высота зарезервирована в grid */
+/* Ошибки в модалках — тот же визуальный язык, что у платежных форм; пустой слот без «коробки» */
 .modal-form-grid label .field-error-text,
 .modal label .field-error-text {
-  color: #c62828;
-  font-size: 0.9em;
   margin-top: 0;
   min-height: 2.25em;
-  line-height: 1.25;
+  line-height: 1.35;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+.modal-form-grid label .field-error-text:not(:empty),
+.modal label .field-error-text:not(:empty) {
+  min-height: unset;
+  display: block;
+  overflow: visible;
+  margin-top: 6px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #991b1b;
+  background: linear-gradient(180deg, #fff5f5, #fef2f2);
+  border: 1px solid rgba(220, 38, 38, 0.22);
+}
+
+/* Подсказка лимита в span ошибки (модалки) — не путать с валидацией */
+.modal-form-grid label .field-error-text.field-hint-neutral:not(:empty),
+.modal label .field-error-text.field-hint-neutral:not(:empty) {
+  color: var(--primary);
+  font-weight: 500;
+  background: linear-gradient(180deg, rgba(240, 253, 250, 0.95), rgba(236, 253, 245, 0.78));
+  border: 1px solid rgba(13, 148, 136, 0.22);
+  border-left: 3px solid var(--accent);
+}
+
+.modal-form-grid label.has-error input,
+.modal-form-grid label.has-error select {
+  border-color: rgba(220, 38, 38, 0.5);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.modal-form-grid label.has-error input:focus,
+.modal-form-grid label.has-error select:focus {
+  border-color: rgba(220, 38, 38, 0.58);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
 }
 
 /* Номер счёта: маска по 4 цифры, читаемо как на карте */
@@ -1651,12 +1933,14 @@ tbody tr:last-child td {
   right: 0;
   bottom: 0;
   padding: 8px 18px calc(8px + env(safe-area-inset-bottom));
-  background: #ffffff;
-  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line-strong);
   display: flex;
   justify-content: space-around;
   gap: 8px;
-  box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 -6px 22px rgba(15, 23, 42, 0.08);
   z-index: 10;
 }
 
@@ -1667,12 +1951,14 @@ tbody tr:last-child td {
   border-radius: 999px;
   color: var(--muted);
   font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  transition: background-color 0.15s var(--ease-out), transform 0.1s var(--ease-out), box-shadow 0.15s var(--ease-out);
 }
 
 .nav-item-active {
-  background: #e0e0e7;
+  background: rgba(13, 148, 136, 0.18);
   color: var(--primary);
 }
 
@@ -1838,9 +2124,11 @@ tbody tr:last-child td {
     align-items: center;
     gap: 0;
     padding: 6px 6px max(6px, env(safe-area-inset-bottom));
-    background: var(--surface);
-    border-top: 1px solid var(--line);
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line-strong);
+    box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.07);
     z-index: 15;
   }
 
@@ -1859,9 +2147,18 @@ tbody tr:last-child td {
   }
 
   .topnav-tab-active {
-    background: #000;
+    background: linear-gradient(
+      118deg,
+      var(--btn-start) 0%,
+      var(--btn-mid) 46%,
+      var(--btn-end) 82%,
+      #14b8a6 100%
+    );
     color: #fff;
     font-weight: 600;
+    box-shadow:
+      0 2px 12px rgba(13, 148, 136, 0.3),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.22);
   }
 
   .topbar-actions {

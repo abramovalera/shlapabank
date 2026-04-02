@@ -810,6 +810,8 @@ function updateAmountHint(inputId, config, options) {
   if (showToastOnError && isError && hintText) showToast(hintText, true);
   hintEl.textContent = showToastOnError && isError ? "" : hintText;
   hintEl.classList.toggle("limit-hint-accent", !isError && /Минимальная сумма|Максимальная сумма/.test(hintText));
+  /* В модалках текст в .field-error-text без isError не должен выглядеть как красная ошибка */
+  hintEl.classList.toggle("field-hint-neutral", Boolean(hintEl.textContent) && !isError);
   if (label) label.classList.toggle("has-error", isError);
   return !isError;
 }
@@ -829,7 +831,7 @@ function validateAmountField(inputId, config, options = {}) {
 }
 
 function validateVendorAccountNumber(options = {}) {
-  const { showEmptyError = false, showToast = true } = options || {};
+  const { showEmptyError = false, showToast = true, focusOnError = true } = options || {};
   const errOpts = { showToast };
   const inputId = "vendorAccountNumber";
   const input = qs(inputId);
@@ -840,7 +842,7 @@ function validateVendorAccountNumber(options = {}) {
   if (!value) {
     if (showEmptyError) {
       setAmountError(inputId, VALIDATION_MESSAGES.personalAccountEmpty, errOpts);
-      input.focus();
+      if (focusOnError) input.focus();
       return false;
     }
     setAmountError(inputId, "", errOpts);
@@ -851,15 +853,22 @@ function validateVendorAccountNumber(options = {}) {
   const rule = PROVIDER_PREFIX_RULES[provider];
   if (rule && rule.prefix && !value.startsWith(rule.prefix)) {
     setAmountError(inputId, VALIDATION_MESSAGES.personalAccount, errOpts);
-    input.focus();
+    if (focusOnError) input.focus();
     return false;
   }
 
   const opt = providerSelect.options[providerSelect.selectedIndex];
   const expectedLen = opt && opt.dataset.accountLength ? parseInt(opt.dataset.accountLength, 10) : 0;
   if (expectedLen > 0 && value.length !== expectedLen) {
+    /* Во время ввода / смены поставщика не дёргаем ошибку; при отправке (showEmptyError) — обязательно показываем. */
+    const incompleteButPrefixOk =
+      value.length < expectedLen && (!rule || !rule.prefix || value.startsWith(rule.prefix));
+    if (incompleteButPrefixOk && !showEmptyError) {
+      setAmountError(inputId, "", errOpts);
+      return false;
+    }
     setAmountError(inputId, VALIDATION_MESSAGES.personalAccount, errOpts);
-    input.focus();
+    if (focusOnError) input.focus();
     return false;
   }
 
@@ -1708,14 +1717,17 @@ async function downloadReceipt(tx) {
 <head>
   <meta charset="UTF-8" />
   <title>Чек операции №${tx.id}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    body { font-family: "Segoe UI", Arial, sans-serif; padding: 24px; max-width: 400px; margin: 0 auto; }
-    h1 { font-size: 18px; margin: 0 0 20px; }
+    body { font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif; padding: 24px; max-width: 400px; margin: 0 auto; color: #0f1729; }
+    h1 { font-size: 18px; margin: 0 0 20px; color: #1e3a5f; }
     .row { margin-bottom: 12px; }
-    .label { font-size: 12px; color: #666; }
+    .label { font-size: 12px; color: #64748b; }
     .value { font-size: 15px; font-weight: 500; }
-    .amount { font-size: 20px; font-weight: 600; margin-top: 16px; }
-    .footer { margin-top: 24px; font-size: 11px; color: #888; }
+    .amount { font-size: 20px; font-weight: 600; margin-top: 16px; color: #0f766e; }
+    .footer { margin-top: 24px; font-size: 11px; color: #64748b; }
   </style>
 </head>
 <body>
@@ -2216,8 +2228,7 @@ function wireActions() {
       const value = Number(raw);
       if (Number.isFinite(value) && value > maxAmount) {
         homeByAccountAmountInput.value = String(maxAmount);
-        const unit = getUnitForAmountField("homeByAccountAmount");
-        showToast(`Максимальная сумма перевода — ${formatAmountLimit(maxAmount)} ${unit}. Введённая сумма ограничена.`, true);
+        /* Текст под полем через updateAmountHint — без дублирующего toast */
         updateAmountHint("homeByAccountAmount", amountConfigs.homeByAccountAmount, getAmountHintOpts("homeByAccountAmount"));
       }
     });
@@ -2232,8 +2243,6 @@ function wireActions() {
       const value = Number(raw);
       if (Number.isFinite(value) && value > maxAmount) {
         homeByPhoneAmountInput.value = String(maxAmount);
-        const unit = getUnitForAmountField("homeByPhoneAmount");
-        showToast(`Максимальная сумма перевода — ${formatAmountLimit(maxAmount)} ${unit}. Введённая сумма ограничена.`, true);
         updateAmountHint("homeByPhoneAmount", amountConfigs.homeByPhoneAmount, getAmountHintOpts("homeByPhoneAmount"));
       }
     });
@@ -2510,7 +2519,8 @@ function wireActions() {
       const prefixRule = providerName ? PROVIDER_PREFIX_RULES[providerName] : null;
       vendorAccountNumberInput.value = prefixRule && prefixRule.prefix ? prefixRule.prefix : "";
       setAmountError("vendorAccountNumber", "");
-      validateVendorAccountNumber();
+      /* Не toast и не увод фокуса с селекта: после смены поставщика часто только префикс — это ещё не ошибка. */
+      validateVendorAccountNumber({ showToast: false, focusOnError: false });
       updateVendorHintFromProvider(state.currentPaymentCategory || "internet");
     });
   }
@@ -2663,12 +2673,19 @@ function wireActions() {
       const phone = getRawPhone(qs("mobilePhone").value);
       const amountRaw = qs("mobileAmount").value;
       const amount = Number(amountRaw);
+      let ok = true;
       if (!phone || !/^\+7\d{10}$/.test(phone)) {
         setAmountError("mobilePhone", VALIDATION_MESSAGES.phone, { showToast: false });
-        return;
+        ok = false;
+      } else {
+        setAmountError("mobilePhone", "", { showToast: false });
       }
-      setAmountError("mobilePhone", "", { showToast: false });
       if (!validateAmountField("mobileAmount", amountConfigs.mobileAmount, { showEmptyError: true })) {
+        ok = false;
+      }
+      if (!ok) {
+        if (!phone || !/^\+7\d{10}$/.test(phone)) qs("mobilePhone")?.focus();
+        else qs("mobileAmount")?.focus();
         return;
       }
       openOtpModal({
@@ -2695,15 +2712,18 @@ function wireActions() {
       const amount = Number(amountRaw);
       const inlineOnly = { showToast: false };
       const vendorAccountInput = qs("vendorAccountNumber");
+      let ok = true;
       if (!accountNumber) {
         setAmountError("vendorAccountNumber", VALIDATION_MESSAGES.personalAccountEmpty, inlineOnly);
-        vendorAccountInput?.focus();
-        return;
-      }
-      if (!validateVendorAccountNumber({ showEmptyError: true, showToast: false })) {
-        return;
+        ok = false;
+      } else if (!validateVendorAccountNumber({ showEmptyError: true, showToast: false })) {
+        ok = false;
       }
       if (!validateAmountField("vendorAmount", amountConfigs.vendorAmount, { showEmptyError: true })) {
+        ok = false;
+      }
+      if (!ok) {
+        if (!accountNumber) vendorAccountInput?.focus();
         return;
       }
       const category = state.currentPaymentCategory || "internet";
@@ -2837,15 +2857,20 @@ function wireActions() {
       const accountNumberEl = qs("homeByAccountNumber");
       const accountNumberDigits = accountNumberEl ? getAccountNumberDigits(accountNumberEl.value) : "";
       const len = accountNumberDigits.length;
+      let ok = true;
       if (len !== ACCOUNT_NUMBER_LENGTH) {
         setAmountError("homeByAccountNumber", VALIDATION_MESSAGES.accountNumber, { showToast: false });
-        accountNumberEl?.focus();
-        return;
+        ok = false;
+      } else {
+        setAmountError("homeByAccountNumber", "", { showToast: false });
       }
-      setAmountError("homeByAccountNumber", "", { showToast: false });
       if (
         !validateAmountField("homeByAccountAmount", amountConfigs.homeByAccountAmount, { showEmptyError: true })
       ) {
+        ok = false;
+      }
+      if (!ok) {
+        if (len !== ACCOUNT_NUMBER_LENGTH) accountNumberEl?.focus();
         return;
       }
       const payload = {
@@ -2907,24 +2932,31 @@ function wireActions() {
       event.preventDefault();
       const phoneInput = qs("homeByPhoneNumber");
       const rawPhone = phoneInput ? getRawPhone(phoneInput.value) : "";
-      if (!rawPhone || !/^\+7\d{10}$/.test(rawPhone)) {
-        setAmountError("homeByPhoneNumber", VALIDATION_MESSAGES.phone, { showToast: false });
-        return;
-      }
-      setAmountError("homeByPhoneNumber", "", { showToast: false });
       const bankSelect = qs("homeByPhoneBank");
       const recipientBankId = bankSelect ? bankSelect.value : "";
+      let ok = true;
+      if (!rawPhone || !/^\+7\d{10}$/.test(rawPhone)) {
+        setAmountError("homeByPhoneNumber", VALIDATION_MESSAGES.phone, { showToast: false });
+        ok = false;
+      } else {
+        setAmountError("homeByPhoneNumber", "", { showToast: false });
+      }
       if (!recipientBankId) {
         setAmountError("homeByPhoneBank", VALIDATION_MESSAGES.bank, { showToast: false });
-        bankSelect?.focus();
-        return;
+        ok = false;
+      } else {
+        setAmountError("homeByPhoneBank", "", { showToast: false });
       }
-      setAmountError("homeByPhoneBank", "", { showToast: false });
       if (
         !validateAmountField("homeByPhoneAmount", amountConfigs.homeByPhoneAmount, {
           showEmptyError: true,
         })
       ) {
+        ok = false;
+      }
+      if (!ok) {
+        if (!rawPhone || !/^\+7\d{10}$/.test(rawPhone)) phoneInput?.focus();
+        else if (!recipientBankId) bankSelect?.focus();
         return;
       }
       const payload = {
