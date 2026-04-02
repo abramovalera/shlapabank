@@ -1,17 +1,46 @@
 import random
+import time
+from collections import defaultdict, deque
 
 from fastapi import APIRouter, Depends, HTTPException
+from starlette.requests import Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.banks import get_external_bank_codes
 from app.constants import FAILED_LOGIN_THRESHOLD
+from app.core.config import settings
 from app.db import get_db
 from app.models import User, UserBank, UserStatus
 from app.schemas import LoginRequest, RegisterRequest, TokenResponse, UserPublic
 from app.security import create_access_token, validate_password_rules, verify_password
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+_REGISTER_RATE_WINDOW_SECONDS = 60
+_register_hits_by_key: dict[str, deque[float]] = defaultdict(deque)
+
+
+def _client_key(request: Request) -> str:
+    # Для учебного rate limit используем IP клиента (или "unknown").
+    # В реальном проде лучше учитывать proxy headers (X-Forwarded-For) и/или user-agent, и держать лимитер на уровне gateway.
+    host = getattr(getattr(request, "client", None), "host", None)
+    return host or "unknown"
+
+
+def _enforce_register_rate_limit(request: Request) -> None:
+    limit = settings.register_rate_limit_per_minute
+    if limit <= 0:
+        return
+    now = time.time()
+    key = _client_key(request)
+    q = _register_hits_by_key[key]
+    cutoff = now - _REGISTER_RATE_WINDOW_SECONDS
+    while q and q[0] < cutoff:
+        q.popleft()
+    if len(q) >= limit:
+        raise HTTPException(status_code=429, detail="rate_limited: too_many_register_requests")
+    q.append(now)
 
 
 def _issue_token_for_credentials(login: str, password: str, db: Session) -> TokenResponse:
@@ -42,7 +71,8 @@ def _issue_token_for_credentials(login: str, password: str, db: Session) -> Toke
     status_code=201,
     summary="Зарегистрировать пользователя",
 )
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)):
+    _enforce_register_rate_limit(request)
     validate_password_rules(payload.login, payload.password)
     existing = db.scalar(select(User).where(User.login == payload.login))
     if existing:
