@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400..700;1,400..700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/ui/styles.css?v=21" />
+  <link rel="stylesheet" href="/ui/styles.css?v=24" />
   <link rel="stylesheet" href="/ui/swagger-btn.css?v=2" />
   <link rel="stylesheet" href="/ui/dev-trace-panel.css?v=8" />
 </head>
@@ -29,6 +29,16 @@
     <section id="screenLogin" class="login-card screen screen-active">
       <aside class="login-card-visual" aria-hidden="true">
         <div class="login-card-visual__glow"></div>
+        <div class="login-promo-slot login-promo-slot--pending" data-login-promo-slot>
+          <div class="login-promo-skeleton" aria-hidden="true">
+            <div class="login-promo-skeleton__card">
+              <span class="login-promo-skeleton__line login-promo-skeleton__line--badge"></span>
+              <span class="login-promo-skeleton__line login-promo-skeleton__line--title"></span>
+              <span class="login-promo-skeleton__line"></span>
+              <span class="login-promo-skeleton__line login-promo-skeleton__line--short"></span>
+            </div>
+          </div>
+        </div>
       </aside>
       <div class="login-card-content">
       <div class="login-heading-row">
@@ -115,6 +125,16 @@
     <section id="screenRegister" class="login-card screen" aria-hidden="true">
       <aside class="login-card-visual" aria-hidden="true">
         <div class="login-card-visual__glow"></div>
+        <div class="login-promo-slot login-promo-slot--pending" data-login-promo-slot>
+          <div class="login-promo-skeleton" aria-hidden="true">
+            <div class="login-promo-skeleton__card">
+              <span class="login-promo-skeleton__line login-promo-skeleton__line--badge"></span>
+              <span class="login-promo-skeleton__line login-promo-skeleton__line--title"></span>
+              <span class="login-promo-skeleton__line"></span>
+              <span class="login-promo-skeleton__line login-promo-skeleton__line--short"></span>
+            </div>
+          </div>
+        </div>
       </aside>
       <div class="login-card-content">
       <div class="login-heading-row">
@@ -237,6 +257,127 @@
     const API_BASE = localStorage.getItem("sb_api_base") || "http://localhost:8001/api/v1";
     if (localStorage.getItem("sb_access_token")) {
       window.location.replace("/dashboard");
+    } else {
+    (function initLoginPromo() {
+      var promos = [
+        {
+          tone: "mint",
+          badge: "Переводы",
+          title: "За границу без процентов",
+          sub: "Первый месяц — 0% комиссии на международные переводы в популярных валютах.",
+        },
+        {
+          tone: "sky",
+          badge: "Кешбэк",
+          title: "До 5% за ЖКХ и связь",
+          sub: "Оплачивайте коммуналку и мобильную связь картой ShlapaBank — часть суммы вернётся.",
+        },
+        {
+          tone: "violet",
+          badge: "Накопления",
+          title: "До 8% на остаток",
+          sub: "Откройте накопительный счёт и получайте повышенную ставку на свободные деньги.",
+        },
+        {
+          tone: "coral",
+          badge: "Валюта",
+          title: "Счёт в € и $ без платы",
+          sub: "Открытие валютного счёта — бесплатно, обмен по курсу, близкому к рынку.",
+        },
+        {
+          tone: "gold",
+          badge: "Свои счета",
+          title: "Переводы между своими — 0 ₽",
+          sub: "Между вашими счетами в одном банке комиссия не взимается.",
+        },
+        {
+          tone: "lime",
+          badge: "Безопасность",
+          title: "Push на каждую операцию",
+          sub: "Мгновенные уведомления о списаниях и зачислениях — контроль 24/7.",
+        },
+        {
+          tone: "mint",
+          badge: "Поддержка",
+          title: "Чат в пару минут",
+          sub: "Напишите в поддержку из приложения — среднее время ответа короче, чем кофе остынет.",
+        },
+        {
+          tone: "sky",
+          badge: "Карта",
+          title: "Виртуальная карта за 2 минуты",
+          sub: "Оформите карту онлайн и платите в интернете сразу после выпуска.",
+        },
+        {
+          tone: "violet",
+          badge: "Друзьям",
+          title: "Приведи друга — бонус вам обоим",
+          sub: "Реферальная программа: подарок за регистрацию по вашей ссылке.",
+        },
+        {
+          tone: "coral",
+          badge: "Обмен",
+          title: "Выгодный обмен валют",
+          sub: "Меняйте валюту между счетами по прозрачному курсу без скрытых спредов.",
+        },
+      ];
+      var esc = function (s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/"/g, "&quot;");
+      };
+      function buildHtml() {
+        var pick = promos[Math.floor(Math.random() * promos.length)];
+        return (
+          '<div class="login-promo-backdrop" aria-hidden="true">' +
+          '<span class="login-promo-tile"></span><span class="login-promo-tile"></span>' +
+          '<span class="login-promo-tile"></span><span class="login-promo-tile"></span>' +
+          "</div>" +
+          '<article class="login-promo-card login-promo-card--' +
+          esc(pick.tone) +
+          '" aria-hidden="true">' +
+          '<span class="login-promo-card__badge">' +
+          esc(pick.badge) +
+          "</span>" +
+          '<h2 class="login-promo-card__title">' +
+          esc(pick.title) +
+          "</h2>" +
+          '<p class="login-promo-card__sub">' +
+          esc(pick.sub) +
+          "</p>" +
+          "</article>"
+        );
+      }
+      function paintPromo() {
+        var html = buildHtml();
+        document.querySelectorAll("[data-login-promo-slot]").forEach(function (slot) {
+          slot.innerHTML = html;
+          slot.classList.remove("login-promo-slot--pending");
+          slot.classList.add("login-promo-slot--loaded");
+        });
+      }
+      function whenPromoReady(cb) {
+        var w = window;
+        var fontsReady =
+          w.document.fonts && w.document.fonts.ready
+            ? w.document.fonts.ready.then(function () {}).catch(function () {})
+            : Promise.resolve();
+        var pageReady = new Promise(function (resolve) {
+          if (w.document.readyState === "complete") resolve();
+          else w.addEventListener("load", function onLoad() {
+            w.removeEventListener("load", onLoad);
+            resolve();
+          });
+        });
+        Promise.all([fontsReady, pageReady]).then(function () {
+          w.requestAnimationFrame(function () {
+            w.requestAnimationFrame(cb);
+          });
+        });
+      }
+      whenPromoReady(paintPromo);
+    })();
     }
     const loginForm = document.getElementById("loginForm");
     const loginInput = document.getElementById("login");
