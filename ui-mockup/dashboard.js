@@ -1428,9 +1428,15 @@ function fillPrimaryAccountsModal() {
     );
     if (accounts.length === 0) return;
     hasAny = true;
+    const row = document.createElement("div");
+    row.className = "primary-account-row";
     const label = document.createElement("label");
-    label.innerHTML = `<span>${currency}</span>`;
+    label.className = "primary-account-row__label";
+    const span = document.createElement("span");
+    span.textContent = currency;
+    label.appendChild(span);
     const select = document.createElement("select");
+    select.className = "primary-account-row__select";
     select.dataset.currency = currency;
     select.required = true;
     accounts.forEach((a) => {
@@ -1440,12 +1446,13 @@ function fillPrimaryAccountsModal() {
       if (a.is_primary) opt.selected = true;
       select.appendChild(opt);
     });
-    container.appendChild(label);
-    container.appendChild(select);
+    row.appendChild(label);
+    row.appendChild(select);
+    container.appendChild(row);
   });
   if (!hasAny) {
     const msg = document.createElement("p");
-    msg.className = "modal-text small";
+    msg.className = "modal-text small primary-accounts-empty";
     msg.textContent = "Нет активных счетов для настройки.";
     container.appendChild(msg);
   }

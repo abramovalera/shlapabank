@@ -1534,6 +1534,50 @@ tbody tr:last-child td {
   grid-column: 1 / -1;
 }
 
+/* Приоритетные счета: одна колонка, валюта + select в одной строке (не режем на 2 колонки сетки) */
+.modal-form-grid--primary-accounts {
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+.modal-form-grid--primary-accounts #primaryAccountsFields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  grid-column: 1 / -1;
+}
+
+.primary-account-row {
+  display: grid;
+  grid-template-columns: minmax(52px, 72px) 1fr;
+  gap: 10px 14px;
+  align-items: center;
+}
+
+.primary-account-row__label {
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.primary-account-row__label span {
+  display: block;
+}
+
+.primary-account-row__select {
+  width: 100%;
+  min-width: 0;
+}
+
+.modal-form-grid--primary-accounts .primary-accounts-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  margin: 0;
+}
+
 .modal-form-grid label {
   display: grid;
   /* Фиксированные строки: подпись, поле, блок ошибки — тогда поля в одной строке выровнены и «Сумма» не сдвигается */
@@ -1558,6 +1602,17 @@ tbody tr:last-child td {
   font-size: 12px;
   color: var(--muted);
   margin: 4px 0 0;
+}
+
+/* Поверх общего .modal-form-grid label — у приоритетных счетов нет поля внутри label */
+.modal-form-grid--primary-accounts .primary-account-row__label {
+  display: block;
+  grid-template-rows: none;
+  gap: 0;
+  align-items: unset;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 /* Ошибки валидации в модалках — красные (label задаёт серый, переопределяем), высота зарезервирована в grid */
