@@ -217,7 +217,9 @@
         </div>
         <button class="submit-btn" type="submit" data-testid="btn-register">Зарегистрироваться</button>
       </form>
-      <div class="login-loader-slot" aria-hidden="true"></div>
+      <div class="login-loader-slot">
+        <div id="registerLoader" class="submit-loader" aria-hidden="true"></div>
+      </div>
 
       <div class="support-links">
         <p id="registerError" class="login-error" role="status" aria-live="polite" data-testid="register-error"></p>
@@ -385,6 +387,7 @@
     const loginError = document.getElementById("loginError");
     const submitButton = loginForm ? loginForm.querySelector(".submit-btn") : null;
     const loginLoader = document.getElementById("loginLoader");
+    const registerLoader = document.getElementById("registerLoader");
     const screenLogin = document.getElementById("screenLogin");
     const screenRegister = document.getElementById("screenRegister");
     const registerForm = document.getElementById("registerForm");
@@ -749,6 +752,9 @@
 
         registerSubmitButton.disabled = true;
         registerSubmitButton.textContent = "Регистрируем...";
+        setLoaderVisible(registerLoader, true);
+
+        const startedAt = performance.now();
 
         try {
           const response = await fetch(`${API_BASE}/auth/register`, {
@@ -763,6 +769,7 @@
           const data = await response.json().catch(() => ({}));
           if (!response.ok) {
             registerError.textContent = mapRegisterError(data.detail);
+            await waitForMinSubmitTime(startedAt);
             return;
           }
 
@@ -780,6 +787,7 @@
             if (!loginResponse.ok || !loginData.access_token) {
               registerError.textContent =
                 "Пользователь создан, но автоматически войти не удалось. Попробуйте войти вручную.";
+              await waitForMinSubmitTime(startedAt);
               showScreen("login");
               loginInput.value = loginValue;
               return;
@@ -788,18 +796,22 @@
             localStorage.setItem("sb_access_token", loginData.access_token);
             localStorage.setItem("sb_api_base", API_BASE);
             if (loginData.role) localStorage.setItem("sb_role", loginData.role);
+            await waitForMinSubmitTime(startedAt);
             window.location.href = "/dashboard";
           } catch {
             registerError.textContent =
               "Пользователь создан, но автоматически войти не удалось. Попробуйте войти вручную.";
+            await waitForMinSubmitTime(startedAt);
             showScreen("login");
             loginInput.value = loginValue;
           }
         } catch (error) {
           registerError.textContent = "Сервер недоступен. Запустите backend и попробуйте снова.";
+          await waitForMinSubmitTime(startedAt);
         } finally {
           registerSubmitButton.disabled = false;
           registerSubmitButton.textContent = "Зарегистрироваться";
+          setLoaderVisible(registerLoader, false);
         }
       });
     }
