@@ -47,27 +47,72 @@ def _build_receipt_html(tx: Transaction, from_num: str | None, to_num: str | Non
     from decimal import Decimal
     from html import escape
 
+    def _enum_value(value):
+        return getattr(value, "value", value)
+
+    def _format_details(description: str | None) -> str | None:
+        if not description:
+            return None
+        raw = description.strip()
+        if not raw:
+            return None
+
+        # Приводим технические коды в чеке к человекочитаемому виду.
+        if raw.startswith("external_transfer:"):
+            parts = raw.split(":")
+            # Формат: external_transfer:<CURRENCY>:<MASKED_ACCOUNT>:fee_<FEE>
+            if len(parts) >= 4:
+                currency_part = parts[1]
+                account_part = parts[2]
+                fee_part = parts[3]
+                fee_value = fee_part.replace("fee_", "", 1)
+                return f"Внешний перевод ({currency_part}), счёт {account_part}, комиссия {fee_value}"
+            return "Внешний перевод"
+        if raw == "p2p_transfer":
+            return "Перевод между своими счетами"
+        if raw.startswith("mobile:"):
+            # Формат: mobile:<OPERATOR>:<PHONE>
+            parts = raw.split(":")
+            if len(parts) >= 3:
+                return f"Мобильная связь: {parts[1]}, номер {parts[2]}"
+            return "Оплата мобильной связи"
+        if raw.startswith("vendor:"):
+            # Формат: vendor:<PROVIDER>:<ACCOUNT_NUMBER>
+            parts = raw.split(":")
+            if len(parts) >= 3:
+                return f"Оплата поставщика: {parts[1]}, лицевой счёт {parts[2]}"
+            return "Оплата поставщика"
+        return raw
+
     created = tx.created_at.strftime("%d.%m.%Y %H:%M") if tx.created_at else ""
     fee = _fee_from_tx(tx)
     total = tx.amount + fee
-    amount_str = f"{total} {tx.currency}"
+    currency = _enum_value(tx.currency)
+    tx_type = _enum_value(tx.type)
+    tx_status = _enum_value(tx.status)
+    amount_str = f"{total} {currency}"
     type_label = {"TOPUP": "Пополнение", "TRANSFER": "Перевод", "PAYMENT": "Платёж"}.get(
-        str(tx.type), str(tx.type)
+        str(tx_type), str(tx_type)
     )
     rows = [
         ("Сумма", amount_str),
-        ("Дата и время", created),
-        ("Тип операции", type_label),
-        ("Статус", str(tx.status)),
     ]
     if fee > 0:
-        rows.append(("Комиссия", f"{fee} {tx.currency}"))
+        rows.append(("Комиссия", f"{fee} {currency}"))
+    rows.extend(
+        [
+            ("Дата и время", created),
+            ("Тип операции", type_label),
+            ("Статус", str(tx_status)),
+        ]
+    )
     if from_num:
         rows.append(("Счёт списания", from_num))
     if to_num:
         rows.append(("Счёт зачисления", to_num))
-    if tx.description:
-        rows.append(("Детали", tx.description))
+    details = _format_details(tx.description)
+    if details:
+        rows.append(("Детали", details))
 
     rows_html = "".join(
         f'<div class="row"><span class="label">{escape(str(k))}</span><br><span class="value">{escape(str(v))}</span></div>'
@@ -90,7 +135,7 @@ def _build_receipt_html(tx: Transaction, from_num: str | None, to_num: str | Non
 <body>
   <h1>{escape(BANK_LABEL)} — Чек операции</h1>
   {rows_html}
-  <div class="footer">Операция №{tx.id} · {tx.status}</div>
+  <div class="footer">Операция №{tx.id} · {tx_status}</div>
 </body>
 </html>"""
 

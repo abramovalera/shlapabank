@@ -460,11 +460,11 @@
       '<div class="sb-dev-log-resize-handle" id="sbDevLogResizeHandle" title="Потяните вверх или вниз, чтобы изменить высоту. Двойной щелчок — сброс."></div>' +
       '<div class="sb-dev-log-panel-header">' +
       '<span class="sb-dev-log-panel-title">Учебный лог</span>' +
-      '<span class="sb-dev-log-panel-hint">UI — fetch. Backend — сервер. Метка [хеш] — один id на цепочку; в поиске вставьте его целиком или фрагмент. «Новая цепочка» — другой id для следующих запросов.</span>' +
+      '<span class="sb-dev-log-panel-hint">UI — fetch. Backend — сервер. Метка [хеш] — id цепочки запросов; в поиске вставьте его целиком или фрагмент.</span>' +
       '<div class="sb-dev-log-actions">' +
       '<button type="button" id="sbDevLogPause">Пауза</button>' +
       '<button type="button" id="sbDevLogClear">Очистить</button>' +
-      '<button type="button" id="sbDevLogNewChain" title="Сгенерировать новый id: дальше в логе отличите новую группу запросов">Новая цепочка</button>' +
+      '<button type="button" id="sbDevLogClose" title="Скрыть панель лога">Закрыть</button>' +
       "</div></div>" +
       '<div class="sb-dev-log-filter-wrap">' +
       '<label class="sb-dev-log-filter-label" for="sbDevLogFilter">Поиск</label>' +
@@ -567,6 +567,13 @@
     document.addEventListener("touchend", endResize);
     document.addEventListener("touchcancel", endResize);
 
+    function closePanel() {
+      panelOpen = false;
+      panel.classList.remove("sb-dev-log-open");
+      panel.setAttribute("aria-hidden", "true");
+      stopPoll();
+    }
+
     fab.addEventListener("click", function () {
       panelOpen = !panelOpen;
       panel.classList.toggle("sb-dev-log-open", panelOpen);
@@ -592,11 +599,6 @@
       });
     }
 
-    document.getElementById("sbDevLogNewChain").addEventListener("click", function () {
-      correlationChainId = newCorrelationId();
-      if (panelOpen && !paused) render(true);
-    });
-
     document.getElementById("sbDevLogClear").addEventListener("click", function () {
       clientEntries = [];
       serverEntries = [];
@@ -613,6 +615,10 @@
         .catch(function () {
           if (panelOpen && !paused) pollServer();
         });
+    });
+
+    document.getElementById("sbDevLogClose").addEventListener("click", function () {
+      closePanel();
     });
 
     document.getElementById("sbDevLogFilter").addEventListener("input", function () {

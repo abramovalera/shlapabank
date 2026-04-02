@@ -513,8 +513,8 @@ function getTransactionDetailFields(tx) {
   fields.push({ label: "Банк", value: "ShlapaBank" });
   const money = getTxMoney(tx);
   if (money.fee > 0) {
-    fields.push({ label: "Комиссия", value: formatAmount(money.fee, money.currency), amountClass: meta.amountClass || "" });
     fields.push({ label: "Сумма", value: formatAmount(money.total, money.currency), amountClass: meta.amountClass || "" });
+    fields.push({ label: "Комиссия", value: formatAmount(money.fee, money.currency), amountClass: meta.amountClass || "" });
   } else {
     fields.push({ label: "Сумма", value: meta.signedAmount, amountClass: meta.amountClass || "" });
   }
