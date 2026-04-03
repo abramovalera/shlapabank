@@ -152,7 +152,25 @@
                   </label>
                   <label>
                     <span>Оператор</span>
-                    <select id="mobileOperator" required></select>
+                    <div class="sb-select-wrap">
+                      <select id="mobileOperator" class="sb-select-native" required tabindex="-1" aria-hidden="true"></select>
+                      <div class="sb-select" data-select-target="mobileOperator">
+                        <button
+                          type="button"
+                          class="sb-select__button"
+                          id="mobileOperatorSbBtn"
+                          aria-haspopup="listbox"
+                          aria-expanded="false"
+                          aria-controls="mobileOperatorListbox"
+                        >
+                          <span class="sb-select__label">Выберите оператора</span>
+                          <span class="sb-select__arrow" aria-hidden="true">▾</span>
+                        </button>
+                        <div class="sb-select__dropdown" hidden>
+                          <ul id="mobileOperatorListbox" class="sb-select__list" role="listbox"></ul>
+                        </div>
+                      </div>
+                    </div>
                   </label>
                   <label>
                     <span>Телефон</span>

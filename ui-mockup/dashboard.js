@@ -27,6 +27,8 @@ const qs = (id) => document.getElementById(id);
 const toastEl = qs("toast");
 
 const CURRENCY_UNITS = { RUB: "₽", USD: "$", EUR: "€", CNY: "¥" };
+/** До выбора счёта списания — как в подсказке дневного лимита (currency || RUB). */
+const DEFAULT_TRANSFER_AMOUNT_UNIT = CURRENCY_UNITS.RUB;
 
 function getUnitForAmountField(inputId) {
   const accountSelectMap = {
@@ -44,9 +46,9 @@ function getUnitForAmountField(inputId) {
   }
   if (accountId && state.accounts?.length) {
     const acc = state.accounts.find((a) => a.id === accountId);
-    if (acc?.currency) return CURRENCY_UNITS[acc.currency] ?? "денег";
+    if (acc?.currency) return CURRENCY_UNITS[acc.currency] ?? acc.currency;
   }
-  return "денег";
+  return DEFAULT_TRANSFER_AMOUNT_UNIT;
 }
 
 const AMOUNT_CONFIGS = {
@@ -707,6 +709,144 @@ const VALIDATION_MESSAGES = {
   bank: "Выберите банк",
 };
 
+/** Подписи для селектов счёта: «нет счетов» vs «не выбран». */
+const UI_MESSAGES = {
+  noAccountsShort: "—",
+  noAccounts: "Счетов нет, открой счёт.",
+  noDebitShort: "Нет дебетового",
+  noDebitAccount: "Нет дебетового счёта, открой счёт.",
+  noRubShort: "Нет рублёвого",
+  noRubDebit: "Нет рублёвого дебетового счёта, открой счёт.",
+  chooseAccountFrom: "Выберите счёт списания",
+  chooseAccountTo: "Выберите счёт зачисления",
+  selectFromFirst: "Сначала выберите счёт списания",
+  noOtherAccountSameCurrency: "Нет другого счёта в этой валюте",
+  noOtherCurrencyAccount: "Нет счёта в другой валюте",
+};
+
+const ACCOUNT_SELECT_PLACEHOLDER = "Выберите счёт";
+
+function accountSelectHasValidValue(selectEl) {
+  if (!selectEl || selectEl.options.length === 0) return false;
+  const opt = selectEl.selectedOptions[0];
+  if (!opt) return false;
+  if (opt.disabled) return false;
+  const v = String(opt.value || "").trim();
+  return v !== "";
+}
+
+/** Есть хотя бы один выбираемый счёт (не только заглушки). */
+function accountSelectHasRealOptions(selectEl) {
+  if (!selectEl) return false;
+  return Array.from(selectEl.options).some((o) => String(o.value || "").trim() !== "" && !o.disabled);
+}
+
+/**
+ * ok — без подсветки.
+ * nodata — нет счетов / нет подходящего счёта (постоянная подсказка).
+ * validation — счета есть, но не выбран (после попытки отправить форму).
+ */
+function setAccountSelectFieldState(selectEl, mode, message) {
+  if (!selectEl) return;
+  const label = selectEl.closest("label");
+  if (!label) return;
+  // Ошибка может вставляться не сразу после select (мы иногда подменяем select обёрткой),
+  // поэтому ищем существующий слот внутри label и только если его нет — создаём.
+  let hint = label.querySelector('.field-error-text[data-account-select-msg="1"]');
+  // Часто у нас уже есть готовый span под ошибку после select (напр. в модалках переводов).
+  if (!hint) hint = label.querySelector(".field-error-text");
+  if (!hint) {
+    hint = document.createElement("span");
+    hint.className = "field-error-text";
+    hint.setAttribute("data-account-select-msg", "1");
+    hint.setAttribute("role", "alert");
+    // Добавляем в label в конец: grid/верстка уже поддерживает блоки ошибок.
+    label.appendChild(hint);
+  }
+  hint.setAttribute("data-account-select-msg", "1");
+  selectEl.dataset.accountSelectFieldMode = mode;
+  if (mode === "ok") {
+    label.classList.remove("has-error");
+    hint.textContent = "";
+    hint.setAttribute("hidden", "");
+    hint.setAttribute("aria-hidden", "true");
+  } else if (mode === "nodata") {
+    // Режим nodata: показываем текст только после попытки отправить форму.
+    label.classList.remove("has-error");
+    hint.textContent = "";
+    hint.setAttribute("hidden", "");
+    hint.setAttribute("aria-hidden", "true");
+    selectEl.dataset.accountSelectNodataMessage = message || "";
+  } else {
+    // validation: не выбран (или вообще нет подходящих счетов).
+    label.classList.add("has-error");
+    hint.textContent = message || "";
+    hint.removeAttribute("hidden");
+    hint.setAttribute("aria-hidden", "false");
+  }
+}
+
+/** Снять ошибку «не выбран» после выбора значения (не трогает режим nodata). */
+function clearAccountSelectValidationIfFixed(selectEl) {
+  if (!selectEl || selectEl.dataset.accountSelectFieldMode === "nodata") return;
+  if (accountSelectHasValidValue(selectEl)) setAccountSelectFieldState(selectEl, "ok");
+}
+
+/** Если в списке есть счета, но не выбран — показать ошибку. Если списка нет — кнопка и так отключена. */
+function validateAccountSelectOrShowError(selectEl, message) {
+  if (!selectEl) return true;
+  const hasReal = accountSelectHasRealOptions(selectEl);
+  const isValid = accountSelectHasValidValue(selectEl);
+  if (!hasReal) {
+    const nodataMsg = selectEl.dataset.accountSelectNodataMessage || message;
+    setAccountSelectFieldState(selectEl, "validation", nodataMsg);
+    return false;
+  }
+  if (!isValid) {
+    setAccountSelectFieldState(selectEl, "validation", message);
+    return false;
+  }
+  setAccountSelectFieldState(selectEl, "ok");
+  return true;
+}
+
+function updateHomeTransferSubmitState() {
+  const form = qs("homeTransferForm");
+  const btn = form?.querySelector('button[type="submit"]');
+  if (!btn) return;
+  // Не отключаем кнопку: валидация должна срабатывать на клике (с подсветкой полей).
+  btn.disabled = false;
+}
+
+function refreshAccountSelectDependentControls() {
+  updateHomeTransferSubmitState();
+  const hex = qs("homeExchangeForm");
+  if (hex) {
+    const b = hex.querySelector('button[type="submit"]');
+    if (b) b.disabled = false;
+  }
+  const byAcc = qs("homeByAccountForm");
+  if (byAcc) {
+    const b = byAcc.querySelector('button[type="submit"]');
+    if (b) b.disabled = false;
+  }
+  const byPhone = qs("homeByPhoneForm");
+  if (byPhone) {
+    const b = byPhone.querySelector('button[type="submit"]');
+    if (b) b.disabled = false;
+  }
+  const mob = qs("mobileForm");
+  if (mob) {
+    const b = mob.querySelector('button[type="submit"]');
+    if (b) b.disabled = false;
+  }
+  const ven = qs("vendorForm");
+  if (ven) {
+    const b = ven.querySelector('button[type="submit"]');
+    if (b) b.disabled = false;
+  }
+}
+
 function formatAccountNumberWithSpaces(value) {
   const digits = String(value).replace(/\D/g, "").slice(0, ACCOUNT_NUMBER_LENGTH);
   return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
@@ -786,8 +926,13 @@ function updateAmountHint(inputId, config, options) {
     hintText = "Некорректная сумма";
     isError = true;
   } else if (isEmpty) {
-    hintText = typeof min === "number" ? `Минимальная сумма ${formatAmountLimit(min)} ${unit}`.trim() : "Укажите сумму";
-    isError = showEmptyError;
+    if (showEmptyError) {
+      hintText = "Введите сумму";
+      isError = true;
+    } else {
+      hintText = typeof min === "number" ? `Минимальная сумма ${formatAmountLimit(min)} ${unit}`.trim() : "Укажите сумму";
+      isError = false;
+    }
   } else if (typeof min === "number" && value < min) {
     hintText = `Минимальная сумма ${formatAmountLimit(min)} ${unit}`.trim();
     isError = !isEmpty;
@@ -1352,20 +1497,49 @@ function fillAccountSelects() {
       fillHomeTransferToSelect();
       return;
     }
+
     const isPhoneFrom = id === "homeByPhoneFrom";
+    const debitOnly =
+      id === "homeTransferFrom" ||
+      id === "homeByAccountFrom" ||
+      id === "homeExchangeFrom" ||
+      isPhoneFrom;
+
     const filtered = rubOnlyIds.includes(id)
       ? options.filter((opt) => opt.currency === "RUB" && opt.account_type === "DEBIT")
-      : id === "homeTransferFrom" || id === "homeByAccountFrom" || id === "homeExchangeFrom" || isPhoneFrom
-      ? options.filter((opt) => opt.account_type === "DEBIT")
-      : options;
-    if (isPhoneFrom) {
-      filtered.forEach((opt) => {
-        const option = document.createElement("option");
-        option.value = String(opt.id);
-        option.textContent = opt.label;
-        select.appendChild(option);
-      });
+      : debitOnly
+        ? options.filter((opt) => opt.account_type === "DEBIT")
+        : options;
+
+    if (filtered.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.disabled = true;
+      opt.selected = true;
+      if (!state.accounts.length) {
+        opt.textContent = ACCOUNT_SELECT_PLACEHOLDER;
+        setAccountSelectFieldState(select, "nodata", UI_MESSAGES.noAccounts);
+      } else if (rubOnlyIds.includes(id)) {
+        opt.textContent = ACCOUNT_SELECT_PLACEHOLDER;
+        setAccountSelectFieldState(select, "nodata", UI_MESSAGES.noRubDebit);
+      } else if (debitOnly) {
+        opt.textContent = ACCOUNT_SELECT_PLACEHOLDER;
+        setAccountSelectFieldState(select, "nodata", UI_MESSAGES.noDebitAccount);
+      } else {
+        opt.textContent = ACCOUNT_SELECT_PLACEHOLDER;
+        setAccountSelectFieldState(select, "nodata", UI_MESSAGES.noAccounts);
+      }
+      select.appendChild(opt);
+      select.required = false;
       return;
+    }
+
+    if (id !== "cheatAccountSelect") {
+      const ph = document.createElement("option");
+      ph.value = "";
+      ph.textContent = ACCOUNT_SELECT_PLACEHOLDER;
+      ph.selected = true;
+      select.appendChild(ph);
     }
     filtered.forEach((opt) => {
       const option = document.createElement("option");
@@ -1373,7 +1547,12 @@ function fillAccountSelects() {
       option.textContent = opt.label;
       select.appendChild(option);
     });
+    setAccountSelectFieldState(select, "ok");
+    select.required = true;
   });
+
+  refreshAccountSelectDependentControls();
+  syncSbSelectLabels(document);
 }
 
 async function fillHomeByPhoneBankSelect(phone) {
@@ -1387,7 +1566,8 @@ async function fillHomeByPhoneBankSelect(phone) {
   if (!validPhone) {
     const placeholder = document.createElement("option");
     placeholder.value = "";
-    placeholder.textContent = "Введите номер телефона";
+    // Пока телефон не валиден, показываем обычный placeholder для банка.
+    placeholder.textContent = VALIDATION_MESSAGES.bank;
     placeholder.disabled = true;
     select.appendChild(placeholder);
     return;
@@ -1422,6 +1602,7 @@ async function fillHomeByPhoneBankSelect(phone) {
     err.disabled = true;
     select.appendChild(err);
   }
+  syncSbSelectLabels(document);
 }
 
 const PRIMARY_ACCOUNTS_CURRENCIES = ["RUB", "USD", "EUR", "CNY"];
@@ -1471,17 +1652,47 @@ function fillHomeTransferToSelect() {
   const toSelect = qs("homeTransferTo");
   const fromSelect = qs("homeTransferFrom");
   const hintEl = qs("homeTransferToHint");
-  const submitBtn = qs("homeTransferForm")?.querySelector('button[type="submit"]');
   if (!toSelect || !fromSelect) return;
   toSelect.innerHTML = "";
   toSelect.required = true;
   if (hintEl) hintEl.hidden = true;
-  if (submitBtn) submitBtn.disabled = false;
+
+  if (!state.accounts.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = ACCOUNT_SELECT_PLACEHOLDER;
+    opt.disabled = true;
+    opt.selected = true;
+    toSelect.appendChild(opt);
+    toSelect.required = false;
+    setAccountSelectFieldState(toSelect, "nodata", UI_MESSAGES.noAccounts);
+    refreshAccountSelectDependentControls();
+    toSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
 
   const fromId = fromSelect.value;
-  if (!fromId || !state.accounts.length) return;
+  if (!fromId) {
+    const ph = document.createElement("option");
+    ph.value = "";
+    ph.textContent = UI_MESSAGES.chooseAccountTo;
+    ph.disabled = true;
+    ph.selected = true;
+    toSelect.appendChild(ph);
+    toSelect.required = false;
+    setAccountSelectFieldState(toSelect, "ok");
+    refreshAccountSelectDependentControls();
+    // Обновляем label кастомного dropdown.
+    toSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+
   const fromAcc = state.accounts.find((a) => String(a.id) === fromId);
-  if (!fromAcc) return;
+  if (!fromAcc) {
+    refreshAccountSelectDependentControls();
+    toSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
   const fromCurrency = fromAcc.currency;
   const options = state.accounts
     .filter((a) => a.account_type === "DEBIT" && a.currency === fromCurrency && String(a.id) !== fromId)
@@ -1489,20 +1700,31 @@ function fillHomeTransferToSelect() {
   if (options.length === 0) {
     const placeholder = document.createElement("option");
     placeholder.value = "";
-    placeholder.textContent = "Нет другого счёта в этой валюте";
+    placeholder.textContent = ACCOUNT_SELECT_PLACEHOLDER;
     placeholder.disabled = true;
+    placeholder.selected = true;
     toSelect.appendChild(placeholder);
     toSelect.required = false;
-    if (hintEl) hintEl.hidden = false;
-    if (submitBtn) submitBtn.disabled = true;
+    if (hintEl) hintEl.hidden = true;
+    setAccountSelectFieldState(toSelect, "nodata", UI_MESSAGES.noOtherAccountSameCurrency);
+    refreshAccountSelectDependentControls();
+    toSelect.dispatchEvent(new Event("change", { bubbles: true }));
     return;
   }
+  const phTo = document.createElement("option");
+  phTo.value = "";
+  phTo.textContent = ACCOUNT_SELECT_PLACEHOLDER;
+  phTo.selected = true;
+  toSelect.appendChild(phTo);
   options.forEach((opt) => {
     const option = document.createElement("option");
     option.value = String(opt.id);
     option.textContent = opt.label;
     toSelect.appendChild(option);
   });
+  setAccountSelectFieldState(toSelect, "ok");
+  refreshAccountSelectDependentControls();
+  toSelect.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function fillExchangeToSelect() {
@@ -1510,10 +1732,44 @@ function fillExchangeToSelect() {
   const fromSelect = qs("homeExchangeFrom");
   if (!toSelect || !fromSelect) return;
   toSelect.innerHTML = "";
+  toSelect.required = true;
+
+  if (!state.accounts.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = ACCOUNT_SELECT_PLACEHOLDER;
+    opt.disabled = true;
+    opt.selected = true;
+    toSelect.appendChild(opt);
+    toSelect.required = false;
+    setAccountSelectFieldState(toSelect, "nodata", UI_MESSAGES.noAccounts);
+    refreshAccountSelectDependentControls();
+    toSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+
   const fromId = fromSelect.value;
-  if (!fromId || !state.accounts.length) return;
+  if (!fromId) {
+    const ph = document.createElement("option");
+    ph.value = "";
+    ph.textContent = UI_MESSAGES.chooseAccountTo;
+    ph.disabled = true;
+    ph.selected = true;
+    toSelect.appendChild(ph);
+    toSelect.required = false;
+    setAccountSelectFieldState(toSelect, "ok");
+    refreshAccountSelectDependentControls();
+    // Обновляем label кастомного dropdown.
+    toSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+
   const fromAcc = state.accounts.find((a) => String(a.id) === fromId);
-  if (!fromAcc) return;
+  if (!fromAcc) {
+    refreshAccountSelectDependentControls();
+    toSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
   const fromCurrency = fromAcc.currency;
   const options = state.accounts
     .filter((a) => a.account_type === "DEBIT" && a.currency !== fromCurrency)
@@ -1521,17 +1777,30 @@ function fillExchangeToSelect() {
   if (options.length === 0) {
     const placeholder = document.createElement("option");
     placeholder.value = "";
-    placeholder.textContent = "Нет счёта в другой валюте";
+    placeholder.textContent = ACCOUNT_SELECT_PLACEHOLDER;
     placeholder.disabled = true;
+    placeholder.selected = true;
     toSelect.appendChild(placeholder);
+    toSelect.required = false;
+    setAccountSelectFieldState(toSelect, "nodata", UI_MESSAGES.noOtherCurrencyAccount);
+    refreshAccountSelectDependentControls();
+    toSelect.dispatchEvent(new Event("change", { bubbles: true }));
     return;
   }
+  const phEx = document.createElement("option");
+  phEx.value = "";
+  phEx.textContent = ACCOUNT_SELECT_PLACEHOLDER;
+  phEx.selected = true;
+  toSelect.appendChild(phEx);
   options.forEach((opt) => {
     const option = document.createElement("option");
     option.value = String(opt.id);
     option.textContent = opt.label;
     toSelect.appendChild(option);
   });
+  setAccountSelectFieldState(toSelect, "ok");
+  refreshAccountSelectDependentControls();
+  toSelect.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function renderRules() {
@@ -1745,6 +2014,263 @@ async function downloadReceipt(tx) {
   URL.revokeObjectURL(url);
 }
 
+/** Кастомный дропдаун для мобильного оператора (закруглённый список вместо нативного). */
+function wireSbSelectMobileOperator() {
+  const native = qs("mobileOperator");
+  const root = document.querySelector('[data-select-target="mobileOperator"]');
+  if (!native || !root) return;
+
+  const btn = root.querySelector(".sb-select__button");
+  const labelEl = root.querySelector(".sb-select__label");
+  const dropdown = root.querySelector(".sb-select__dropdown");
+  const list = root.querySelector(".sb-select__list");
+  if (!btn || !labelEl || !dropdown || !list) return;
+
+  const close = () => {
+    dropdown.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+  };
+  const open = () => {
+    dropdown.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+  };
+
+  const rebuild = () => {
+    list.innerHTML = "";
+    const opts = Array.from(native.options);
+    if (opts.length === 0) {
+      labelEl.textContent = "Нет операторов";
+      native.value = "";
+      close();
+      return;
+    }
+    opts.forEach((opt) => {
+      const li = document.createElement("li");
+      li.className = "sb-select__option";
+      li.setAttribute("role", "option");
+      li.textContent = opt.textContent;
+      li.dataset.value = opt.value;
+      li.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+      });
+      li.addEventListener("click", () => {
+        native.value = opt.value;
+        native.dispatchEvent(new Event("change", { bubbles: true }));
+        list.querySelectorAll(".sb-select__option").forEach((x) => x.removeAttribute("aria-selected"));
+        li.setAttribute("aria-selected", "true");
+        labelEl.textContent = opt.textContent;
+        close();
+      });
+      list.appendChild(li);
+    });
+    const sel = native.selectedOptions[0];
+    labelEl.textContent = sel ? sel.textContent : "Выберите оператора";
+    const isPlaceholder = !sel || native.value === "" || sel.disabled;
+    btn.dataset.sbPlaceholder = isPlaceholder ? "1" : "0";
+    list.querySelectorAll(".sb-select__option").forEach((li) => {
+      if (li.dataset.value === native.value) li.setAttribute("aria-selected", "true");
+    });
+  };
+
+  if (!root.dataset.sbWired) {
+    root.dataset.sbWired = "1";
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (dropdown.hidden) {
+        closeAllSbSelectDropdowns(root);
+        open();
+      } else close();
+    });
+    document.addEventListener("click", (e) => {
+      if (!root.contains(e.target)) close();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (!dropdown.hidden) {
+        close();
+        btn.focus();
+      }
+    });
+  }
+  rebuild();
+}
+
+function closeAllSbSelectDropdowns(exceptRoot) {
+  document.querySelectorAll(".sb-select").forEach((r) => {
+    if (exceptRoot && r === exceptRoot) return;
+    const dd = r.querySelector(".sb-select__dropdown");
+    const b = r.querySelector(".sb-select__button");
+    if (dd) dd.hidden = true;
+    if (b) b.setAttribute("aria-expanded", "false");
+  });
+}
+
+/**
+ * Универсальный кастомный dropdown для любого нативного <select>.
+ * Важно: нативный select остаётся в DOM (для value/submit и существующих change-listeners),
+ * но скрывается, а раскрытие/выбор делаем через наш HTML.
+ */
+function upgradeNativeSelectToSb(selectEl) {
+  if (!selectEl || !(selectEl instanceof HTMLSelectElement)) return;
+  if (selectEl.classList.contains("sb-select-native")) return;
+  if (selectEl.closest(".sb-select")) return;
+  if (selectEl.dataset.sbUpgraded === "1") return;
+  selectEl.dataset.sbUpgraded = "1";
+
+  const selectedText = () => {
+    const sel = selectEl.selectedOptions?.[0];
+    const t = sel?.textContent?.trim();
+    return t || "Выберите";
+  };
+
+  const key = selectEl.id || selectEl.name || (selectEl.dataset.sbSelectKey = `sbsel_${Math.random().toString(16).slice(2)}`);
+
+  // Спрятать нативный select, чтобы браузер не рисовал системное выпадающее меню.
+  selectEl.classList.add("sb-select-native");
+  selectEl.tabIndex = -1;
+  selectEl.setAttribute("aria-hidden", "true");
+
+  const root = document.createElement("div");
+  root.className = "sb-select";
+  root.dataset.selectTarget = key;
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "sb-select__button";
+  btn.setAttribute("aria-haspopup", "listbox");
+  btn.setAttribute("aria-expanded", "false");
+
+  const labelEl = document.createElement("span");
+  labelEl.className = "sb-select__label";
+  labelEl.textContent = selectedText();
+
+  const arrow = document.createElement("span");
+  arrow.className = "sb-select__arrow";
+  arrow.setAttribute("aria-hidden", "true");
+  arrow.textContent = "▾";
+
+  btn.appendChild(labelEl);
+  btn.appendChild(arrow);
+
+  const dropdown = document.createElement("div");
+  dropdown.className = "sb-select__dropdown";
+  dropdown.hidden = true;
+
+  const list = document.createElement("ul");
+  list.className = "sb-select__list";
+  list.setAttribute("role", "listbox");
+
+  dropdown.appendChild(list);
+  root.appendChild(btn);
+  root.appendChild(dropdown);
+
+  // Вставляем сразу после select (select спрятан, но DOM-элемент остаётся).
+  selectEl.insertAdjacentElement("afterend", root);
+
+  let closedByInside = false;
+  const close = () => {
+    dropdown.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+    if (!closedByInside) btn.blur();
+    closedByInside = false;
+  };
+  const open = () => {
+    rebuild();
+    dropdown.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+  };
+
+  const rebuild = () => {
+    list.innerHTML = "";
+    const opts = Array.from(selectEl.options);
+    opts.forEach((opt) => {
+      const li = document.createElement("li");
+      li.className = "sb-select__option";
+      li.textContent = opt.textContent;
+      li.dataset.value = opt.value;
+      li.setAttribute("role", "option");
+      if (opt.disabled) {
+        li.setAttribute("aria-disabled", "true");
+        li.style.color = "rgba(0,0,0,0.35)";
+      }
+      if (String(opt.value) === String(selectEl.value)) {
+        li.setAttribute("aria-selected", "true");
+      }
+      li.addEventListener("mousedown", (e) => e.preventDefault());
+      li.addEventListener("click", () => {
+        if (opt.disabled) return;
+        closedByInside = true;
+        selectEl.value = opt.value;
+        // Синхронизируем label сразу и диспатчим change для старого кода.
+        labelEl.textContent = opt.textContent.trim() || "Выберите";
+        selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+        close();
+      });
+      list.appendChild(li);
+    });
+    labelEl.textContent = selectedText();
+    const sel = selectEl.selectedOptions?.[0];
+    const isPlaceholder = !sel || String(selectEl.value).trim() === "" || sel.disabled;
+    btn.dataset.sbPlaceholder = isPlaceholder ? "1" : "0";
+  };
+
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dropdown.hidden) {
+      closeAllSbSelectDropdowns(root);
+      open();
+    } else close();
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!root.contains(e.target)) close();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!dropdown.hidden) close();
+  });
+
+  selectEl.addEventListener("change", () => {
+    labelEl.textContent = selectedText();
+    const sel = selectEl.selectedOptions?.[0];
+    const isPlaceholder = !sel || String(selectEl.value).trim() === "" || sel.disabled;
+    btn.dataset.sbPlaceholder = isPlaceholder ? "1" : "0";
+  });
+}
+
+function upgradeAllNativeSelectsToSb(root = document) {
+  const selects = root.querySelectorAll("select");
+  selects.forEach((s) => upgradeNativeSelectToSb(s));
+}
+
+function syncSbSelectLabels(root = document) {
+  const wrappers = root.querySelectorAll('.sb-select[data-select-target]');
+  wrappers.forEach((w) => {
+    const key = w.dataset.selectTarget;
+    const label = w.querySelector(".sb-select__label");
+    const btn = w.querySelector(".sb-select__button");
+    if (!label || !key) return;
+    let sel = document.getElementById(key);
+    if (!sel) sel = root.querySelector(`select[name="${CSS.escape(key)}"]`);
+    if (!sel) sel = root.querySelector(`select[data-sb-select-key="${CSS.escape(key)}"]`);
+    const selectedOpt = sel?.selectedOptions?.[0];
+    const text = selectedOpt?.textContent?.trim() || "";
+    label.textContent = text || "Выберите";
+
+    if (btn) {
+      const isPlaceholder =
+        !selectedOpt ||
+        String(sel?.value || "").trim() === "" ||
+        selectedOpt.disabled ||
+        (sel?.options?.length || 0) === 0;
+      btn.dataset.sbPlaceholder = isPlaceholder ? "1" : "0";
+    }
+  });
+}
+
 function fillPaymentLookups() {
   const operatorSelect = qs("mobileOperator");
   if (operatorSelect) {
@@ -1756,6 +2282,7 @@ function fillPaymentLookups() {
       operatorSelect.appendChild(option);
     });
   }
+  wireSbSelectMobileOperator();
 
   const providerSelect = qs("vendorProvider");
   if (providerSelect) {
@@ -1768,6 +2295,7 @@ function fillPaymentLookups() {
       providerSelect.appendChild(option);
     });
   }
+  syncSbSelectLabels(document);
 }
 
 async function loadProfile() {
@@ -2161,6 +2689,9 @@ async function loadData() {
 }
 
 function wireActions() {
+  // Кастомные dropdown'ы вместо системных для всех <select>.
+  upgradeAllNativeSelectsToSb(document);
+
   qs("logoutBtn").addEventListener("click", () => {
     localStorage.removeItem("sb_access_token");
     localStorage.removeItem("sb_role");
@@ -2626,13 +3157,18 @@ function wireActions() {
   if (homeTransferForm) {
     homeTransferForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const fromId = qs("homeTransferFrom")?.value;
-      const toId = qs("homeTransferTo")?.value;
-      const submitBtn = homeTransferForm.querySelector('button[type="submit"]');
-      if (submitBtn?.disabled || !toId) {
-        showToast("Для перевода нужны минимум два счёта в одной валюте.", true);
+      const fromSel = qs("homeTransferFrom");
+      const toSel = qs("homeTransferTo");
+      if (!validateAccountSelectOrShowError(fromSel, UI_MESSAGES.chooseAccountFrom)) {
+        fromSel?.focus();
         return;
       }
+      if (!validateAccountSelectOrShowError(toSel, UI_MESSAGES.chooseAccountTo)) {
+        toSel?.focus();
+        return;
+      }
+      const fromId = fromSel?.value;
+      const toId = toSel?.value;
       if (fromId && toId && fromId === toId) {
         showToast("Нельзя переводить на тот же счёт.", true);
         return;
@@ -2666,14 +3202,22 @@ function wireActions() {
 
   const mobileForm = qs("mobileForm");
   if (mobileForm) {
+    mobileForm.addEventListener("reset", () => {
+      queueMicrotask(() => wireSbSelectMobileOperator());
+    });
     mobileForm.addEventListener("submit", (event) => {
       event.preventDefault();
+      const mobileAccSel = qs("mobileAccount");
       const accountId = Number(qs("mobileAccount").value);
       const operator = qs("mobileOperator").value.trim();
       const phone = getRawPhone(qs("mobilePhone").value);
       const amountRaw = qs("mobileAmount").value;
       const amount = Number(amountRaw);
       let ok = true;
+      if (!validateAccountSelectOrShowError(mobileAccSel, UI_MESSAGES.chooseAccountFrom)) {
+        mobileAccSel?.focus();
+        return;
+      }
       if (!phone || !/^\+7\d{10}$/.test(phone)) {
         setAmountError("mobilePhone", VALIDATION_MESSAGES.phone, { showToast: false });
         ok = false;
@@ -2701,10 +3245,20 @@ function wireActions() {
     });
   }
 
+  const mobileAccountSelect = qs("mobileAccount");
+  if (mobileAccountSelect) {
+    mobileAccountSelect.addEventListener("change", () => clearAccountSelectValidationIfFixed(mobileAccountSelect));
+  }
+
   const vendorForm = qs("vendorForm");
   if (vendorForm) {
     vendorForm.addEventListener("submit", (event) => {
       event.preventDefault();
+      const vendorAccSel = qs("vendorAccount");
+      if (!validateAccountSelectOrShowError(vendorAccSel, UI_MESSAGES.chooseAccountFrom)) {
+        vendorAccSel?.focus();
+        return;
+      }
       const accountId = Number(qs("vendorAccount").value);
       const provider = qs("vendorProvider").value.trim();
       const accountNumber = qs("vendorAccountNumber").value.replace(/\s/g, "");
@@ -2741,13 +3295,36 @@ function wireActions() {
     });
   }
 
+  const vendorAccountSelect = qs("vendorAccount");
+  if (vendorAccountSelect) {
+    vendorAccountSelect.addEventListener("change", () => clearAccountSelectValidationIfFixed(vendorAccountSelect));
+  }
+
   const updateLimitProgressForSelect = (selectId, labelId, fillId) => {
     const select = qs(selectId);
     const label = qs(labelId);
     const fill = qs(fillId);
     if (!select || !label || !fill) return;
+    const row = label.closest(".limit-progress-row");
+
+    // Пока счёт списания не выбран (плейсхолдер) — лимит не показываем.
+    // Но визуально сам статус-бар оставить понятным: с явной надписью.
+    if (!String(select.value || "").trim()) {
+      if (row) row.hidden = false;
+      label.style.display = "block";
+      label.textContent = "Выберите счёт — покажем лимит на сегодня";
+      label.style.color = "var(--primary)";
+      fill.classList.remove("limit-warn", "limit-danger");
+      fill.style.width = "0%";
+      return;
+    }
+
     if (!state.transfersInfo?.limits?.perCurrency?.length) {
-      label.textContent = "";
+      if (row) row.hidden = false;
+      label.style.display = "block";
+      label.textContent = "Лимиты недоступны";
+      label.style.color = "var(--primary)";
+      fill.classList.remove("limit-warn", "limit-danger");
       fill.style.width = "0%";
       return;
     }
@@ -2762,12 +3339,16 @@ function wireActions() {
     const remaining = info ? Number(info.remaining) : 0;
 
     if (!limit || limit <= 0) {
-      label.textContent = "";
+      if (row) row.hidden = false;
+      label.textContent = `Лимит по валюте ${currency} недоступен`;
+      fill.classList.remove("limit-warn", "limit-danger");
       fill.style.width = "0%";
       return;
     }
 
-    const unit = CURRENCY_UNITS[currency] ?? "денег";
+    if (row) row.hidden = false;
+
+    const unit = CURRENCY_UNITS[currency] ?? currency;
     const percent = Math.min(100, Math.max(0, (used / limit) * 100));
     fill.classList.remove("limit-warn", "limit-danger");
     const fmt = (v) =>
@@ -2791,7 +3372,16 @@ function wireActions() {
   const homeTransferFromSelect = qs("homeTransferFrom");
   if (homeTransferFromSelect) {
     homeTransferFromSelect.addEventListener("change", () => {
+      clearAccountSelectValidationIfFixed(homeTransferFromSelect);
       fillHomeTransferToSelect();
+      updateAmountHint("homeTransferAmount", amountConfigs.homeTransferAmount);
+    });
+  }
+
+  const homeTransferToSelect = qs("homeTransferTo");
+  if (homeTransferToSelect) {
+    homeTransferToSelect.addEventListener("change", () => {
+      clearAccountSelectValidationIfFixed(homeTransferToSelect);
       updateAmountHint("homeTransferAmount", amountConfigs.homeTransferAmount);
     });
   }
@@ -2854,6 +3444,11 @@ function wireActions() {
   if (homeByAccountForm) {
     homeByAccountForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const byAccFromSel = qs("homeByAccountFrom");
+      if (!validateAccountSelectOrShowError(byAccFromSel, UI_MESSAGES.chooseAccountFrom)) {
+        byAccFromSel?.focus();
+        return;
+      }
       const accountNumberEl = qs("homeByAccountNumber");
       const accountNumberDigits = accountNumberEl ? getAccountNumberDigits(accountNumberEl.value) : "";
       const len = accountNumberDigits.length;
@@ -2909,6 +3504,7 @@ function wireActions() {
   const homeByAccountFromSelect = qs("homeByAccountFrom");
   if (homeByAccountFromSelect) {
     homeByAccountFromSelect.addEventListener("change", () => {
+      clearAccountSelectValidationIfFixed(homeByAccountFromSelect);
       updateLimitProgressForSelect("homeByAccountFrom", "homeByAccountLimitLabel", "homeByAccountLimitFill");
       updateHomeByAccountAmountHint();
     });
@@ -2930,6 +3526,11 @@ function wireActions() {
   if (homeByPhoneForm) {
     homeByPhoneForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const byPhoneFromSel = qs("homeByPhoneFrom");
+      if (!validateAccountSelectOrShowError(byPhoneFromSel, UI_MESSAGES.chooseAccountFrom)) {
+        byPhoneFromSel?.focus();
+        return;
+      }
       const phoneInput = qs("homeByPhoneNumber");
       const rawPhone = phoneInput ? getRawPhone(phoneInput.value) : "";
       const bankSelect = qs("homeByPhoneBank");
@@ -3002,6 +3603,7 @@ function wireActions() {
   const homeByPhoneFromSelect = qs("homeByPhoneFrom");
   if (homeByPhoneFromSelect) {
     homeByPhoneFromSelect.addEventListener("change", () => {
+      clearAccountSelectValidationIfFixed(homeByPhoneFromSelect);
       updateLimitProgressForSelect("homeByPhoneFrom", "homeByPhoneLimitLabel", "homeByPhoneLimitFill");
       updateHomeByPhoneAmountHint();
     });
@@ -3078,7 +3680,17 @@ function wireActions() {
   if (homeExchangeForm) {
     homeExchangeForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-       if (
+      const exFrom = qs("homeExchangeFrom");
+      const exTo = qs("homeExchangeTo");
+      if (!validateAccountSelectOrShowError(exFrom, UI_MESSAGES.chooseAccountFrom)) {
+        exFrom?.focus();
+        return;
+      }
+      if (!validateAccountSelectOrShowError(exTo, UI_MESSAGES.chooseAccountTo)) {
+        exTo?.focus();
+        return;
+      }
+      if (
         !validateAmountField("homeExchangeAmount", amountConfigs.homeExchangeAmount, { showEmptyError: true })
       ) {
         return;
@@ -3108,6 +3720,7 @@ function wireActions() {
     const exchangeTo = qs("homeExchangeTo");
     if (exchangeFrom) {
       exchangeFrom.addEventListener("change", () => {
+        clearAccountSelectValidationIfFixed(exchangeFrom);
         fillExchangeToSelect();
         updateExchangeRateInfo();
         updateAmountHint("homeExchangeAmount", amountConfigs.homeExchangeAmount);
@@ -3115,7 +3728,10 @@ function wireActions() {
       });
     }
     if (exchangeTo) {
-      exchangeTo.addEventListener("change", updateExchangeRateInfo);
+      exchangeTo.addEventListener("change", () => {
+        clearAccountSelectValidationIfFixed(exchangeTo);
+        updateExchangeRateInfo();
+      });
     }
     const amountInput = qs("homeExchangeAmount");
     if (amountInput) {
@@ -3250,6 +3866,7 @@ function wireActions() {
           opt.textContent = a.owner_login ? `${a.owner_login} · ${a.currency} · *${String(a.account_number || "").slice(-4)}` : `${a.currency} · *${String(a.account_number || "").slice(-4)}`;
           accountSelect.appendChild(opt);
         });
+        setAccountSelectFieldState(accountSelect, "ok");
       }
       const salaryOpt = cheatPurpose?.querySelector('option[value="salary"]');
       if (salaryOpt) salaryOpt.hidden = !isAdmin;
@@ -3708,6 +4325,8 @@ function wireActions() {
   if (primaryAccountsBtn) {
     primaryAccountsBtn.addEventListener("click", () => {
       fillPrimaryAccountsModal();
+      // В модалке selects создаются динамически — обновляем кастомизацию.
+      upgradeAllNativeSelectsToSb(qs("primaryAccountsModal") || document);
       if (primaryAccountsModal) {
         primaryAccountsModal.hidden = false;
         primaryAccountsModal.classList.add("show");
