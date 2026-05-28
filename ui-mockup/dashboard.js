@@ -4173,6 +4173,8 @@ function wireActions() {
   let pendingProfilePayload = null;
   const confirmCurrentPasswordModal = qs("confirmCurrentPasswordModal");
   const confirmCurrentPasswordInput = qs("confirmCurrentPasswordInput");
+  const confirmModalNewPasswordInput = qs("confirmModalNewPasswordInput");
+  const confirmModalNewPasswordError = qs("confirmModalNewPasswordError");
   const confirmCurrentPasswordError = qs("confirmCurrentPasswordError");
   const confirmCurrentPasswordCancel = qs("confirmCurrentPasswordCancel");
   const confirmCurrentPasswordOk = qs("confirmCurrentPasswordOk");
@@ -4183,12 +4185,21 @@ function wireActions() {
     confirmCurrentPasswordModal.hidden = true;
     pendingProfilePayload = null;
     if (confirmCurrentPasswordInput) confirmCurrentPasswordInput.value = "";
+    if (confirmModalNewPasswordInput) confirmModalNewPasswordInput.value = "";
+    if (confirmModalNewPasswordError) confirmModalNewPasswordError.textContent = "";
     if (confirmCurrentPasswordError) confirmCurrentPasswordError.textContent = "";
   };
 
   if (confirmCurrentPasswordInput) {
     confirmCurrentPasswordInput.addEventListener("input", () => stripAllSpacesInput(confirmCurrentPasswordInput));
     confirmCurrentPasswordInput.addEventListener("keydown", preventSpaceKey);
+  }
+  if (confirmModalNewPasswordInput) {
+    confirmModalNewPasswordInput.addEventListener("input", () => {
+      stripAllSpacesInput(confirmModalNewPasswordInput);
+      if (confirmModalNewPasswordError) confirmModalNewPasswordError.textContent = "";
+    });
+    confirmModalNewPasswordInput.addEventListener("keydown", preventSpaceKey);
   }
 
   const toggleConfirmCurrentPasswordBtn = qs("toggleConfirmCurrentPassword");
@@ -4198,6 +4209,15 @@ function wireActions() {
       confirmCurrentPasswordInput.type = isPassword ? "text" : "password";
       toggleConfirmCurrentPasswordBtn.setAttribute("aria-label", isPassword ? "Скрыть пароль" : "Показать пароль");
       toggleConfirmCurrentPasswordBtn.classList.toggle("eye-btn--visible", isPassword);
+    });
+  }
+  const toggleConfirmModalNewPasswordBtn = qs("toggleConfirmModalNewPassword");
+  if (toggleConfirmModalNewPasswordBtn && confirmModalNewPasswordInput) {
+    toggleConfirmModalNewPasswordBtn.addEventListener("click", () => {
+      const isPassword = confirmModalNewPasswordInput.type === "password";
+      confirmModalNewPasswordInput.type = isPassword ? "text" : "password";
+      toggleConfirmModalNewPasswordBtn.setAttribute("aria-label", isPassword ? "Скрыть пароль" : "Показать пароль");
+      toggleConfirmModalNewPasswordBtn.classList.toggle("eye-btn--visible", isPassword);
     });
   }
 
@@ -4253,6 +4273,8 @@ function wireActions() {
           confirmCurrentPasswordInput.value = "";
           confirmCurrentPasswordInput.focus();
         }
+        if (confirmModalNewPasswordInput) confirmModalNewPasswordInput.value = "";
+        if (confirmModalNewPasswordError) confirmModalNewPasswordError.textContent = "";
       }
       return;
     }
@@ -4276,7 +4298,9 @@ function wireActions() {
   if (confirmCurrentPasswordOk && confirmCurrentPasswordInput) {
     confirmCurrentPasswordOk.addEventListener("click", async () => {
       const currentPassword = confirmCurrentPasswordInput.value;
+      const confirmModalNewPasswordValue = confirmModalNewPasswordInput ? confirmModalNewPasswordInput.value : "";
       if (confirmCurrentPasswordError) confirmCurrentPasswordError.textContent = "";
+      if (confirmModalNewPasswordError) confirmModalNewPasswordError.textContent = "";
       if (!currentPassword) {
         showToast("Введите текущий пароль.", true);
         return;
@@ -4284,6 +4308,24 @@ function wireActions() {
       if (!pendingProfilePayload) {
         hideConfirmCurrentPasswordModal();
         return;
+      }
+      if (pendingProfilePayload.new_password) {
+        if (!confirmModalNewPasswordValue) {
+          if (confirmModalNewPasswordError) {
+            confirmModalNewPasswordError.textContent = "Подтвердите новый пароль.";
+          }
+          showToast("Подтвердите новый пароль.", true);
+          if (confirmModalNewPasswordInput) confirmModalNewPasswordInput.focus();
+          return;
+        }
+        if (confirmModalNewPasswordValue !== pendingProfilePayload.new_password) {
+          if (confirmModalNewPasswordError) {
+            confirmModalNewPasswordError.textContent = "Новый пароль и подтверждение не совпадают.";
+          }
+          showToast("Новый пароль и подтверждение не совпадают.", true);
+          if (confirmModalNewPasswordInput) confirmModalNewPasswordInput.focus();
+          return;
+        }
       }
       const payload = { ...pendingProfilePayload, current_password: currentPassword };
       try {

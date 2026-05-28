@@ -55,6 +55,10 @@ body {
   background-attachment: fixed;
 }
 
+body.auth-page {
+  overflow: hidden;
+}
+
 .login-page {
   position: relative;
   isolation: isolate;
