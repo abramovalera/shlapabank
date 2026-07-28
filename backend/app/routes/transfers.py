@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, aliased
 
@@ -9,12 +9,28 @@ from app.banks import OUR_BANK_CODE, BANKS_CATALOG
 from app.constants import DAILY_TRANSFER_LIMIT, MAX_TRANSFER_AMOUNT, MIN_TRANSFER_AMOUNT
 from app.db import get_db
 from app.phone_utils import normalize_phone
-from app.models import Account, AccountType, Bank, Currency, Transaction, TransactionStatus, TransactionType, User, UserBank
+from app.models import (
+    Account,
+    AccountType,
+    Bank,
+    Card,
+    CardStatus,
+    Currency,
+    Transaction,
+    TransactionStatus,
+    TransactionType,
+    TransferContact,
+    User,
+    UserBank,
+)
 from app.otp import validate_otp_for_user
 from app.schemas import (
     ExchangeRequest,
+    RecentPhoneContact,
     TransferByAccountCheckResponse,
     TransferByAccountRequest,
+    TransferByCardCheckResponse,
+    TransferByCardRequest,
     TransferByPhoneCheckResponse,
     TransferByPhoneRequest,
     TransactionPublic,
@@ -327,14 +343,23 @@ def _external_banks_list() -> list[dict]:
     summary="Проверить телефон, получить банки",
 )
 def by_phone_check(
-    phone: str,
+    phone: str = Query(
+        ...,
+        description="Телефон получателя в формате +7XXXXXXXXXX (только цифры принимаются тоже).",
+        example="+79991234567",
+    ),
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ):
-    """Если получатель в нашем банке — возвращаем название нашего банка (ShlapaBank) + его 0–5 назначенных банков. Иначе — все внешние банки."""
+    """Проверка получателя по номеру:
+    - Если найден в нашем банке — возвращаем ShlapaBank + его 0-5 доп. банков, подсказку-имя, основной банк.
+    - Иначе — все внешние банки, без подсказки.
+    """
     normalized = normalize_phone(phone)
     if not normalized:
-        return TransferByPhoneCheckResponse(inOurBank=False, availableBanks=_external_banks_list())
+        return TransferByPhoneCheckResponse(
+            inOurBank=False, availableBanks=_external_banks_list()
+        )
     recipient = db.scalar(select(User).where(User.phone == normalized))
     if recipient:
         our_bank = next((b for b in BANKS_CATALOG if b[0] == OUR_BANK_CODE), None)
@@ -344,8 +369,42 @@ def by_phone_check(
         ).all()
         for b in user_banks:
             options.append({"id": b.code, "label": b.label})
-        return TransferByPhoneCheckResponse(inOurBank=True, availableBanks=options)
-    return TransferByPhoneCheckResponse(inOurBank=False, availableBanks=_external_banks_list())
+        # Имя-подсказка: первая буква имени + фамилия целиком (Иван П.)
+        hint_parts: list[str] = []
+        if recipient.first_name:
+            hint_parts.append(recipient.first_name)
+        if recipient.last_name:
+            hint_parts.append(f"{recipient.last_name[:1]}.")
+        if not hint_parts:
+            hint_parts.append(recipient.login)
+        return TransferByPhoneCheckResponse(
+            inOurBank=True,
+            availableBanks=options,
+            recipientHint=" ".join(hint_parts),
+            primaryBankId=recipient.sbp_primary_bank,
+        )
+    return TransferByPhoneCheckResponse(
+        inOurBank=False, availableBanks=_external_banks_list()
+    )
+
+
+@router.get(
+    "/recent-phones",
+    response_model=list[RecentPhoneContact],
+    summary="Часто используемые получатели (top-3, порог 2+ переводов)",
+)
+def recent_phone_contacts(
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    """Top-3 получателей по числу переводов. Показываем только тех, кому переведено 2+ раза."""
+    contacts = db.scalars(
+        select(TransferContact)
+        .where(TransferContact.user_id == current_user.id, TransferContact.transfers_count >= 2)
+        .order_by(TransferContact.transfers_count.desc(), TransferContact.last_transfer_at.desc())
+        .limit(3)
+    ).all()
+    return contacts
 
 
 @router.post(
@@ -368,9 +427,23 @@ def create_transfer_by_phone(
     if amount > MAX_TRANSFER_AMOUNT:
         raise HTTPException(status_code=400, detail="transfer_amount_exceeds_single_limit")
 
+    # Источник: либо карта (тогда счёт — её account_id), либо явно счёт.
+    source_account_id = payload.from_account_id
+    source_card_id: int | None = None
+    if payload.from_card_id:
+        card = db.scalar(select(Card).where(Card.id == payload.from_card_id))
+        if not card:
+            raise HTTPException(status_code=404, detail="card_not_found")
+        if card.status != CardStatus.ACTIVE:
+            raise HTTPException(status_code=400, detail="card_not_active")
+        source_account_id = card.account_id
+        source_card_id = card.id
+    if not source_account_id:
+        raise HTTPException(status_code=400, detail="source_required")
+
     source = db.scalar(
         select(Account)
-        .where(Account.id == payload.from_account_id, Account.user_id == current_user.id)
+        .where(Account.id == source_account_id, Account.user_id == current_user.id)
         .with_for_update()
     )
     if not source:
@@ -407,20 +480,23 @@ def create_transfer_by_phone(
         source.balance -= amount
         target.balance += amount
         masked = _mask_account(target.account_number)
+        comment_suffix = f":comment_{payload.comment}" if payload.comment else ""
         tx = Transaction(
             from_account_id=source.id,
             to_account_id=target.id,
+            card_id=source_card_id,
             type=TransactionType.TRANSFER,
             amount=amount,
             currency=source.currency,
             status=TransactionStatus.COMPLETED,
             initiated_by=current_user.id,
-            description=f"p2p_transfer_by_phone:{source.currency.value}:{masked}",
+            description=f"p2p_transfer_by_phone:{source.currency.value}:{masked}{comment_suffix}",
             fee=Decimal("0"),
         )
         db.add(source)
         db.add(target)
         db.add(tx)
+        _bump_phone_contact(db, current_user.id, normalized_phone, recipient)
         db.commit()
         db.refresh(tx)
         return tx
@@ -431,22 +507,51 @@ def create_transfer_by_phone(
     if source.balance < total_debit:
         raise HTTPException(status_code=400, detail="insufficient_funds")
     source.balance -= total_debit
+    comment_suffix = f":comment_{payload.comment}" if payload.comment else ""
     tx = Transaction(
         from_account_id=source.id,
         to_account_id=None,
+        card_id=source_card_id,
         type=TransactionType.TRANSFER,
         amount=amount,
         currency=source.currency,
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
-        description=f"p2p_by_phone_external:{payload.recipient_bank_id}:{payload.phone}:fee_{fee}",
+        description=f"p2p_by_phone_external:{payload.recipient_bank_id}:{payload.phone}:fee_{fee}{comment_suffix}",
         fee=fee,
     )
     db.add(source)
     db.add(tx)
+    _bump_phone_contact(db, current_user.id, payload.phone, None)
     db.commit()
     db.refresh(tx)
     return tx
+
+
+def _bump_phone_contact(db: Session, user_id: int, phone: str, recipient: User | None) -> None:
+    """Инкрементирует счётчик TransferContact или создаёт новую запись."""
+    contact = db.scalar(
+        select(TransferContact).where(
+            TransferContact.user_id == user_id, TransferContact.phone == phone
+        )
+    )
+    display = (
+        f"{recipient.first_name or ''} {recipient.last_name or ''}".strip() or (recipient.login if recipient else phone)
+    ) if recipient else phone
+    now = datetime.utcnow()
+    if contact:
+        contact.transfers_count += 1
+        contact.last_transfer_at = now
+        contact.display_name = display
+    else:
+        contact = TransferContact(
+            user_id=user_id,
+            phone=phone,
+            display_name=display,
+            transfers_count=1,
+            last_transfer_at=now,
+        )
+    db.add(contact)
 
 
 @router.post(
@@ -558,3 +663,181 @@ def exchange_rates(current_user: User = Depends(require_active_user)):
         "base": "RUB",
         "toRub": {currency.value: str(rate) for currency, rate in RATES_TO_RUB.items()},
     }
+
+
+# ================================================================
+# Переводы по номеру карты
+# ================================================================
+
+
+EXTERNAL_CARD_FEE_RATE = Decimal("0.015")  # 1.5% для внешних карт
+
+
+def _luhn_valid(number: str) -> bool:
+    """Классическая проверка Luhn — используем для базовой валидации карт."""
+    digits = [int(d) for d in number if d.isdigit()]
+    if len(digits) < 12:
+        return False
+    checksum = 0
+    for i, d in enumerate(reversed(digits)):
+        if i % 2 == 1:
+            d *= 2
+            if d > 9:
+                d -= 9
+        checksum += d
+    return checksum % 10 == 0
+
+
+@router.get(
+    "/by-card/check",
+    response_model=TransferByCardCheckResponse,
+    summary="Проверить карту получателя по номеру",
+)
+def by_card_check(
+    number: str = Query(
+        ...,
+        description="Полный номер карты получателя (16 цифр, можно с пробелами).",
+        example="2200400012345678",
+    ),
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    clean = "".join(c for c in number if c.isdigit())
+    if len(clean) < 16 or len(clean) > 19:
+        raise HTTPException(status_code=400, detail="invalid_card_length")
+    # Luhn — рекомендательная проверка (для учебного проекта не блокируем)
+    masked = f"•• {clean[-4:]}"
+    card = db.scalar(select(Card).where(Card.number == clean))
+    if not card:
+        # Не наша карта — считаем как внешнюю
+        return TransferByCardCheckResponse(
+            found=True, in_our_bank=False, masked=masked
+        )
+    account = db.scalar(select(Account).where(Account.id == card.account_id))
+    if not account or not account.is_active:
+        raise HTTPException(status_code=400, detail="recipient_account_inactive")
+    owner = db.scalar(select(User).where(User.id == account.user_id))
+    holder_hint = None
+    if owner:
+        first = (owner.first_name or "").strip()
+        last = (owner.last_name or "").strip()
+        holder_hint = f"{first} {last[:1] + '.' if last else ''}".strip() or owner.login
+    is_own = account.user_id == current_user.id
+    is_blocked = card.status != CardStatus.ACTIVE
+    return TransferByCardCheckResponse(
+        found=True,
+        in_our_bank=True,
+        masked=masked,
+        holder_hint=holder_hint,
+        currency=account.currency.value,
+        is_own=is_own,
+        is_blocked=is_blocked,
+    )
+
+
+@router.post(
+    "/by-card",
+    response_model=TransactionPublic,
+    status_code=201,
+    summary="Перевод с карты на карту (по номеру)",
+)
+def create_transfer_by_card(
+    payload: TransferByCardRequest,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    if not validate_otp_for_user(current_user.id, payload.otp_code):
+        raise HTTPException(status_code=400, detail="invalid_otp_code")
+
+    amount = payload.amount
+    if amount < MIN_TRANSFER_AMOUNT:
+        raise HTTPException(status_code=400, detail="transfer_amount_too_small")
+    if amount > MAX_TRANSFER_AMOUNT:
+        raise HTTPException(status_code=400, detail="transfer_amount_exceeds_single_limit")
+
+    clean = "".join(c for c in payload.to_card_number if c.isdigit())
+    if len(clean) < 16 or len(clean) > 19:
+        raise HTTPException(status_code=400, detail="invalid_card_length")
+
+    # Карта-источник
+    src_card = db.scalar(select(Card).where(Card.id == payload.from_card_id))
+    if not src_card:
+        raise HTTPException(status_code=404, detail="card_not_found")
+    src_account = db.scalar(
+        select(Account)
+        .where(Account.id == src_card.account_id, Account.user_id == current_user.id)
+        .with_for_update()
+    )
+    if not src_account:
+        raise HTTPException(status_code=404, detail="account_not_found")
+    if not src_account.is_active:
+        raise HTTPException(status_code=400, detail="account_inactive")
+    if src_card.status != CardStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail="card_not_active")
+
+    used_per_currency = _calc_today_transfers_per_currency(current_user, db)
+    _check_daily_limit(used_per_currency, src_account.currency, amount)
+
+    comment_suffix = f":comment_{payload.comment}" if payload.comment else ""
+
+    # Проверяем, наша ли карта получатель
+    dst_card = db.scalar(select(Card).where(Card.number == clean))
+    if dst_card:
+        dst_account = db.scalar(
+            select(Account).where(Account.id == dst_card.account_id).with_for_update()
+        )
+        if not dst_account or not dst_account.is_active:
+            raise HTTPException(status_code=400, detail="recipient_account_inactive")
+        if dst_card.status != CardStatus.ACTIVE:
+            raise HTTPException(status_code=400, detail="recipient_card_not_active")
+        if dst_account.id == src_account.id:
+            raise HTTPException(status_code=400, detail="transfer_same_account")
+        if dst_account.currency != src_account.currency:
+            raise HTTPException(status_code=400, detail="currency_mismatch")
+        if src_account.balance < amount:
+            raise HTTPException(status_code=400, detail="insufficient_funds")
+
+        src_account.balance -= amount
+        dst_account.balance += amount
+        tx = Transaction(
+            from_account_id=src_account.id,
+            to_account_id=dst_account.id,
+            card_id=src_card.id,
+            type=TransactionType.TRANSFER,
+            amount=amount,
+            currency=src_account.currency,
+            status=TransactionStatus.COMPLETED,
+            initiated_by=current_user.id,
+            description=f"card_to_card:{src_account.currency.value}:•• {clean[-4:]}{comment_suffix}",
+            fee=Decimal("0"),
+        )
+        db.add(src_account)
+        db.add(dst_account)
+        db.add(tx)
+        db.commit()
+        db.refresh(tx)
+        return tx
+
+    # Внешняя карта — списание amount + fee, без реального target-account.
+    fee = (amount * EXTERNAL_CARD_FEE_RATE).quantize(Decimal("0.01"))
+    total_debit = amount + fee
+    if src_account.balance < total_debit:
+        raise HTTPException(status_code=400, detail="insufficient_funds")
+    src_account.balance -= total_debit
+    tx = Transaction(
+        from_account_id=src_account.id,
+        to_account_id=None,
+        card_id=src_card.id,
+        type=TransactionType.TRANSFER,
+        amount=amount,
+        currency=src_account.currency,
+        status=TransactionStatus.COMPLETED,
+        initiated_by=current_user.id,
+        description=f"external_card:{src_account.currency.value}:•• {clean[-4:]}:fee_{fee}{comment_suffix}",
+        fee=fee,
+    )
+    db.add(src_account)
+    db.add(tx)
+    db.commit()
+    db.refresh(tx)
+    return tx

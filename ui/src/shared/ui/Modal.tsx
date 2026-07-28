@@ -1,0 +1,67 @@
+import { ReactNode, useEffect } from "react";
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  footer?: ReactNode;
+  testId?: string;
+  maxWidth?: number;
+}
+
+/** Простая модалка с фиксированным overlay, ESC для закрытия. */
+export function Modal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  children,
+  footer,
+  testId,
+  maxWidth = 420,
+}: Props) {
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-[100] backdrop-blur-md"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div
+        className="bg-surface-2 rounded-card p-5 w-full border border-line max-h-[90vh] overflow-y-auto"
+        style={{ maxWidth }}
+        onClick={(e) => e.stopPropagation()}
+        data-testid={testId}
+      >
+        <div className="flex justify-between items-start mb-1">
+          <div className="text-[17px] font-medium">{title}</div>
+          <button
+            onClick={onClose}
+            aria-label="Закрыть"
+            data-testid="modal-close-btn"
+            className="text-ink-muted hover:text-ink-primary transition"
+          >
+            <i className="ti ti-x text-lg" aria-hidden="true"></i>
+          </button>
+        </div>
+        {subtitle && <div className="text-xs text-ink-secondary mb-4">{subtitle}</div>}
+        <div>{children}</div>
+        {footer && <div className="mt-4">{footer}</div>}
+      </div>
+    </div>
+  );
+}

@@ -23,6 +23,11 @@ services:
     container_name: shlapabank-backend
     env_file:
       - .env
+    environment:
+      # Массовый сид демо-пользователей при старте (50000 по-умолчанию).
+      # Отключить: BULK_SEED_ENABLED=0. Уменьшить количество: BULK_SEED_USERS=5000.
+      BULK_SEED_ENABLED: "1"
+      BULK_SEED_USERS: "50000"
     ports:
       - "8001:8000"
     depends_on:
@@ -32,6 +37,16 @@ services:
       - ./backend:/app
       - ./ui-mockup:/app/ui-mockup
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: shlapabank-ui
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
 
 volumes:
   pgdata:

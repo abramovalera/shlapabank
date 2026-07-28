@@ -1,0 +1,168 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    background: #0B1223;
+    color: #F5F7FF;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color-scheme: dark;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  ::selection {
+    background: rgba(240, 148, 39, 0.35);
+    color: #F5F7FF;
+  }
+  /* Убираем нативные стрелки у number-inputs — некрасивые и по клику меняют значение */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-control border border-line-strong bg-transparent px-3 py-2 text-sm text-ink-primary transition hover:bg-fill-hover active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-control border-0 px-3 py-2 text-sm font-medium text-[#0B1223] transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    background: linear-gradient(180deg, #FFA347 0%, #F09427 100%);
+    background-size: 200% 200%;
+    box-shadow: 0 4px 20px rgba(240, 148, 39, 0.3);
+    animation: gradientShift 4s ease infinite;
+  }
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: 0 6px 28px rgba(240, 148, 39, 0.5);
+  }
+  .btn-outline-brand {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-control px-3 py-2 text-sm text-accent transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    background: rgba(240, 148, 39, 0.08);
+    border: 1px solid rgba(240, 148, 39, 0.35);
+  }
+  .btn-outline-brand:hover:not(:disabled) {
+    background: rgba(240, 148, 39, 0.15);
+    border-color: rgba(240, 148, 39, 0.55);
+  }
+  .btn-ghost {
+    @apply btn border-transparent hover:bg-fill-hover;
+  }
+  .card {
+    @apply rounded-card border border-line bg-surface-1 p-4;
+  }
+  .card-nested {
+    @apply rounded-control border border-line bg-surface-2 p-3;
+  }
+  .input {
+    @apply w-full rounded-control border border-line bg-fill-control px-3 py-2 text-sm text-ink-primary placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] font-medium;
+  }
+  .sidebar-block {
+    @apply rounded-card bg-surface-1 border border-line p-4;
+  }
+  .auth-card {
+    background: rgba(20, 28, 51, 0.72);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(245, 247, 255, 0.08);
+    box-shadow: 0 0 80px rgba(240, 148, 39, 0.15), 0 20px 40px rgba(0, 0, 0, 0.35);
+    border-radius: 20px;
+    position: relative;
+    z-index: 10;
+  }
+}
+
+/* Анимированный тёмный градиентный фон для страниц авторизации */
+.animated-bg {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #0b1120, #1a2639, #2a1f3d, #14203B);
+  background-size: 400% 400%;
+  animation: gradientMove 14s ease infinite;
+  z-index: 0;
+}
+@keyframes gradientMove {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Парящие звёзды: поднимаются снизу вверх */
+.particles-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+.particle-star {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  animation: floatUp linear infinite;
+  box-shadow: 0 0 6px 1px rgba(255, 215, 0, 0.25);
+}
+@keyframes floatUp {
+  0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+}
+
+/* Плавное появление карточек снизу-вверх */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up  { animation: fadeUp 0.7s ease-out both; }
+.fade-up-1 { animation-delay: 0.08s; }
+.fade-up-2 { animation-delay: 0.16s; }
+.fade-up-3 { animation-delay: 0.24s; }
+.fade-up-4 { animation-delay: 0.32s; }
+
+/* Пульсация логотипа */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(240, 148, 39, 0.35); }
+  50%      { box-shadow: 0 0 40px rgba(240, 148, 39, 0.7); }
+}
+.logo-glow { animation: pulseGlow 2.5s ease-in-out infinite; }
+
+/* Движение градиента на кнопке (уже используется в .btn-primary) */
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Progress bar для экрана загрузки после входа */
+@keyframes progressFill {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+.progress-fill {
+  animation: progressFill 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}

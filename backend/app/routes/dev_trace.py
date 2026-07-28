@@ -3,7 +3,13 @@ from fastapi import APIRouter, HTTPException
 from app.core.config import settings
 from app.dev_trace import clear_trace_buffer, get_recent_entries
 
-router = APIRouter(prefix="/api/v1/dev", tags=["dev"])
+# Скрываем весь роутер из Swagger — в OpenAPI не должно быть служебной телеметрии.
+# Эндпоинты продолжают работать по прямому URL, но не мозолят глаза в документации.
+router = APIRouter(
+    prefix="/api/v1/dev",
+    tags=["dev"],
+    include_in_schema=settings.enable_dev_trace,
+)
 
 
 @router.get("/trace/recent", summary="Последние записи учебной трассировки (HTTP + ORM)")

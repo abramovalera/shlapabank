@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ShlapaBank — Dashboard Reference v1</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" rel="stylesheet" />
+<style>
+  :root {
+    --surface-0: #f7f7f5;
+    --surface-1: #f1efe8;
+    --surface-2: #ffffff;
+    --text-primary: #0f1729;
+    --text-secondary: #5f5e5a;
+    --text-muted: #888780;
+    --text-accent: #185fa5;
+    --text-success: #0f6e56;
+    --text-warning: #854f0b;
+    --border: rgba(15, 23, 42, 0.08);
+    --border-strong: rgba(15, 23, 42, 0.15);
+    --bg-accent: #e6f1fb;
+    --bg-success: #e1f5ee;
+    --bg-warning: #faeeda;
+    --fill-control: rgba(15, 23, 42, 0.06);
+    --fill-accent: #378add;
+    --fill-primary: #0f1729;
+    --on-primary: #ffffff;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #ebe9e1;
+    color: var(--text-primary);
+    margin: 0;
+    padding: 24px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .wrapper { max-width: 900px; margin: 0 auto; }
+  button {
+    font-family: inherit;
+    background: transparent;
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover { background: var(--surface-1); }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+<h2 class="sr-only">Референс дашборда ShlapaBank</h2>
+
+<div style="background: var(--surface-0); border-radius: 12px; padding: 20px; border: 0.5px solid var(--border);">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 28px; height: 28px; border-radius: 8px; background: var(--fill-primary); color: var(--on-primary); display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 14px;">S</div>
+      <span style="font-weight: 500; font-size: 15px;">ShlapaBank</span>
+      <nav style="display: flex; gap: 4px; margin-left: 20px;">
+        <span style="font-size: 13px; padding: 6px 10px; border-radius: 6px; background: var(--surface-2);">Главная</span>
+        <span style="font-size: 13px; padding: 6px 10px; color: var(--text-secondary);">Платежи</span>
+        <span style="font-size: 13px; padding: 6px 10px; color: var(--text-secondary);">Карты</span>
+        <span style="font-size: 13px; padding: 6px 10px; color: var(--text-secondary);">История</span>
+      </nav>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <i class="ti ti-bell" style="font-size: 18px; color: var(--text-secondary);" aria-hidden="true"></i>
+      <div style="width: 30px; height: 30px; border-radius: 50%; background: var(--bg-accent); color: var(--text-accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">ВК</div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+    <div style="background: var(--surface-2); border-radius: 12px; padding: 16px; border: 0.5px solid var(--border);">
+      <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">Общий баланс</div>
+      <div style="font-size: 26px; font-weight: 500; letter-spacing: -0.5px;">₽ 248 630,50</div>
+      <div style="font-size: 12px; color: var(--text-success); margin-top: 4px;">+₽ 4 210 за месяц</div>
+    </div>
+    <div style="background: var(--surface-2); border-radius: 12px; padding: 16px; border: 0.5px solid var(--border);">
+      <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">Курс USD / EUR</div>
+      <div style="display: flex; gap: 14px; align-items: baseline;">
+        <div><span style="font-size: 18px; font-weight: 500;">78,24</span> <span style="font-size: 12px; color: var(--text-muted);">$</span></div>
+        <div><span style="font-size: 18px; font-weight: 500;">84,61</span> <span style="font-size: 12px; color: var(--text-muted);">€</span></div>
+      </div>
+      <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Обновлено 5 мин назад</div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px;">
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+
+      <div style="background: var(--surface-2); border-radius: 12px; padding: 16px; border: 0.5px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <div style="font-size: 15px; font-weight: 500;">Мои карты</div>
+          <span style="font-size: 12px; color: var(--text-accent);">Все карты →</span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 16px;">
+
+          <div style="position: relative; width: 200px; flex-shrink: 0;">
+            <div style="position: absolute; top: 8px; right: -10px; width: 190px; height: 118px; border-radius: 12px; background: #0f6e56; opacity: 0.35; transform: rotate(2deg); z-index: 0;"></div>
+
+            <div style="position: relative; width: 200px; height: 126px; border-radius: 12px; background: linear-gradient(135deg, #0f1729 0%, #1e2a4a 100%); color: #fff; padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; z-index: 1;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                  <div style="font-size: 10px; opacity: 0.6;">ShlapaBank</div>
+                  <div style="font-size: 11px; opacity: 0.85; margin-top: 2px;">Дебетовая</div>
+                </div>
+                <div style="width: 24px; height: 18px; border-radius: 3px; background: linear-gradient(135deg, #d4af37 0%, #b8941e 100%);"></div>
+              </div>
+              <div>
+                <div style="font-size: 14px; letter-spacing: 2px; font-family: var(--font-mono);">•••• 4021</div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 6px;">
+                  <div style="font-size: 9px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.5px;">V. Kalera · 09/28</div>
+                  <div style="font-size: 12px; font-weight: 500; font-style: italic; letter-spacing: -0.5px;">VISA</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 2px;">Счёт «Основной»</div>
+              <div style="font-size: 20px; font-weight: 500; letter-spacing: -0.5px;">₽ 182 400,00</div>
+            </div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <span style="font-size: 11px; padding: 3px 8px; border-radius: 10px; background: var(--bg-success); color: var(--text-success);">Активна</span>
+              <span style="font-size: 11px; padding: 3px 8px; border-radius: 10px; background: var(--fill-control); color: var(--text-secondary);">Бесконтакт</span>
+            </div>
+            <div style="display: flex; gap: 6px; margin-top: 4px;">
+              <button style="flex: 1; padding: 6px 8px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 4px;"><i class="ti ti-lock" style="font-size: 13px;" aria-hidden="true"></i>Блок</button>
+              <button style="flex: 1; padding: 6px 8px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 4px;"><i class="ti ti-settings" style="font-size: 13px;" aria-hidden="true"></i>Ещё</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 0.5px solid var(--border);">
+          <button aria-label="Предыдущая карта" style="width: 24px; height: 24px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="ti ti-chevron-left" style="font-size: 14px;" aria-hidden="true"></i></button>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <span style="width: 18px; height: 4px; border-radius: 2px; background: var(--text-primary);"></span>
+            <span style="width: 4px; height: 4px; border-radius: 50%; background: var(--border-strong);"></span>
+            <span style="width: 4px; height: 4px; border-radius: 50%; background: var(--border-strong);"></span>
+          </div>
+          <button aria-label="Следующая карта" style="width: 24px; height: 24px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i class="ti ti-chevron-right" style="font-size: 14px;" aria-hidden="true"></i></button>
+        </div>
+      </div>
+
+      <div style="background: var(--surface-2); border-radius: 12px; padding: 16px; border: 0.5px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="font-size: 15px; font-weight: 500;">Счета</div>
+          <span style="font-size: 12px; color: var(--text-accent);">+ Открыть</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--surface-1);">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--bg-accent); color: var(--text-accent); display: flex; align-items: center; justify-content: center;"><i class="ti ti-wallet" aria-hidden="true"></i></div>
+              <div>
+                <div style="font-size: 13px; font-weight: 500;">Основной</div>
+                <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                  •••• 4021 · RUB
+                  <span style="display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; background: var(--fill-control); border-radius: 10px; font-size: 10px;"><i class="ti ti-credit-card" style="font-size: 10px;" aria-hidden="true"></i>2</span>
+                </div>
+              </div>
+            </div>
+            <div style="font-size: 14px; font-weight: 500;">₽ 182 400,00</div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--surface-1);">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--bg-success); color: var(--text-success); display: flex; align-items: center; justify-content: center;"><i class="ti ti-piggy-bank" aria-hidden="true"></i></div>
+              <div>
+                <div style="font-size: 13px; font-weight: 500;">Накопительный</div>
+                <div style="font-size: 11px; color: var(--text-muted);">•••• 8817 · RUB · 8%</div>
+              </div>
+            </div>
+            <div style="font-size: 14px; font-weight: 500;">₽ 60 000,00</div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--surface-1);">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--bg-warning); color: var(--text-warning); display: flex; align-items: center; justify-content: center;"><i class="ti ti-currency-dollar" aria-hidden="true"></i></div>
+              <div>
+                <div style="font-size: 13px; font-weight: 500;">Валютный</div>
+                <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                  •••• 1245 · USD
+                  <span style="display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; background: var(--fill-control); border-radius: 10px; font-size: 10px;"><i class="ti ti-credit-card" style="font-size: 10px;" aria-hidden="true"></i>1</span>
+                </div>
+              </div>
+            </div>
+            <div style="font-size: 14px; font-weight: 500;">$ 820,15</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+
+      <div style="background: var(--surface-2); border-radius: 12px; padding: 16px; border: 0.5px solid var(--border);">
+        <div style="font-size: 15px; font-weight: 500; margin-bottom: 12px;">Быстрые действия</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <button style="height: auto; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px;"><i class="ti ti-arrow-up-right" style="font-size: 18px;" aria-hidden="true"></i><span style="font-size: 12px;">Перевод</span></button>
+          <button style="height: auto; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px;"><i class="ti ti-credit-card" style="font-size: 18px;" aria-hidden="true"></i><span style="font-size: 12px;">Выпустить</span></button>
+          <button style="height: auto; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px;"><i class="ti ti-refresh" style="font-size: 18px;" aria-hidden="true"></i><span style="font-size: 12px;">Обмен</span></button>
+          <button style="height: auto; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px;"><i class="ti ti-file-invoice" style="font-size: 18px;" aria-hidden="true"></i><span style="font-size: 12px;">Оплатить</span></button>
+        </div>
+      </div>
+
+      <div style="background: var(--surface-2); border-radius: 12px; padding: 16px; border: 0.5px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+          <div style="font-size: 15px; font-weight: 500;">Лимит на месяц</div>
+          <div style="font-size: 12px; color: var(--text-secondary);">62%</div>
+        </div>
+        <div style="height: 6px; background: var(--fill-control); border-radius: 4px; overflow: hidden;">
+          <div style="width: 62%; height: 100%; background: var(--fill-accent);"></div>
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">₽ 31 200 из ₽ 50 000</div>
+      </div>
+
+      <div style="background: var(--surface-2); border-radius: 12px; padding: 16px; border: 0.5px solid var(--border);">
+        <div style="font-size: 15px; font-weight: 500; margin-bottom: 8px;">Поддержка</div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">Задайте вопрос — ответим за пару минут.</div>
+        <button style="width: 100%;">Открыть чат</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

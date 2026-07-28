@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import User
+from app.models import Account, Card, Transaction, TransferContact, User, UserBank
 from app.phone_utils import normalize_phone
-from app.schemas import ProfileUpdateRequest, UserPublic
+from app.schemas import ActionResponse, ProfileUpdateRequest, UserPublic
 from app.security import get_current_user, require_active_user, validate_password_rules, verify_password
 
 router = APIRouter(prefix="/api/v1/profile", tags=["profile"])
@@ -65,3 +65,42 @@ def update_profile(
     return current_user
 
 
+@router.delete(
+    "",
+    response_model=ActionResponse,
+    summary="Удалить свой аккаунт (self-destruct)",
+    description=(
+        "Полностью удаляет пользователя вместе со счетами, картами, транзакциями и "
+        "контактами. Действие необратимо. Используется для автотестов, чтобы не "
+        "засорять базу тестовыми пользователями."
+    ),
+)
+def delete_own_profile(
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    uid = current_user.id
+    account_ids = list(
+        db.scalars(select(Account.id).where(Account.user_id == uid)).all()
+    )
+    # Транзакции (сначала — иначе FK на cards/accounts не даст удалить)
+    if account_ids:
+        db.execute(
+            delete(Transaction).where(
+                (Transaction.from_account_id.in_(account_ids))
+                | (Transaction.to_account_id.in_(account_ids))
+            )
+        )
+    db.execute(delete(Transaction).where(Transaction.initiated_by == uid))
+    # Карты
+    if account_ids:
+        db.execute(delete(Card).where(Card.account_id.in_(account_ids)))
+    # Счета
+    db.execute(delete(Account).where(Account.user_id == uid))
+    # Контакты + банки
+    db.execute(delete(TransferContact).where(TransferContact.user_id == uid))
+    db.execute(delete(UserBank).where(UserBank.user_id == uid))
+    # Сам пользователь
+    db.execute(delete(User).where(User.id == uid))
+    db.commit()
+    return ActionResponse(detail="profile_deleted")

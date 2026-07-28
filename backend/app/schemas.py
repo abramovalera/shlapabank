@@ -4,7 +4,18 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, field_validator, model_validator
 
-from app.models import AccountType, Currency, TransactionStatus, TransactionType, UserRole, UserStatus
+from app.models import (
+    AccountType,
+    CardDesign,
+    CardPaymentSystem,
+    CardStatus,
+    CardType,
+    Currency,
+    TransactionStatus,
+    TransactionType,
+    UserRole,
+    UserStatus,
+)
 
 # Общий тип для OTP (4 цифры) — используется во всех запросах с подтверждением
 OtpCode = Annotated[str, Field(min_length=4, max_length=4, pattern=r"^\d{4}$")]
@@ -26,10 +37,19 @@ class RegisterRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     model_config = ConfigDict(
-        json_schema_extra={"example": {"login": "ivanpetrov", "password": "StrongPass123!"}}
+        json_schema_extra={
+            "examples": [
+                {"login": "ivanpetrov", "password": "StrongPass123!"},
+                {"login": "+79991234567", "password": "StrongPass123!"},
+            ]
+        }
     )
 
-    login: str = Field(min_length=1, max_length=20)
+    login: str = Field(
+        min_length=1,
+        max_length=20,
+        description="Логин пользователя (6–20 симв.) ИЛИ номер телефона в формате +7XXXXXXXXXX.",
+    )
     password: str = Field(min_length=1, max_length=100)
 
 
@@ -56,6 +76,38 @@ class ActionResponse(BaseModel):
     detail: str | None = None
 
 
+class ApiErrorDetail(BaseModel):
+    """Тело ошибки, которое вкладывается в ApiErrorResponse.error."""
+
+    code: str = Field(description="Стабильный snake_case-код, для программной обработки клиентом.")
+    message: str = Field(description="Человекочитаемое сообщение на русском для показа пользователю.")
+    field: str | None = Field(
+        default=None,
+        description="Для валидационных ошибок — имя поля-виновника. Для бизнес-ошибок null.",
+    )
+
+
+class ApiErrorResponse(BaseModel):
+    """Единый формат для всех ошибок API (4xx, 5xx).
+
+    Пример: `{"error":{"code":"insufficient_funds","message":"Недостаточно средств","field":null}}`
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "error": {
+                    "code": "insufficient_funds",
+                    "message": "Недостаточно средств",
+                    "field": None,
+                }
+            }
+        }
+    )
+
+    error: ApiErrorDetail
+
+
 class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -67,6 +119,10 @@ class UserPublic(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     phone: str | None = None
+    avatar_color: str | None = None
+    date_of_birth: str | None = None
+    theme: str = "dark"
+    sbp_primary_bank: str = "SHLAPABANK"
 
     @field_validator("email", mode="before")
     @classmethod
@@ -121,6 +177,10 @@ class ProfileUpdateRequest(BaseModel):
     email: EmailStr | None = None
     current_password: str | None = Field(default=None, min_length=8, max_length=30)
     new_password: str | None = Field(default=None, min_length=8, max_length=30)
+    avatar_color: str | None = Field(default=None, max_length=20)
+    date_of_birth: str | None = Field(default=None, max_length=10, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    theme: Literal["dark", "light"] | None = None
+    sbp_primary_bank: str | None = Field(default=None, max_length=32)
 
 
 class AdminCreditRequest(BaseModel):
@@ -245,11 +305,21 @@ class VendorPaymentRequest(BaseModel):
 
 class AccountCreateRequest(BaseModel):
     model_config = ConfigDict(
-        json_schema_extra={"example": {"account_type": "DEBIT", "currency": "RUB"}}
+        json_schema_extra={
+            "example": {"account_type": "DEBIT", "currency": "RUB", "name": "Зарплатный", "accept_terms": True}
+        }
     )
 
     account_type: AccountType
     currency: Currency
+    name: str | None = Field(default=None, max_length=60)
+    accept_terms: bool = True
+
+
+class AccountUpdateRequest(BaseModel):
+    """Изменение полей счёта (сейчас — только имя)."""
+
+    name: str = Field(min_length=1, max_length=60)
 
 
 class PrimaryAccountsRequest(BaseModel):
@@ -264,21 +334,106 @@ class AccountPublic(BaseModel):
         json_schema_extra={
             "example": {
                 "id": 1,
-                "account_number": "0f3d2a9b84c5d1e7a6f2",
+                "name": "Зарплатный",
+                "account_number": "2202000000004021",
                 "account_type": "DEBIT",
                 "currency": "RUB",
                 "balance": "0.00",
                 "is_primary": False,
+                "cards_count": 1,
             }
         },
     )
 
     id: int
+    name: str
     account_number: str
     account_type: AccountType
     currency: Currency
     balance: Decimal
     is_primary: bool = False
+    cards_count: int = 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def compute_cards_count(cls, data: object):
+        if hasattr(data, "cards"):
+            try:
+                # noinspection PyUnresolvedReferences
+                cards = [c for c in data.cards if getattr(c, "status", None) != CardStatus.EXPIRED]
+                setattr(data, "cards_count", len(cards))
+            except Exception:
+                pass
+        return data
+
+
+class CardPublic(BaseModel):
+    """Публичное представление карты (без полного номера)."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": 1,
+                "account_id": 1,
+                "last4": "4021",
+                "holder_name": "IVAN PETROV",
+                "expiry_month": 9,
+                "expiry_year": 2028,
+                "card_type": "DEBIT",
+                "payment_system": "VISA",
+                "status": "ACTIVE",
+                "is_contactless": True,
+            }
+        },
+    )
+
+    id: int
+    account_id: int
+    last4: str
+    holder_name: str
+    expiry_month: int
+    expiry_year: int
+    card_type: CardType
+    payment_system: CardPaymentSystem
+    status: CardStatus
+    design: CardDesign = CardDesign.CLASSIC
+    is_contactless: bool
+
+
+class CardCreateRequest(BaseModel):
+    """Заявка на выпуск новой карты, привязанной к существующему счёту.
+
+    payment_system опциональна — если не указана, подбирается по валюте счёта
+    (RUB → MIR, иначе → VISA).
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "account_id": 1,
+                "card_type": "VIRTUAL",
+                "design": "EMERALD",
+                "accept_terms": True,
+            }
+        }
+    )
+
+    account_id: int
+    card_type: CardType = CardType.DEBIT
+    payment_system: CardPaymentSystem | None = None
+    design: CardDesign = CardDesign.CLASSIC
+    accept_terms: bool = True
+
+
+class CardUpdateRequest(BaseModel):
+    """Частичное изменение карты. Все поля опциональные:
+    - status: блокировка/разблокировка
+    - design: смена оформления
+    """
+
+    status: CardStatus | None = None
+    design: CardDesign | None = None
 
 
 class UserBanksUpdateRequest(BaseModel):
@@ -292,18 +447,23 @@ class BankOption(BaseModel):
 
 
 class TransferByPhoneCheckResponse(BaseModel):
-    """Если получатель в нашем банке — availableBanks содержит название банка (ShlapaBank) и 0–5 назначенных банков. Иначе — все внешние банки."""
+    """Если получатель в нашем банке — availableBanks содержит ShlapaBank и его 0–5 назначенных банков.
+    Иначе — все внешние банки. primary_bank_id — «основной» банк получателя (для отображения бейджа)."""
 
     inOurBank: bool
     availableBanks: list[BankOption]
+    recipientHint: str | None = None  # Имя-подсказка получателя (маскированное)
+    primaryBankId: str | None = None  # Код банка, отмеченного получателем как основной
 
 
 class TransferByPhoneRequest(BaseModel):
-    from_account_id: int
+    from_account_id: int | None = None
+    from_card_id: int | None = None
     phone: str = Field(pattern=r"^\+7\d{10}$")
     amount: Decimal = Field(gt=0)
     recipient_bank_id: str = Field(min_length=1, max_length=32)
     otp_code: OtpCode
+    comment: str | None = Field(default=None, max_length=70)
 
     @field_validator("phone", mode="before")
     @classmethod
@@ -312,6 +472,37 @@ class TransferByPhoneRequest(BaseModel):
             return v
         from app.phone_utils import normalize_phone
         return normalize_phone(v) or v
+
+
+class TransferByCardCheckResponse(BaseModel):
+    """Проверка карты получателя.
+    in_our_bank=true — карта найдена в ShlapaBank. Остальные поля заполнены в этом случае.
+    """
+
+    found: bool
+    in_our_bank: bool
+    masked: str
+    holder_hint: str | None = None
+    currency: str | None = None
+    is_own: bool = False
+    is_blocked: bool = False
+
+
+class TransferByCardRequest(BaseModel):
+    from_card_id: int
+    to_card_number: str = Field(min_length=16, max_length=19, pattern=r"^\d{16,19}$")
+    amount: Decimal = Field(gt=0)
+    otp_code: OtpCode
+    comment: str | None = Field(default=None, max_length=70)
+
+
+class RecentPhoneContact(BaseModel):
+    """Часто используемый получатель по номеру телефона (для авто-подстановки)."""
+
+    phone: str
+    display_name: str
+    transfers_count: int
+    last_transfer_at: datetime | None = None
 
 
 class TransactionMoney(BaseModel):

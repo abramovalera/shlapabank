@@ -141,6 +141,28 @@ def _build_receipt_html(tx: Transaction, from_num: str | None, to_num: str | Non
 
 
 @router.get(
+    "/{transaction_id}",
+    response_model=TransactionPublic,
+    summary="Получить одну операцию по id",
+    description=(
+        "Возвращает JSON операции. Доступ есть только если пользователь — инициатор операции "
+        "либо один из её счетов принадлежит ему."
+    ),
+)
+def get_transaction(
+    transaction_id: int,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    tx = db.scalar(select(Transaction).where(Transaction.id == transaction_id))
+    if not tx:
+        raise HTTPException(status_code=404, detail="not_found")
+    if not _user_can_access_transaction(tx, current_user, db):
+        raise HTTPException(status_code=404, detail="not_found")
+    return tx
+
+
+@router.get(
     "",
     response_model=list[TransactionPublic],
     summary="Получить историю операций",
@@ -166,8 +188,14 @@ def list_transactions(
 @router.get(
     "/{transaction_id}/receipt",
     response_class=HTMLResponse,
-    summary="Скачать чек по операции",
-    description="Возвращает HTML-чек для сохранения или печати. Доступен только для своих операций.",
+    summary="Скачать HTML-чек по операции",
+    description=(
+        "Возвращает **HTML-чек** (не JSON!) с заголовком `Content-Disposition: attachment` — "
+        "браузер предложит сохранить файл. Открыв файл в браузере, можно распечатать или "
+        "сохранить как PDF через диалог печати.\n\n"
+        "Доступен только для операций, где текущий пользователь — инициатор или владелец "
+        "одного из счетов."
+    ),
 )
 def get_receipt(
     transaction_id: int,

@@ -2,17 +2,20 @@ import random
 import time
 from collections import defaultdict, deque
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette.requests import Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from pydantic import BaseModel, Field
 
 from app.banks import get_external_bank_codes
 from app.constants import FAILED_LOGIN_THRESHOLD
 from app.core.config import settings
 from app.db import get_db
 from app.models import User, UserBank, UserStatus
-from app.schemas import LoginRequest, RegisterRequest, TokenResponse, UserPublic
+from app.otp import OTP_TTL_MINUTES, issue_otp_preview, validate_otp_for_user
+from app.schemas import LoginRequest, OtpCode, RegisterRequest, TokenResponse, UserPublic
 from app.security import create_access_token, validate_password_rules, verify_password
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -44,7 +47,15 @@ def _enforce_register_rate_limit(request: Request) -> None:
 
 
 def _issue_token_for_credentials(login: str, password: str, db: Session) -> TokenResponse:
-    user = db.scalar(select(User).where(User.login == login))
+    # Поддерживаем логин ИЛИ телефон в поле login. Определяем по началу: + или 8 → phone.
+    from app.phone_utils import normalize_phone
+
+    ident = login.strip()
+    normalized = normalize_phone(ident)
+    if normalized:
+        user = db.scalar(select(User).where(User.phone == normalized))
+    else:
+        user = db.scalar(select(User).where(User.login == ident))
     if not user:
         raise HTTPException(status_code=401, detail="invalid_credentials")
     if user.status == UserStatus.BLOCKED:
@@ -99,7 +110,110 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
 @router.post(
     "/login",
     response_model=TokenResponse,
-    summary="Войти",
+    summary="Войти в систему (по логину или телефону)",
+    description=(
+        "Возвращает JWT-токен, который нужно передавать в заголовке "
+        "`Authorization: Bearer <access_token>` для доступа к защищённым эндпоинтам.\n\n"
+        "Поле `login` в теле запроса принимает **либо логин** (6–20 симв., буквы/цифры), "
+        "**либо телефон** в формате `+7XXXXXXXXXX`. Определяется автоматически — если начинается "
+        "с `+`, `7` или `8` и содержит только цифры → телефон.\n\n"
+        "После 5 неудачных попыток входа пользователь блокируется, разблокировать может админ."
+    ),
 )
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     return _issue_token_for_credentials(payload.login, payload.password, db)
+
+
+# =========================================================================
+# Восстановление пароля (учебный проект: OTP выдаётся в ответе как подсказка)
+# =========================================================================
+
+
+class LoginAvailabilityResponse(BaseModel):
+    available: bool
+
+
+@router.get(
+    "/login-available",
+    response_model=LoginAvailabilityResponse,
+    summary="Проверить, свободен ли логин (для регистрации)",
+)
+def login_available(
+    login: str = Query(..., description="Логин, который проверяем на уникальность.", example="ivanpetrov"),
+    db: Session = Depends(get_db),
+):
+    exists = db.scalar(select(User).where(User.login == login))
+    return LoginAvailabilityResponse(available=exists is None)
+
+
+class PasswordResetRequestBody(BaseModel):
+    login: str = Field(min_length=1, max_length=20)
+
+
+class PasswordResetRequestResponse(BaseModel):
+    """Всегда `{"status": "ok"}` — независимо от того, найден пользователь или нет.
+    Это защита от перебора: злоумышленник не может проверять, какие логины существуют.
+
+    Чтобы получить сам OTP-код — вызовите `GET /helper/otp/preview?login=<логин>`
+    (единая точка выдачи OTP для всего приложения).
+    """
+
+    status: str = "ok"
+
+
+@router.post(
+    "/password/reset-request",
+    response_model=PasswordResetRequestResponse,
+    summary="Запросить сброс пароля (сгенерирует OTP)",
+    description=(
+        "Триггерит генерацию OTP для указанного логина. Всегда возвращает 200 — независимо от того, "
+        "существует пользователь или нет (защита от перебора).\n\n"
+        "**Следующий шаг:** получить сгенерированный код через `GET /helper/otp/preview?login=<логин>`. "
+        "Это единая точка выдачи OTP для всего проекта.\n\n"
+        "**Финал:** отправить `POST /auth/password/reset-confirm` с логином, OTP и новым паролем."
+    ),
+)
+def password_reset_request(
+    payload: PasswordResetRequestBody,
+    db: Session = Depends(get_db),
+):
+    user = db.scalar(select(User).where(User.login == payload.login))
+    if user:
+        # Просто генерируем OTP — не возвращаем его тут, клиент возьмёт через /helper/otp/preview
+        issue_otp_preview(user.id)
+    return PasswordResetRequestResponse(status="ok")
+
+
+class PasswordResetConfirmBody(BaseModel):
+    login: str = Field(min_length=1, max_length=20)
+    otp_code: OtpCode
+    new_password: str = Field(min_length=8, max_length=30)
+
+
+@router.post(
+    "/password/reset-confirm",
+    response_model=TokenResponse,
+    summary="Подтвердить сброс пароля, установить новый и войти",
+)
+def password_reset_confirm(
+    payload: PasswordResetConfirmBody,
+    db: Session = Depends(get_db),
+):
+    user = db.scalar(select(User).where(User.login == payload.login))
+    if not user:
+        raise HTTPException(status_code=400, detail="invalid_credentials")
+
+    if not validate_otp_for_user(user.id, payload.otp_code):
+        raise HTTPException(status_code=400, detail="invalid_otp_code")
+
+    validate_password_rules(user.login, payload.new_password)
+
+    # Обновляем пароль и сбрасываем счётчик неудачных попыток (разблокируем).
+    user.password_hash = payload.new_password
+    user.failed_login_attempts = 0
+    user.status = UserStatus.ACTIVE
+    db.add(user)
+    db.commit()
+
+    token = create_access_token(str(user.id))
+    return TokenResponse(access_token=token, role=user.role.value)

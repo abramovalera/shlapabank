@@ -2,17 +2,26 @@ from decimal import Decimal
 import random
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_own_account, get_own_active_account
 from app.db import get_db
-from app.models import Account, Currency, Transaction, TransactionStatus, TransactionType, User
+from app.models import (
+    Account,
+    Currency,
+    Transaction,
+    TransactionStatus,
+    TransactionType,
+    User,
+)
 from app.otp import validate_otp_for_user
 from app.schemas import (
     AccountCreateRequest,
     AccountPublic,
     AccountTopupRequest,
+    AccountUpdateRequest,
     ActionResponse,
     PrimaryAccountsRequest,
     TransactionPublic,
@@ -54,7 +63,7 @@ def _generate_account_number(currency: Currency) -> str:
     return f"{prefix}{suffix}"
 
 
-@router.get("", response_model=list[AccountPublic], summary="Получить список счетов")
+@router.get("", response_model=list[AccountPublic], summary="Получить список своих активных счетов")
 def list_accounts(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
@@ -62,6 +71,20 @@ def list_accounts(
     return db.scalars(
         select(Account).where(Account.user_id == current_user.id, Account.is_active.is_(True))
     ).all()
+
+
+@router.get(
+    "/{account_id}",
+    response_model=AccountPublic,
+    summary="Получить один свой счёт по id",
+    description="Возвращает детали одного счёта. Доступно только владельцу.",
+)
+def get_account(
+    account_id: int,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    return get_own_account(account_id, current_user, db)
 
 
 @router.post(
@@ -75,6 +98,9 @@ def create_account(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ):
+    if not payload.accept_terms:
+        raise HTTPException(status_code=400, detail="terms_not_accepted")
+
     user_accounts = db.scalars(
         select(Account).where(Account.user_id == current_user.id, Account.is_active.is_(True))
     ).all()
@@ -87,12 +113,41 @@ def create_account(
     if payload.currency in _foreign_currencies() and foreign_count >= MAX_BY_FOREIGN:
         raise HTTPException(status_code=400, detail="account_limit_exceeded")
 
+    # Название: пользовательское или авто-«Счёт N» / «Накопительный N».
+    name = (payload.name or "").strip()
+    if not name:
+        prefix = "Накопительный" if payload.account_type.value == "SAVINGS" else "Счёт"
+        similar_count = sum(1 for a in user_accounts if a.name.startswith(prefix))
+        name = f"{prefix} {similar_count + 1}"
+
     account = Account(
         account_number=_generate_account_number(payload.currency),
         user_id=current_user.id,
         account_type=payload.account_type,
         currency=payload.currency,
+        name=name,
     )
+    db.add(account)
+    # Карту к счёту НЕ выпускаем автоматически — пользователь сам решит на след. шаге
+    # через модалку выпуска карты (см. IssueAccountModal → IssueCardModal preset).
+    db.commit()
+    db.refresh(account)
+    return account
+
+
+@router.patch(
+    "/{account_id}",
+    response_model=AccountPublic,
+    summary="Переименовать счёт",
+)
+def rename_account(
+    account_id: int,
+    payload: AccountUpdateRequest,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    account = get_own_account(account_id, current_user, db)
+    account.name = payload.name.strip()
     db.add(account)
     db.commit()
     db.refresh(account)
@@ -156,7 +211,13 @@ def close_account(
     "/{account_id}/topup",
     response_model=TransactionPublic,
     status_code=201,
-    summary="Пополнить счёт",
+    summary="Пополнить счёт (с OTP-подтверждением)",
+    description=(
+        "«Официальное» пополнение счёта с подтверждением OTP-кодом.\n\n"
+        "**Отличие от `POST /accounts/{id}/deposit`:** этот эндпоинт требует OTP из SMS, "
+        "используйте его когда моделируете «настоящее» банковское пополнение. Для быстрого "
+        "тестового пополнения без OTP — используйте `/deposit`."
+    ),
 )
 def topup_account(
     account_id: int,
@@ -180,6 +241,68 @@ def topup_account(
     desc = "self_topup"
     if payload.purpose:
         desc = f"self_topup:{payload.purpose}"
+
+    tx = Transaction(
+        from_account_id=None,
+        to_account_id=account.id,
+        type=TransactionType.TOPUP,
+        amount=payload.amount,
+        currency=account.currency,
+        status=TransactionStatus.COMPLETED,
+        initiated_by=current_user.id,
+        description=desc,
+        fee=Decimal("0"),
+    )
+    db.add(account)
+    db.add(tx)
+    db.commit()
+    db.refresh(tx)
+    return tx
+
+
+class DepositRequest(BaseModel):
+    """Быстрое пополнение своего счёта — без OTP, максимум для удобства.
+
+    Используется для UI-виджета «пополнить» и для автотестов.
+    Доступно только владельцу счёта.
+    """
+
+    model_config = ConfigDict(json_schema_extra={"example": {"amount": "5000.00", "purpose": "gift"}})
+
+    amount: Decimal = Field(gt=0, description="Сумма пополнения")
+    purpose: str | None = Field(default=None, max_length=30, description="Метка: gift, salary, other…")
+
+
+@router.post(
+    "/{account_id}/deposit",
+    response_model=TransactionPublic,
+    status_code=201,
+    summary="Пополнить свой счёт (без OTP)",
+    description=(
+        "**Нужен для пополнения счёта через UI для удобства** — клик по логотипу "
+        "открывает модалку быстрого пополнения без ввода SMS-кода.\n\n"
+        "В отличие от `/topup`, не требует OTP, но доступно только владельцу счёта. "
+        "Для «настоящего» банковского пополнения с подтверждением используйте `POST /accounts/{id}/topup`."
+    ),
+)
+def deposit_account(
+    account_id: int,
+    payload: DepositRequest,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    if payload.amount <= Decimal("0.00"):
+        raise HTTPException(status_code=400, detail="amount_must_be_positive")
+
+    account = get_own_active_account(account_id, current_user, db, for_update=True)
+    if account.balance + payload.amount > _MAX_BALANCE:
+        raise HTTPException(status_code=400, detail="amount_too_large")
+
+    account.balance += payload.amount
+
+    desc = "self_deposit"
+    if payload.purpose:
+        desc = f"self_deposit:{payload.purpose}"
 
     tx = Transaction(
         from_account_id=None,
