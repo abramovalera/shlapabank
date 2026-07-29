@@ -1,6 +1,13 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
 import { Account } from "@/shared/api/types";
+
+export function useAccounts() {
+  return useQuery({
+    queryKey: ["accounts"],
+    queryFn: async (): Promise<Account[]> => (await api.get("/accounts")).data,
+  });
+}
 
 export function useRenameAccount() {
   const qc = useQueryClient();

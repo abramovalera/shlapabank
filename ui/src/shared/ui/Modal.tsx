@@ -1,4 +1,5 @@
 import { ReactNode, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 interface Props {
   open: boolean;
@@ -33,7 +34,13 @@ export function Modal({
 
   if (!open) return null;
 
-  return (
+  // Портал в body: модалка может открываться из компонентов, вложенных в
+  // position:sticky/relative-предков (например, сайдбар) — те создают свой
+  // stacking context и «запирают» fixed+z-index модалки внутри себя, из-за
+  // чего контент вне этого предка (например, промо-карусель) рисуется поверх
+  // неё несмотря на z-[100]. Портал полностью выносит DOM-узел из-под таких
+  // предков.
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-[100] backdrop-blur-md"
       onClick={onClose}
@@ -62,6 +69,7 @@ export function Modal({
         <div>{children}</div>
         {footer && <div className="mt-4">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

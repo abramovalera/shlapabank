@@ -33,6 +33,8 @@ export function CardDetailsPage() {
   const cardTx = allTx.filter((t) => t.card_id === cardId);
 
   const [reveal, setReveal] = useState<CardReveal | null>(null);
+  const [revealLoading, setRevealLoading] = useState(false);
+  const [revealError, setRevealError] = useState<string | null>(null);
   const [showCvv, setShowCvv] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
@@ -64,8 +66,16 @@ export function CardDetailsPage() {
       setShowCvv(false);
       return;
     }
-    const { data } = await api.get<CardReveal>(`/cards/${cardId}/reveal`);
-    setReveal(data);
+    setRevealError(null);
+    setRevealLoading(true);
+    try {
+      const { data } = await api.get<CardReveal>(`/cards/${cardId}/reveal`);
+      setReveal(data);
+    } catch {
+      setRevealError("Не удалось загрузить номер карты. Попробуйте ещё раз.");
+    } finally {
+      setRevealLoading(false);
+    }
   }
 
   if (cards.length && !card) {
@@ -118,14 +128,15 @@ export function CardDetailsPage() {
           <div className="grid grid-cols-2 gap-1.5">
             <button
               onClick={loadReveal}
-              className="btn-outline-brand py-1.5 text-[11px]"
+              disabled={revealLoading}
+              className="btn-outline-brand py-1.5 text-[11px] disabled:opacity-60"
               data-testid="card-reveal-btn"
             >
               <i
-                className={`ti ti-${reveal ? "eye-off" : "eye"} text-sm`}
+                className={`ti ti-${revealLoading ? "loader-2 animate-spin" : reveal ? "eye-off" : "eye"} text-sm`}
                 aria-hidden="true"
               ></i>
-              {reveal ? "Скрыть" : "Показать номер"}
+              {revealLoading ? "Загружаем…" : reveal ? "Скрыть" : "Показать номер"}
             </button>
             <button
               onClick={() => setDesignOpen(true)}
@@ -136,6 +147,12 @@ export function CardDetailsPage() {
               Дизайн
             </button>
           </div>
+
+          {revealError && (
+            <div className="mt-3 rounded-control bg-danger-soft border border-danger/30 px-3 py-2 text-[12px] text-danger">
+              {revealError}
+            </div>
+          )}
 
           {reveal && (
             <div

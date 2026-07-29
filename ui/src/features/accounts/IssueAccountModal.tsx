@@ -4,6 +4,7 @@ import { Modal } from "@/shared/ui/Modal";
 import { api } from "@/shared/api/client";
 import { Account, AccountType, Currency } from "@/shared/api/types";
 import { IssueCardModal } from "@/features/cards/IssueCardModal";
+import { apiErrorCode } from "@/shared/api/errors";
 
 interface Props {
   open: boolean;
@@ -59,7 +60,7 @@ export function IssueAccountModal({ open, onClose }: Props) {
       }
     },
     onError: (e: any) =>
-      setError(mapError(e?.response?.data?.detail) ?? "Не удалось открыть счёт"),
+      setError(mapError(apiErrorCode(e) ?? undefined) ?? "Не удалось открыть счёт"),
   });
 
   function reset() {

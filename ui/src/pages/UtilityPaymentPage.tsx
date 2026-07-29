@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
-import { Account } from "@/shared/api/types";
+import { useAccounts } from "@/features/accounts/api";
 import { useCards } from "@/features/cards/api";
 import { TransferShell } from "@/features/transfers/TransferShell";
 import { PaymentSourcePicker, PaymentSource } from "@/features/transfers/PaymentSourcePicker";
@@ -9,6 +9,7 @@ import { OtpConfirm } from "@/features/transfers/OtpConfirm";
 import { TransferSuccess } from "@/features/transfers/TransferSuccess";
 import { Select } from "@/shared/ui/Select";
 import { formatMoney } from "@/shared/lib/format";
+import { Label, SumRow } from "@/features/transfers/shared";
 
 interface ProvidersResponse {
   providers: { name: string; accountLength: number }[];
@@ -33,7 +34,6 @@ interface Extras {
   passReadings?: boolean;
   // Интернет
   contractNumber?: string;
-  enableAutoPay?: boolean;
   // Образование
   studentId?: string;
   paymentPeriod?: string; // семестр / месяц
@@ -58,10 +58,7 @@ export function UtilityPaymentPage() {
   const [completedTxId, setCompletedTxId] = useState<number | null>(null);
 
   const { data: cards = [] } = useCards();
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async (): Promise<Account[]> => (await api.get("/accounts")).data,
-  });
+  const { data: accounts = [] } = useAccounts();
   const { data: prov } = useQuery({
     queryKey: ["payments", "vendor-providers"],
     queryFn: async (): Promise<ProvidersResponse> =>
@@ -430,14 +427,6 @@ function InternetFields({
         className="input mb-3"
       />
 
-      <label className="flex items-center gap-2 text-[13px] mb-4 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={!!extras.enableAutoPay}
-          onChange={(e) => setExtras({ ...extras, enableAutoPay: e.target.checked })}
-        />
-        <span>Подключить автоплатёж на этот тариф</span>
-      </label>
     </>
   );
 }
@@ -548,7 +537,6 @@ function buildExtrasSuffix(cat: CatKey, e: Extras): string {
     parts.push(`hot:${e.readingHot ?? "-"}`);
     parts.push(`elec:${e.readingElectricity ?? "-"}`);
   }
-  if (cat === "internet" && e.enableAutoPay) parts.push("autopay");
   if (cat === "education") {
     if (e.fullName) parts.push(`fio:${e.fullName}`);
     if (e.paymentPeriod) parts.push(`period:${e.paymentPeriod}`);
@@ -567,9 +555,6 @@ function renderExtrasSummary(cat: CatKey, e: Extras): React.ReactNode {
     out.push(<SumRow key="hot" label="Гор. вода" value={e.readingHot ?? "—"} />);
     out.push(<SumRow key="elec" label="Электричество" value={e.readingElectricity ?? "—"} />);
   }
-  if (cat === "internet" && e.enableAutoPay) {
-    out.push(<SumRow key="ap" label="Автоплатёж" value="Подключить" />);
-  }
   if (cat === "education") {
     if (e.fullName) out.push(<SumRow key="fio" label="Студент" value={e.fullName} />);
     if (e.paymentPeriod)
@@ -586,17 +571,6 @@ function periodLabel(v: string): string {
   return v === "monthly" ? "Ежемесячно" : v === "semester" ? "За семестр" : "За учебный год";
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <div className="text-[12px] text-ink-secondary mb-1.5">{children}</div>;
-}
-function SumRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return (
-    <div className={`flex justify-between py-1 ${bold ? "text-[14px] font-medium" : "text-[12px]"}`}>
-      <span className={bold ? "" : "text-ink-muted"}>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}
 function mapError(detail: string | undefined): string | null {
   if (!detail) return null;
   const map: Record<string, string> = {

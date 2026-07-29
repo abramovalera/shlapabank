@@ -104,10 +104,15 @@ def monthly_stats(
     )
     owned_ids = {a.id for a in owned_accounts}
 
+    # Отдаём в БД то, что можно проверить в SQL (свой счёт-источник, не TOPUP,
+    # RUB), а не тянем все транзакции платформы ради фильтрации в Python.
     txs = db.scalars(
         select(Transaction).where(
             Transaction.created_at >= period_start,
             Transaction.created_at < period_end,
+            Transaction.from_account_id.in_(owned_ids),
+            Transaction.type != TransactionType.TOPUP,
+            Transaction.currency == Currency.RUB,
         )
     ).all()
 

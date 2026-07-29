@@ -1,6 +1,5 @@
 import axios from "axios";
 import { useAuthStore } from "@/shared/stores/auth";
-import { clearSessionUnlock } from "@/features/auth/session";
 
 /**
  * Единый axios-инстанс для всех запросов к бэкенду.
@@ -24,7 +23,6 @@ api.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401) {
       useAuthStore.getState().logout();
-      clearSessionUnlock();
       if (window.location.pathname !== "/login") {
         window.location.href = "/login";
       }

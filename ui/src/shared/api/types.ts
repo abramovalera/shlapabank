@@ -81,6 +81,7 @@ export interface UserProfile {
   last_name: string | null;
   phone: string | null;
   avatar_color?: string | null;
+  avatar_url?: string | null;
   date_of_birth?: string | null;
   theme?: "dark" | "light";
   sbp_primary_bank?: string;

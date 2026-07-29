@@ -5,7 +5,6 @@ import { Modal } from "@/shared/ui/Modal";
 import { api } from "@/shared/api/client";
 import { apiErrorMessage } from "@/shared/api/errors";
 import { useAuthStore } from "@/shared/stores/auth";
-import { clearSessionUnlock } from "@/features/auth/session";
 import { resetUserCache } from "@/shared/lib/authCache";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -31,7 +30,6 @@ export function DeleteAccountModal({ open, onClose }: Props) {
     mutationFn: async () => api.delete("/profile"),
     onSuccess: () => {
       logout();
-      clearSessionUnlock();
       resetUserCache(qc);
       navigate("/login", { replace: true });
     },

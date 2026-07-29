@@ -1,4 +1,5 @@
 import { Transaction } from "@/shared/api/types";
+import { formatMoney } from "@/shared/lib/format";
 
 export type TxCategoryKey =
   | "utilities"
@@ -200,15 +201,6 @@ export function presentTransaction(tx: Transaction): TxPresentation {
     fee,
     comment,
   };
-}
-
-function formatMoney(amount: number, currency: string): string {
-  const sym = currency === "USD" ? "$" : currency === "EUR" ? "€" : currency === "CNY" ? "¥" : "₽";
-  const formatted = new Intl.NumberFormat("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-  return `${sym} ${formatted}`;
 }
 
 /** Экспорт списка транзакций в CSV-строку. */

@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/shared/stores/auth";
-import { clearSessionUnlock } from "@/features/auth/session";
 import { isDemoLogin } from "@/features/auth/demo";
 import { useProfile, getAvatarColor } from "@/features/profile/api";
 
@@ -59,7 +58,7 @@ export function ProfilePage() {
           <div className="border-t border-line pt-3 flex flex-col gap-1.5 text-left">
             <Row label="Логин" value={profile?.login ?? "—"} />
             <Row label="Телефон" value={profile?.phone ?? "—"} />
-            <Row label="Роль" value={profile?.role ?? "—"} />
+            <Row label="Роль" value={roleLabel(profile?.role)} />
           </div>
         </div>
 
@@ -74,7 +73,7 @@ export function ProfilePage() {
           <SettingsRow
             icon="lock"
             title="Безопасность"
-            hint="Пароль, PIN, активные сессии"
+            hint="Пароль, активные сессии"
             onClick={() => navigate("/profile/security")}
             testId="profile-row-security"
           />
@@ -96,7 +95,6 @@ export function ProfilePage() {
             className="card flex items-center gap-3 hover:bg-surface-2 text-danger transition"
             onClick={() => {
               logout();
-              clearSessionUnlock();
               navigate("/login");
             }}
             data-testid="profile-logout-btn"
@@ -108,6 +106,13 @@ export function ProfilePage() {
       </div>
     </div>
   );
+}
+
+// Пока только два значения. Когда появятся разные виды клиентов — расширить маппинг.
+function roleLabel(role: string | undefined): string {
+  if (role === "ADMIN") return "Админ";
+  if (role === "CLIENT") return "Клиент · Обычный";
+  return "—";
 }
 
 function Row({ label, value }: { label: string; value: string }) {

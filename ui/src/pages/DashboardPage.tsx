@@ -16,7 +16,6 @@ const QUICK_TILES = [
   { icon: "currency-dollar", label: "Обмен валют", to: "/transfers/exchange", testId: "qt-exchange" },
   { icon: "device-mobile", label: "Мобильная связь", to: "/payments/mobile", testId: "qt-mobile" },
   { icon: "home", label: "ЖКХ и поставщики", to: "/payments/utility", testId: "qt-utilities" },
-  { icon: "refresh", label: "Автоплатежи", to: "/payments", testId: "qt-autopay" },
 ];
 
 /** Главная страница — правая колонка. Сайдбар слева живёт в AppLayout. */

@@ -26,6 +26,7 @@ from app.routes.statistics import router as statistics_router
 from app.routes.transactions import router as transactions_router
 from app.routes.transfers import router as transfers_router
 from app.startup import init_db
+from app.uploads import UPLOADS_DIR
 
 openapi_tags = [
     {
@@ -133,8 +134,9 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     detail = exc.detail
     # Строковый detail — стандартный случай (raise HTTPException(400, detail="code"))
     if isinstance(detail, str):
-        # Формат "code: text" — берём код до ":"
-        code = detail.split(":", 1)[0].strip() or "error"
+        # Формат "category: code" (например "validation_error: phone_not_unique") —
+        # конкретный код это то, что ПОСЛЕ ":"; без ":" вся строка и есть код.
+        code = (detail.split(":", 1)[1].strip() if ":" in detail else detail.strip()) or "error"
         return JSONResponse(status_code=exc.status_code, content=_error_body(code))
     # Уже структурированный detail — используем как есть
     if isinstance(detail, dict) and "error" in detail:
@@ -146,6 +148,35 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 
+_VALIDATION_FIELD_LABELS: dict[str, str] = {
+    "login": "Логин",
+    "password": "Пароль",
+    "phone": "Телефон",
+    "first_name": "Имя",
+    "last_name": "Фамилия",
+    "email": "Email",
+}
+
+
+def _friendly_validation_message(err: dict, field: str) -> str:
+    """Pydantic отдаёт технический msg ("String should match pattern '...'"), пользователю
+    такое показывать нельзя. Наши явные raise ValueError(...) в валидаторах — уже готовый
+    русский текст (Pydantic лишь добавляет префикс "Value error, "). Остальное — переводим
+    по типу ошибки в общую фразу с названием поля."""
+    err_type = err.get("type", "")
+    raw_msg = err.get("msg", "Invalid value")
+    if err_type == "value_error":
+        return raw_msg.split("Value error, ", 1)[-1]
+    label = _VALIDATION_FIELD_LABELS.get(field, "Значение")
+    if err_type == "missing":
+        return f"{label}: обязательное поле"
+    if err_type == "string_pattern_mismatch":
+        return f"{label}: неверный формат"
+    if err_type in ("string_too_short", "string_too_long"):
+        return f"{label}: недопустимая длина"
+    return raw_msg
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Pydantic-валидация — возвращаем первую ошибку с полем."""
@@ -153,7 +184,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     if errors:
         err = errors[0]
         field = ".".join(str(p) for p in err.get("loc", []) if p not in ("body", "query", "path"))
-        msg = err.get("msg", "Invalid value")
+        msg = _friendly_validation_message(err, field)
         return JSONResponse(
             status_code=422,
             content=_error_body("validation_error", message=msg, field=field or None),
@@ -316,4 +347,10 @@ app.mount(
     "/ui",
     StaticFiles(directory=str(UI_DIR), html=True),
     name="ui",
+)
+
+app.mount(
+    "/uploads",
+    StaticFiles(directory=str(UPLOADS_DIR)),
+    name="uploads",
 )

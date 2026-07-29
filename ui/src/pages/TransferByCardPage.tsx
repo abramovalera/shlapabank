@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
 import { Account, Card } from "@/shared/api/types";
+import { useAccounts } from "@/features/accounts/api";
 import { useCards } from "@/features/cards/api";
 import { TransferShell } from "@/features/transfers/TransferShell";
 import { SourceCardPicker } from "@/features/transfers/SourceCardPicker";
 import { OtpConfirm } from "@/features/transfers/OtpConfirm";
 import { TransferSuccess } from "@/features/transfers/TransferSuccess";
 import { formatCardInput, luhnValid, detectPaymentSystem } from "@/features/transfers/cardUtils";
-import { formatMoney } from "@/shared/lib/format";
+import { Label, SumRow } from "@/features/transfers/shared";
+import { formatMoney, currencySymbol } from "@/shared/lib/format";
+import { apiErrorCode } from "@/shared/api/errors";
 
 interface CardCheck {
   found: boolean;
@@ -46,10 +49,7 @@ export function TransferByCardPage() {
   const [completedTxId, setCompletedTxId] = useState<number | null>(null);
 
   const { data: cards = [] } = useCards();
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async (): Promise<Account[]> => (await api.get("/accounts")).data,
-  });
+  const { data: accounts = [] } = useAccounts();
 
   const digits = rawCard.replace(/\D/g, "").slice(0, 16);
   const isFilled = digits.length === 16;
@@ -66,7 +66,7 @@ export function TransferByCardPage() {
       setCheck(data);
     } catch (e: any) {
       setCheck(null);
-      setCheckError(mapError(e?.response?.data?.detail) ?? "Не удалось проверить карту");
+      setCheckError(mapError(apiErrorCode(e) ?? undefined) ?? "Не удалось проверить карту");
     } finally {
       setChecking(false);
     }
@@ -123,7 +123,7 @@ export function TransferByCardPage() {
       qc.invalidateQueries({ queryKey: ["cards"] });
       setStep(3);
     } catch (e: any) {
-      setOtpError(mapError(e?.response?.data?.detail) ?? "Не удалось отправить перевод");
+      setOtpError(mapError(apiErrorCode(e) ?? undefined) ?? "Не удалось отправить перевод");
     } finally {
       setBusy(false);
     }
@@ -419,19 +419,6 @@ export function TransferByCardPage() {
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <div className="text-[12px] text-ink-secondary mb-1.5">{children}</div>;
-}
-
-function SumRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return (
-    <div className={`flex justify-between py-1 ${bold ? "text-[14px] font-medium" : "text-[12px]"}`}>
-      <span className={bold ? "" : "text-ink-muted"}>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}
-
 function Recipient({ check, rawDigits }: { check: CardCheck | null; rawDigits: string }) {
   if (!check) return null;
   const grouped = rawDigits.match(/.{1,4}/g)?.join(" ") ?? rawDigits;
@@ -451,10 +438,6 @@ function Recipient({ check, rawDigits }: { check: CardCheck | null; rawDigits: s
       </div>
     </div>
   );
-}
-
-function currencySymbol(c: string): string {
-  return c === "USD" ? "$" : c === "EUR" ? "€" : c === "CNY" ? "¥" : "₽";
 }
 
 function mapError(detail: string | undefined): string | null {

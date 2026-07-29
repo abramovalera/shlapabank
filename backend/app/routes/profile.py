@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 
@@ -7,8 +10,18 @@ from app.models import Account, Card, Transaction, TransferContact, User, UserBa
 from app.phone_utils import normalize_phone
 from app.schemas import ActionResponse, ProfileUpdateRequest, UserPublic
 from app.security import get_current_user, require_active_user, validate_password_rules, verify_password
+from app.uploads import AVATARS_DIR
 
 router = APIRouter(prefix="/api/v1/profile", tags=["profile"])
+
+AVATAR_CONTENT_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+MAX_AVATAR_SIZE = 5 * 1024 * 1024  # 5 МБ
+
+
+def _delete_avatar_file(avatar_url: str | None) -> None:
+    if not avatar_url:
+        return
+    (AVATARS_DIR / Path(avatar_url).name).unlink(missing_ok=True)
 
 
 @router.get("", response_model=UserPublic, summary="Получить профиль")
@@ -59,6 +72,55 @@ def update_profile(
             continue
         setattr(current_user, field, value)
 
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.post(
+    "/avatar",
+    response_model=UserPublic,
+    summary="Загрузить аватар",
+    description="Multipart-загрузка картинки профиля. JPEG/PNG/WebP, до 5 МБ. Заменяет цветной кружок с инициалами.",
+)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    ext = AVATAR_CONTENT_TYPES.get(file.content_type or "")
+    if not ext:
+        raise HTTPException(status_code=400, detail="validation_error: avatar_invalid_type")
+    contents = await file.read()
+    if len(contents) > MAX_AVATAR_SIZE:
+        raise HTTPException(status_code=400, detail="validation_error: avatar_too_large")
+    if not contents:
+        raise HTTPException(status_code=400, detail="validation_error: avatar_invalid_type")
+
+    _delete_avatar_file(current_user.avatar_url)
+    filename = f"{current_user.id}_{uuid.uuid4().hex}.{ext}"
+    (AVATARS_DIR / filename).write_bytes(contents)
+
+    current_user.avatar_url = f"/uploads/avatars/{filename}"
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.delete(
+    "/avatar",
+    response_model=UserPublic,
+    summary="Удалить аватар",
+    description="Убирает загруженную картинку, профиль возвращается к цветному кружку с инициалами.",
+)
+def delete_avatar(
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    _delete_avatar_file(current_user.avatar_url)
+    current_user.avatar_url = None
     db.add(current_user)
     db.commit()
     db.refresh(current_user)

@@ -6,7 +6,6 @@ import { TokenResponse } from "@/shared/api/types";
 import { AuthShell, AuthLogo } from "@/features/auth/AuthShell";
 import { StepHeader } from "@/features/auth/StepHeader";
 import { PinInput } from "@/features/auth/PinInput";
-import { markSessionUnlocked } from "@/features/auth/session";
 
 type Step = 0 | 1 | 2;
 
@@ -60,18 +59,13 @@ export function ForgotPasswordPage() {
     try {
       // 1. Триггерим генерацию OTP на бэке — ответ намеренно пустой (защита от перебора).
       await api.post("/auth/password/reset-request", { login });
-      // 2. Забираем код через единую ручку OTP. Бэк для несуществующего логина возвращает
-      //    200 с `{otp: null}` — тогда предупреждаем клиента, что логин, скорее всего, неверный.
+      // 2. Забираем код через единую ручку OTP. Бэк для несуществующего логина (или
+      //    админа) возвращает 200 с `{otp: null}` — не палим это клиенту: просто не
+      //    показываем подсказку с кодом дальше, но продолжаем как обычно.
       const { data } = await api.get<OtpPreview>("/helper/otp/preview", {
         params: { login },
       });
-      if (!data.otp) {
-        setError(
-          "Не нашли такого пользователя. Проверьте, правильно ли введён логин."
-        );
-        return;
-      }
-      setHint(data);
+      setHint(data.otp ? data : null);
       setStep(1);
     } catch (err: any) {
       setError(err?.response?.data?.error?.message ?? "Не удалось отправить запрос");
@@ -103,7 +97,6 @@ export function ForgotPasswordPage() {
         new_password: password,
       });
       setToken(data.access_token, data.role ?? null, login);
-      markSessionUnlocked();
       navigate("/dashboard", { replace: true });
     } catch (err: any) {
       // Новый формат ответа: {error: {code, message, field}}. Показываем message,

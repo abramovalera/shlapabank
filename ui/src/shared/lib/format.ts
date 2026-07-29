@@ -24,12 +24,6 @@ export function currencySymbol(currency: string): string {
   }
 }
 
-/** 2202123412345678 -> "•••• 5678" (последние 4 цифры) */
-export function maskAccountNumber(num: string): string {
-  const last4 = num.slice(-4);
-  return `•••• ${last4}`;
-}
-
 /** Форматирование даты: "26 июля" / "Сегодня" / "Вчера" */
 export function formatRelativeDate(iso: string): string {
   const d = new Date(iso);

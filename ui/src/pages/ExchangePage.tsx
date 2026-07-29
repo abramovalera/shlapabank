@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
-import { Account } from "@/shared/api/types";
+import { useAccounts } from "@/features/accounts/api";
 import { TransferShell } from "@/features/transfers/TransferShell";
 import { OtpConfirm } from "@/features/transfers/OtpConfirm";
 import { TransferSuccess } from "@/features/transfers/TransferSuccess";
+import { Label } from "@/features/transfers/shared";
 import { Select, SelectOption } from "@/shared/ui/Select";
-import { formatMoney } from "@/shared/lib/format";
+import { formatMoney, currencySymbol } from "@/shared/lib/format";
+import { apiErrorCode } from "@/shared/api/errors";
 
 type Step = 0 | 1 | 2;
 
@@ -28,10 +30,7 @@ interface RatesResponse {
 export function ExchangePage() {
   const qc = useQueryClient();
 
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async (): Promise<Account[]> => (await api.get("/accounts")).data,
-  });
+  const { data: accounts = [] } = useAccounts();
 
   const { data: rates } = useQuery({
     queryKey: ["exchange-rates"],
@@ -122,7 +121,7 @@ export function ExchangePage() {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       setStep(2);
     } catch (e: any) {
-      setOtpError(mapError(e?.response?.data?.error?.code) ?? "Не удалось выполнить обмен");
+      setOtpError(mapError(apiErrorCode(e) ?? undefined) ?? "Не удалось выполнить обмен");
     } finally {
       setBusy(false);
     }
@@ -295,14 +294,6 @@ export function ExchangePage() {
       )}
     </TransferShell>
   );
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return <div className="text-[12px] text-ink-secondary mb-1.5">{children}</div>;
-}
-
-function currencySymbol(c: string): string {
-  return c === "USD" ? "$" : c === "EUR" ? "€" : c === "CNY" ? "¥" : "₽";
 }
 
 function mapError(code: string | undefined): string | null {

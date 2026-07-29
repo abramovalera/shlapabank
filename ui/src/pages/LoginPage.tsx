@@ -5,29 +5,26 @@ import { api } from "@/shared/api/client";
 import { useAuthStore } from "@/shared/stores/auth";
 import { TokenResponse } from "@/shared/api/types";
 import { AuthShell, AuthLogo } from "@/features/auth/AuthShell";
-import { SetPinModal } from "@/features/auth/SetPinModal";
 import { LoginProgress } from "@/features/auth/LoginProgress";
-import { markSessionUnlocked } from "@/features/auth/session";
 import { DEMO_LOGIN, DEMO_PASSWORD } from "@/features/auth/demo";
 import { resetUserCache } from "@/shared/lib/authCache";
+import { apiErrorCode } from "@/shared/api/errors";
 
-/** Экран входа. Логин + пароль → JWT → предложить установить PIN. */
+/** Экран входа. Логин + пароль → JWT → дашборд. */
 export function LoginPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const setToken = useAuthStore((s) => s.setToken);
-  const hasPin = useAuthStore((s) => !!s.pinHash);
 
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pinModalOpen, setPinModalOpen] = useState(false);
   // Экран-прогресс после успешной авторизации (2 сек)
-  const [showProgress, setShowProgress] = useState<null | { skipPin: boolean }>(null);
+  const [showProgress, setShowProgress] = useState(false);
 
-  async function loginWith(loginValue: string, passwordValue: string, options?: { skipPin?: boolean }) {
+  async function loginWith(loginValue: string, passwordValue: string) {
     const { data } = await api.post<TokenResponse>("/auth/login", {
       login: loginValue,
       password: passwordValue,
@@ -35,19 +32,12 @@ export function LoginPage() {
     // Сброс кеша прошлого юзера — важно, чтобы новый не видел чужие данные
     resetUserCache(qc);
     setToken(data.access_token, data.role ?? null, loginValue);
-    markSessionUnlocked();
-    // Показываем экран прогресса на 2 сек, дальше — либо PIN-модалка, либо дашборд.
-    setShowProgress({ skipPin: !!options?.skipPin });
+    setShowProgress(true);
   }
 
   function onProgressDone() {
-    const skipPin = showProgress?.skipPin ?? false;
-    setShowProgress(null);
-    if (skipPin || hasPin) {
-      navigate("/dashboard", { replace: true });
-    } else {
-      setPinModalOpen(true);
-    }
+    setShowProgress(false);
+    navigate("/dashboard", { replace: true });
   }
 
   async function onSubmit(e: FormEvent) {
@@ -57,8 +47,8 @@ export function LoginPage() {
     try {
       await loginWith(login, password);
     } catch (err: any) {
-      const detail = err?.response?.data?.detail ?? "Не удалось войти";
-      setError(typeof detail === "string" ? mapAuthError(detail) : "Не удалось войти");
+      const code = apiErrorCode(err);
+      setError(code ? mapAuthError(code) : "Не удалось войти");
     } finally {
       setLoading(false);
     }
@@ -68,17 +58,12 @@ export function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await loginWith(DEMO_LOGIN, DEMO_PASSWORD, { skipPin: true });
+      await loginWith(DEMO_LOGIN, DEMO_PASSWORD);
     } catch (err: any) {
       setError("Демо-аккаунт недоступен. Убедитесь что бэкенд запущен.");
     } finally {
       setLoading(false);
     }
-  }
-
-  function afterPinDecision() {
-    setPinModalOpen(false);
-    navigate("/dashboard", { replace: true });
   }
 
   if (showProgress) {
@@ -192,8 +177,6 @@ export function LoginPage() {
           Зарегистрироваться
         </Link>
       </div>
-
-      <SetPinModal open={pinModalOpen} onDone={afterPinDecision} onSkip={afterPinDecision} />
     </AuthShell>
   );
 }

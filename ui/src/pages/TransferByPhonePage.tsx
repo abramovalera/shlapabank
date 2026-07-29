@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
-import { Account } from "@/shared/api/types";
+import { useAccounts } from "@/features/accounts/api";
 import { useCards } from "@/features/cards/api";
 import { TransferShell } from "@/features/transfers/TransferShell";
 import { SourceCardPicker } from "@/features/transfers/SourceCardPicker";
@@ -10,6 +10,8 @@ import { TransferSuccess } from "@/features/transfers/TransferSuccess";
 import { formatMoney } from "@/shared/lib/format";
 import { CountryCodePicker, COUNTRIES, CountryOption } from "@/features/transfers/CountryCodePicker";
 import { Dropdown } from "@/shared/ui/Dropdown";
+import { apiErrorCode } from "@/shared/api/errors";
+import { Label, SumRow } from "@/features/transfers/shared";
 
 interface BankOption {
   id: string;
@@ -60,10 +62,7 @@ export function TransferByPhonePage() {
   const [completedTxId, setCompletedTxId] = useState<number | null>(null);
 
   const { data: cards = [] } = useCards();
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async (): Promise<Account[]> => (await api.get("/accounts")).data,
-  });
+  const { data: accounts = [] } = useAccounts();
   const { data: recentContacts = [] } = useQuery({
     queryKey: ["recent-phones"],
     queryFn: async (): Promise<RecentContact[]> =>
@@ -134,7 +133,7 @@ export function TransferByPhonePage() {
       qc.invalidateQueries({ queryKey: ["recent-phones"] });
       setStep(4);
     } catch (e: any) {
-      setOtpError(mapError(e?.response?.data?.detail) ?? "Не удалось отправить перевод");
+      setOtpError(mapError(apiErrorCode(e) ?? undefined) ?? "Не удалось отправить перевод");
     } finally {
       setBusy(false);
     }
@@ -501,10 +500,6 @@ export function TransferByPhonePage() {
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <div className="text-[12px] text-ink-secondary mb-1.5">{children}</div>;
-}
-
 function BankTrigger({
   banks,
   activeId,
@@ -543,14 +538,6 @@ function BankTrigger({
         </div>
       </div>
       <i className="ti ti-chevron-down text-ink-muted" aria-hidden="true"></i>
-    </div>
-  );
-}
-function SumRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return (
-    <div className={`flex justify-between py-1 ${bold ? "text-[14px] font-medium" : "text-[12px]"}`}>
-      <span className={bold ? "" : "text-ink-muted"}>{label}</span>
-      <span>{value}</span>
     </div>
   );
 }

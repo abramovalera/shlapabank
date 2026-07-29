@@ -27,12 +27,22 @@ class RegisterRequest(BaseModel):
             "example": {
                 "login": "ivanpetrov",
                 "password": "StrongPass123!",
+                "phone": "+79991234567",
             }
         }
     )
 
     login: str = Field(min_length=6, max_length=20, pattern=r"^[A-Za-z0-9]+$")
     password: str = Field(min_length=8, max_length=30)
+    # Обязателен: без телефона пользователя нельзя найти как получателя
+    # перевода по номеру телефона (СБП).
+    phone: str
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def normalize_phone_field(cls, v: str) -> str:
+        from app.phone_utils import normalize_phone_or_raise
+        return normalize_phone_or_raise(v)
 
 
 class LoginRequest(BaseModel):
@@ -120,6 +130,7 @@ class UserPublic(BaseModel):
     last_name: str | None = None
     phone: str | None = None
     avatar_color: str | None = None
+    avatar_url: str | None = None
     date_of_birth: str | None = None
     theme: str = "dark"
     sbp_primary_bank: str = "SHLAPABANK"
@@ -156,23 +167,23 @@ class ProfileUpdateRequest(BaseModel):
         default=None,
         min_length=1,
         max_length=100,
-        pattern=r"^[A-Za-zА-Яа-яЁё]+$",
+        pattern=r"^[A-ZА-ЯЁ][A-Za-zА-Яа-яЁё]*$",
     )
     last_name: str | None = Field(
         default=None,
         min_length=1,
         max_length=100,
-        pattern=r"^[A-Za-zА-Яа-яЁё]+$",
+        pattern=r"^[A-ZА-ЯЁ][A-Za-zА-Яа-яЁё]*$",
     )
-    phone: str | None = Field(default=None, pattern=r"^\+7\d{10}$")
+    phone: str | None = Field(default=None)
 
     @field_validator("phone", mode="before")
     @classmethod
     def normalize_phone_field(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        from app.phone_utils import normalize_phone
-        return normalize_phone(v) or v
+        from app.phone_utils import normalize_phone_or_raise
+        return normalize_phone_or_raise(v)
 
     email: EmailStr | None = None
     current_password: str | None = Field(default=None, min_length=8, max_length=30)

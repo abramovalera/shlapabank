@@ -90,8 +90,12 @@ class User(Base):
     phone: Mapped[str | None] = mapped_column(String(12), nullable=True)
     # Код банка, который пользователь пометил основным для СБП. По умолчанию — наш.
     sbp_primary_bank: Mapped[str] = mapped_column(String(32), default="SHLAPABANK", nullable=False)
-    # Цвет фона для аватара-инициалов (hex или ключ из палитры)
+    # Цвет фона для аватара-инициалов (hex или ключ из палитры) — используется,
+    # пока не загружена своя картинка (avatar_url).
     avatar_color: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Путь до загруженной аватарки (например /uploads/avatars/xxx.jpg). Если задан —
+    # UI показывает картинку вместо цветного кружка с инициалами.
+    avatar_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Дата рождения (опциональная, строка ISO YYYY-MM-DD для простоты)
     date_of_birth: Mapped[str | None] = mapped_column(String(10), nullable=True)
     # Тема интерфейса: dark / light (пока храним только для будущей миграции)

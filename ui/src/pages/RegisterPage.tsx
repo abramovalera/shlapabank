@@ -6,15 +6,12 @@ import { useAuthStore } from "@/shared/stores/auth";
 import { TokenResponse } from "@/shared/api/types";
 import { AuthShell, AuthLogo } from "@/features/auth/AuthShell";
 import { StepHeader } from "@/features/auth/StepHeader";
-import { SetPinModal } from "@/features/auth/SetPinModal";
-import { markSessionUnlocked } from "@/features/auth/session";
 import { resetUserCache } from "@/shared/lib/authCache";
+import { apiErrorMessage } from "@/shared/api/errors";
 
 type Step = 0 | 1;
 
-/**
- * Регистрация в 2 шага. После успешного логина показываем модалку установки PIN.
- */
+/** Регистрация в 2 шага. После успешного логина — сразу на дашборд. */
 export function RegisterPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -24,15 +21,17 @@ export function RegisterPage() {
   const [login, setLogin] = useState("");
   const [loginAvailable, setLoginAvailable] = useState<null | boolean>(null);
   const [checking, setChecking] = useState(false);
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [pinModalOpen, setPinModalOpen] = useState(false);
 
   const loginValid = /^[A-Za-z0-9]{6,20}$/.test(login);
+  const phoneDigits = phone.replace(/\D/g, "");
+  const phoneValid = phoneDigits.length === 10 || phoneDigits.length === 11;
 
   async function checkAvailability() {
     if (!loginValid) return;
@@ -53,6 +52,7 @@ export function RegisterPage() {
     setError(null);
     if (!loginValid) return setError("Логин: 6–20 символов, только буквы и цифры");
     if (loginAvailable === false) return setError("Логин уже занят");
+    if (!phoneValid) return setError("Введите корректный номер телефона");
     setStep(1);
   }
 
@@ -63,32 +63,28 @@ export function RegisterPage() {
     if (!agree) return setError("Нужно принять условия");
     setLoading(true);
     try {
-      await api.post("/auth/register", { login, password });
+      await api.post("/auth/register", { login, password, phone });
       const { data } = await api.post<TokenResponse>("/auth/login", { login, password });
       // Сброс кеша прошлого юзера — важно, иначе новый увидит чужие данные
       resetUserCache(qc);
       setToken(data.access_token, data.role ?? null, login);
-      markSessionUnlocked();
-      // После регистрации — предлагаем PIN
-      setPinModalOpen(true);
+      navigate("/dashboard", { replace: true });
     } catch (err: any) {
-      const detail = err?.response?.data?.detail ?? "Не удалось зарегистрироваться";
-      setError(typeof detail === "string" ? detail : "Не удалось зарегистрироваться");
+      setError(apiErrorMessage(err));
     } finally {
       setLoading(false);
     }
-  }
-
-  function afterPinDecision() {
-    setPinModalOpen(false);
-    navigate("/dashboard", { replace: true });
   }
 
   const strength = passwordStrength(password);
 
   return (
     <AuthShell>
-      <StepHeader total={2} active={step} onBack={step > 0 ? () => setStep(0) : undefined} />
+      <StepHeader
+        total={2}
+        active={step}
+        onBack={step > 0 ? () => setStep(0) : () => navigate("/login")}
+      />
       <AuthLogo />
 
       {step === 0 && (
@@ -131,16 +127,28 @@ export function RegisterPage() {
             )}
           </div>
 
+          <input
+            className="input h-12 rounded-control px-4 text-[14px]"
+            placeholder="+79991234567"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            data-testid="register-phone-input"
+          />
+          <div className="text-[11px] text-ink-muted mt-1.5 mb-1">
+            Нужен, чтобы вам могли перевести деньги по номеру телефона
+          </div>
+
           {error && (
-            <div className="text-xs text-danger bg-danger-soft rounded-control px-3 py-2 mb-3">
+            <div className="text-xs text-danger bg-danger-soft rounded-control px-3 py-2 mb-3 mt-2">
               {error}
             </div>
           )}
 
           <button
             onClick={onNext}
-            disabled={!loginValid || loginAvailable === false}
-            className="btn-primary w-full h-12 text-[15px]"
+            disabled={!loginValid || loginAvailable === false || !phoneValid}
+            className="btn-primary w-full h-12 text-[15px] mt-3"
             data-testid="register-next-btn"
           >
             Далее
@@ -240,8 +248,6 @@ export function RegisterPage() {
           </button>
         </div>
       )}
-
-      <SetPinModal open={pinModalOpen} onDone={afterPinDecision} onSkip={afterPinDecision} />
     </AuthShell>
   );
 }

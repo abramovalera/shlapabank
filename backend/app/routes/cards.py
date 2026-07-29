@@ -268,9 +268,7 @@ def reissue_card(
     db: Session = Depends(get_db),
 ):
     old = _get_own_card(card_id, current_user, db)
-    if old.status == CardStatus.EXPIRED:
-        # У истёкшей карты не блокируем перевыпуск — наоборот его основная цель
-        pass
+    # Истёкшая карта не блокирует перевыпуск — наоборот, это его основная цель.
 
     account = db.scalar(select(Account).where(Account.id == old.account_id))
     if not account or not account.is_active:

@@ -22,6 +22,30 @@ export function useUpdateProfile() {
   });
 }
 
+export function useUploadAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File): Promise<UserProfile> => {
+      const form = new FormData();
+      form.append("file", file);
+      return (await api.post("/profile/avatar", form)).data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+}
+
+export function useDeleteAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<UserProfile> => (await api.delete("/profile/avatar")).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+}
+
 export const AVATAR_COLORS = [
   "#F09427", // orange (brand)
   "#4DE89F", // green

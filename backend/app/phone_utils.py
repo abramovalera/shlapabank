@@ -19,3 +19,13 @@ def normalize_phone(value: str | None) -> str | None:
     if len(digits) == 10:
         return "+7" + digits
     return None
+
+
+def normalize_phone_or_raise(value: str | None) -> str:
+    """Как normalize_phone, но бросает понятную ошибку вместо None (для Pydantic-валидаторов)."""
+    normalized = normalize_phone(value)
+    if not normalized:
+        raise ValueError(
+            "Некорректный номер телефона. Введите российский номер, например +79991234567"
+        )
+    return normalized

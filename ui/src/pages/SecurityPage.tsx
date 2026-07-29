@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ProfileShell } from "@/features/profile/ProfileShell";
 import { useUpdateProfile } from "@/features/profile/api";
 import { useAuthStore } from "@/shared/stores/auth";
-import { clearSessionUnlock } from "@/features/auth/session";
 import { resetUserCache } from "@/shared/lib/authCache";
 import { DeleteAccountModal } from "@/features/profile/DeleteAccountModal";
 import { apiErrorMessage } from "@/shared/api/errors";
@@ -13,8 +12,6 @@ export function SecurityPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const update = useUpdateProfile();
-  const hasPin = useAuthStore((s) => !!s.pinHash);
-  const clearPin = useAuthStore((s) => s.clearPin);
   const logout = useAuthStore((s) => s.logout);
   const loggedInAt = useAuthStore((s) => s.loggedInAt);
 
@@ -42,14 +39,6 @@ export function SecurityPage() {
     } catch (e: any) {
       setMsg({ ok: false, text: apiErrorMessage(e) });
     }
-  }
-
-  function removePinAndLogout() {
-    if (!confirm("Сбросить PIN? Придётся войти по паролю заново.")) return;
-    clearPin();
-    logout();
-    clearSessionUnlock();
-    navigate("/login");
   }
 
   return (
@@ -117,31 +106,6 @@ export function SecurityPage() {
 
       <div className="h-px bg-line my-5"></div>
 
-      <SectionHeader>Код быстрого входа (PIN)</SectionHeader>
-      {hasPin ? (
-        <div>
-          <div className="text-[12px] text-ink-secondary mb-3">
-            PIN установлен. При входе в браузер быстрее — не нужен пароль.
-          </div>
-          <button
-            onClick={removePinAndLogout}
-            className="btn w-full text-danger py-2.5"
-            data-testid="pin-remove-btn"
-          >
-            <i className="ti ti-lock-off" aria-hidden="true"></i>
-            Сбросить PIN
-          </button>
-        </div>
-      ) : (
-        <div>
-          <div className="text-[12px] text-ink-secondary mb-3">
-            PIN не установлен. Установите при следующем входе.
-          </div>
-        </div>
-      )}
-
-      <div className="h-px bg-line my-5"></div>
-
       <SectionHeader>Активные сессии</SectionHeader>
       <div className="card-nested flex items-center gap-3 mb-3">
         <div className="w-10 h-10 rounded-full bg-brand-soft text-accent flex items-center justify-center">
@@ -170,7 +134,6 @@ export function SecurityPage() {
         onClick={() => {
           if (!confirm("Завершить текущую сессию? Придётся войти заново.")) return;
           logout();
-          clearSessionUnlock();
           resetUserCache(qc);
           navigate("/login");
         }}

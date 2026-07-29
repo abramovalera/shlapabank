@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
-import { Account } from "@/shared/api/types";
+import { useAccounts } from "@/features/accounts/api";
 import { useCards } from "@/features/cards/api";
 import { TransferShell } from "@/features/transfers/TransferShell";
 import { PaymentSourcePicker, PaymentSource } from "@/features/transfers/PaymentSourcePicker";
@@ -9,6 +9,8 @@ import { OtpConfirm } from "@/features/transfers/OtpConfirm";
 import { TransferSuccess } from "@/features/transfers/TransferSuccess";
 import { formatMoney } from "@/shared/lib/format";
 import { CountryCodePicker, COUNTRIES, CountryOption } from "@/features/transfers/CountryCodePicker";
+import { apiErrorCode } from "@/shared/api/errors";
+import { Label, SumRow } from "@/features/transfers/shared";
 
 interface OperatorsResponse {
   operators: string[];
@@ -23,6 +25,8 @@ export function MobilePaymentPage() {
   const [country, setCountry] = useState<CountryOption>(COUNTRIES[0]);
   const [rawPhone, setRawPhone] = useState("");
   const [operator, setOperator] = useState<string | null>(null);
+  // Пока true, автоопределение не должно перезаписывать выбор, сделанный вручную в сетке.
+  const operatorManual = useRef(false);
   const [source, setSource] = useState<PaymentSource | null>(null);
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,10 +34,7 @@ export function MobilePaymentPage() {
   const [completedTxId, setCompletedTxId] = useState<number | null>(null);
 
   const { data: cards = [] } = useCards();
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async (): Promise<Account[]> => (await api.get("/accounts")).data,
-  });
+  const { data: accounts = [] } = useAccounts();
   const { data: ops } = useQuery({
     queryKey: ["payments", "mobile-operators"],
     queryFn: async (): Promise<OperatorsResponse> =>
@@ -50,8 +51,10 @@ export function MobilePaymentPage() {
   const maxAmount = ops?.amountRangeRub?.max ?? 12000;
   const amountInRange = numericAmount >= minAmount && numericAmount <= maxAmount;
 
-  // Автоопределение оператора по префиксу (учебное — любые правила)
+  // Автоопределение оператора по префиксу (учебное — любые правила).
+  // Не перезаписывает выбор, который пользователь уже сделал вручную в сетке.
   useEffect(() => {
+    if (operatorManual.current) return;
     if (rawPhone.length >= 3 && ops?.operators.length) {
       const prefix = rawPhone.slice(0, 3);
       const map: Record<string, string> = {
@@ -84,7 +87,7 @@ export function MobilePaymentPage() {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       setStep(3);
     } catch (e: any) {
-      setOtpError(mapError(e?.response?.data?.detail) ?? "Не удалось выполнить платёж");
+      setOtpError(mapError(apiErrorCode(e) ?? undefined) ?? "Не удалось выполнить платёж");
     } finally {
       setBusy(false);
     }
@@ -94,6 +97,7 @@ export function MobilePaymentPage() {
     setStep(0);
     setRawPhone("");
     setOperator(null);
+    operatorManual.current = false;
     setSource(null);
     setAmount("");
     setOtpError(null);
@@ -117,6 +121,7 @@ export function MobilePaymentPage() {
                 setCountry(c);
                 setRawPhone("");
                 setOperator(null);
+                operatorManual.current = false;
               }}
             />
             <input
@@ -141,7 +146,10 @@ export function MobilePaymentPage() {
                 {ops.operators.map((op) => (
                   <button
                     key={op}
-                    onClick={() => setOperator(op)}
+                    onClick={() => {
+                      operatorManual.current = true;
+                      setOperator(op);
+                    }}
                     className={`card-nested text-[13px] font-medium transition ${
                       operator === op ? "border-brand ring-1 ring-brand/40" : "hover:bg-surface-3"
                     }`}
@@ -282,17 +290,6 @@ export function MobilePaymentPage() {
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <div className="text-[12px] text-ink-secondary mb-1.5">{children}</div>;
-}
-function SumRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return (
-    <div className={`flex justify-between py-1 ${bold ? "text-[14px] font-medium" : "text-[12px]"}`}>
-      <span className={bold ? "" : "text-ink-muted"}>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}
 function formatMask(digits: string, length: number = 10): string {
   const d = digits.slice(0, length);
   if (length === 10) {

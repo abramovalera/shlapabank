@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session, aliased
 
 from app.banks import OUR_BANK_CODE, BANKS_CATALOG
@@ -71,6 +71,27 @@ def _calc_today_transfers_per_currency(current_user: User, db: Session) -> dict[
         curr = tx.currency
         per_currency[curr] = per_currency.get(curr, Decimal("0.00")) + tx.amount
     return per_currency
+
+
+_CURRENCY_LOCK_KEY: dict[Currency, int] = {
+    Currency.RUB: 1,
+    Currency.USD: 2,
+    Currency.EUR: 3,
+    Currency.CNY: 4,
+}
+
+
+def _lock_daily_limit_bucket(db: Session, user_id: int, currency: Currency) -> None:
+    """Advisory-лок Postgres на (user_id, currency) на время текущей транзакции.
+
+    Без него конкурентные переводы с РАЗНЫХ своих счетов в одной валюте не блокируют
+    друг друга через FOR UPDATE на счетах и могут оба посчитать "потрачено сегодня"
+    до того, как любой из них закоммитится — суммарно превысив суточный лимит.
+    Лок снимается автоматически при commit/rollback."""
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(:uid, :cur)"),
+        {"uid": user_id, "cur": _CURRENCY_LOCK_KEY[currency]},
+    )
 
 
 def _mask_account(account_number: str) -> str:
@@ -175,18 +196,25 @@ def create_transfer_by_account(
     if payload.amount > MAX_TRANSFER_AMOUNT:
         raise HTTPException(status_code=400, detail="transfer_amount_exceeds_single_limit")
 
-    source = db.scalar(
-        select(Account)
-        .where(Account.id == payload.from_account_id, Account.user_id == current_user.id)
-        .with_for_update()
+    source_id = db.scalar(
+        select(Account.id).where(Account.id == payload.from_account_id, Account.user_id == current_user.id)
     )
-    if not source:
+    if not source_id:
         raise HTTPException(status_code=404, detail="account_not_found")
 
-    target = db.scalar(
-        select(Account).where(Account.account_number == payload.target_account_number).with_for_update()
-    )
-    if not target:
+    target_id = db.scalar(select(Account.id).where(Account.account_number == payload.target_account_number))
+    if not target_id:
+        raise HTTPException(status_code=404, detail="account_not_found")
+
+    # Оба счёта — одним запросом, в отсортированном по id порядке: чтобы
+    # встречный перевод через любой другой transfer-эндпоинт не захватывал
+    # блокировки в обратном порядке (deadlock).
+    account_ids = sorted([source_id, target_id])
+    locked = db.scalars(select(Account).where(Account.id.in_(account_ids)).with_for_update()).all()
+    by_id = {acc.id: acc for acc in locked}
+    source = by_id.get(source_id)
+    target = by_id.get(target_id)
+    if not source or not target:
         raise HTTPException(status_code=404, detail="account_not_found")
 
     if not source.is_active or not target.is_active:
@@ -201,6 +229,7 @@ def create_transfer_by_account(
         raise HTTPException(status_code=400, detail="insufficient_funds")
 
     # Проверка суточного лимита по валюте счёта списания
+    _lock_daily_limit_bucket(db, current_user.id, source.currency)
     used_per_currency = _calc_today_transfers_per_currency(current_user, db)
     _check_daily_limit(used_per_currency, source.currency, payload.amount)
 
@@ -304,6 +333,7 @@ def create_transfer_external_by_account(
     if source.balance < total_debit:
         raise HTTPException(status_code=400, detail="insufficient_funds")
 
+    _lock_daily_limit_bucket(db, current_user.id, source.currency)
     used_per_currency = _calc_today_transfers_per_currency(current_user, db)
     _check_daily_limit(used_per_currency, source.currency, payload.amount)
 
@@ -441,42 +471,52 @@ def create_transfer_by_phone(
     if not source_account_id:
         raise HTTPException(status_code=400, detail="source_required")
 
-    source = db.scalar(
-        select(Account)
-        .where(Account.id == source_account_id, Account.user_id == current_user.id)
-        .with_for_update()
+    # Не блокируем счета здесь: сначала читаем без лока, чтобы узнать оба id
+    # (свой и получателя) и затем взять FOR UPDATE в едином порядке (по id) —
+    # иначе конкурентные встречные переводы source<->target из разных
+    # эндпоинтов рискуют захватывать блокировки в разном порядке (deadlock).
+    source_check = db.scalar(
+        select(Account).where(Account.id == source_account_id, Account.user_id == current_user.id)
     )
-    if not source:
+    if not source_check:
         raise HTTPException(status_code=404, detail="account_not_found")
-    if not source.is_active:
+    if not source_check.is_active:
         raise HTTPException(status_code=400, detail="account_inactive")
-    if source.account_type == AccountType.SAVINGS:
+    if source_check.account_type == AccountType.SAVINGS:
         raise HTTPException(status_code=400, detail="transfer_not_allowed_from_savings")
 
+    _lock_daily_limit_bucket(db, current_user.id, source_check.currency)
     used_per_currency = _calc_today_transfers_per_currency(current_user, db)
-    _check_daily_limit(used_per_currency, source.currency, amount)
+    _check_daily_limit(used_per_currency, source_check.currency, amount)
 
     if payload.recipient_bank_id == OUR_BANK_CODE:
-        if source.balance < amount:
-            raise HTTPException(status_code=400, detail="insufficient_funds")
         normalized_phone = normalize_phone(payload.phone) or payload.phone
         recipient = db.scalar(select(User).where(User.phone == normalized_phone))
         if not recipient:
             raise HTTPException(status_code=404, detail="recipient_not_found_in_our_bank")
-        target = db.scalar(
-            select(Account)
-            .where(
+        target_check = db.scalar(
+            select(Account).where(
                 Account.user_id == recipient.id,
-                Account.currency == source.currency,
+                Account.currency == source_check.currency,
                 Account.account_type == AccountType.DEBIT,
                 Account.is_active.is_(True),
             )
-            .with_for_update()
         )
-        if not target:
+        if not target_check:
             raise HTTPException(status_code=400, detail="recipient_has_no_suitable_account")
-        if source.id == target.id:
+        if source_check.id == target_check.id:
             raise HTTPException(status_code=400, detail="transfer_same_account")
+
+        account_ids = sorted([source_check.id, target_check.id])
+        locked = db.scalars(select(Account).where(Account.id.in_(account_ids)).with_for_update()).all()
+        by_id = {acc.id: acc for acc in locked}
+        source = by_id[source_check.id]
+        target = by_id[target_check.id]
+
+        if not source.is_active:
+            raise HTTPException(status_code=400, detail="account_inactive")
+        if source.balance < amount:
+            raise HTTPException(status_code=400, detail="insufficient_funds")
         source.balance -= amount
         target.balance += amount
         masked = _mask_account(target.account_number)
@@ -501,7 +541,13 @@ def create_transfer_by_phone(
         db.refresh(tx)
         return tx
 
-    # Перевод в другой банк: комиссия 2%, списание amount + fee
+    # Перевод в другой банк: комиссия 2%, списание amount + fee.
+    # Только один свой счёт участвует — блокируем его напрямую.
+    source = db.scalar(
+        select(Account).where(Account.id == source_check.id).with_for_update()
+    )
+    if not source.is_active:
+        raise HTTPException(status_code=400, detail="account_inactive")
     fee = (amount * EXTERNAL_PHONE_FEE_RATE).quantize(Decimal("0.01"))
     total_debit = amount + fee
     if source.balance < total_debit:
@@ -602,6 +648,7 @@ def exchange_currency(
         raise HTTPException(status_code=400, detail="insufficient_funds")
 
     # Обмен учитывается в суточном лимите по валюте счёта списания
+    _lock_daily_limit_bucket(db, current_user.id, source.currency)
     used_per_currency = _calc_today_transfers_per_currency(current_user, db)
     _check_daily_limit(used_per_currency, source.currency, payload.amount)
 
@@ -763,37 +810,46 @@ def create_transfer_by_card(
     src_card = db.scalar(select(Card).where(Card.id == payload.from_card_id))
     if not src_card:
         raise HTTPException(status_code=404, detail="card_not_found")
-    src_account = db.scalar(
-        select(Account)
-        .where(Account.id == src_card.account_id, Account.user_id == current_user.id)
-        .with_for_update()
+    # Без лока: только чтобы узнать id счёта и провалидировать владение/статус.
+    src_account_check = db.scalar(
+        select(Account).where(Account.id == src_card.account_id, Account.user_id == current_user.id)
     )
-    if not src_account:
+    if not src_account_check:
         raise HTTPException(status_code=404, detail="account_not_found")
-    if not src_account.is_active:
+    if not src_account_check.is_active:
         raise HTTPException(status_code=400, detail="account_inactive")
     if src_card.status != CardStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="card_not_active")
 
+    _lock_daily_limit_bucket(db, current_user.id, src_account_check.currency)
     used_per_currency = _calc_today_transfers_per_currency(current_user, db)
-    _check_daily_limit(used_per_currency, src_account.currency, amount)
+    _check_daily_limit(used_per_currency, src_account_check.currency, amount)
 
     comment_suffix = f":comment_{payload.comment}" if payload.comment else ""
 
     # Проверяем, наша ли карта получатель
     dst_card = db.scalar(select(Card).where(Card.number == clean))
     if dst_card:
-        dst_account = db.scalar(
-            select(Account).where(Account.id == dst_card.account_id).with_for_update()
-        )
-        if not dst_account or not dst_account.is_active:
+        dst_account_check = db.scalar(select(Account).where(Account.id == dst_card.account_id))
+        if not dst_account_check or not dst_account_check.is_active:
             raise HTTPException(status_code=400, detail="recipient_account_inactive")
         if dst_card.status != CardStatus.ACTIVE:
             raise HTTPException(status_code=400, detail="recipient_card_not_active")
-        if dst_account.id == src_account.id:
+        if dst_account_check.id == src_account_check.id:
             raise HTTPException(status_code=400, detail="transfer_same_account")
-        if dst_account.currency != src_account.currency:
+        if dst_account_check.currency != src_account_check.currency:
             raise HTTPException(status_code=400, detail="currency_mismatch")
+
+        # Оба счёта блокируем одним запросом в отсортированном порядке id —
+        # чтобы не деднуться со встречным переводом, идущим в обратную сторону.
+        account_ids = sorted([src_account_check.id, dst_account_check.id])
+        locked = db.scalars(select(Account).where(Account.id.in_(account_ids)).with_for_update()).all()
+        by_id = {acc.id: acc for acc in locked}
+        src_account = by_id[src_account_check.id]
+        dst_account = by_id[dst_account_check.id]
+
+        if not src_account.is_active or not dst_account.is_active:
+            raise HTTPException(status_code=400, detail="recipient_account_inactive")
         if src_account.balance < amount:
             raise HTTPException(status_code=400, detail="insufficient_funds")
 
@@ -819,6 +875,12 @@ def create_transfer_by_card(
         return tx
 
     # Внешняя карта — списание amount + fee, без реального target-account.
+    # Только один свой счёт участвует — блокируем его напрямую.
+    src_account = db.scalar(
+        select(Account).where(Account.id == src_account_check.id).with_for_update()
+    )
+    if not src_account.is_active:
+        raise HTTPException(status_code=400, detail="account_inactive")
     fee = (amount * EXTERNAL_CARD_FEE_RATE).quantize(Decimal("0.01"))
     total_debit = amount + fee
     if src_account.balance < total_debit:

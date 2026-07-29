@@ -1,1 +1,0 @@
-# API autotests package

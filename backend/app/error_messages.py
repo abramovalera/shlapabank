@@ -23,6 +23,8 @@ ERROR_MESSAGES: dict[str, str] = {
     "email_not_unique": "Этот email уже используется",
     "rate_limited": "Слишком много запросов, попробуйте позже",
     "terms_not_accepted": "Нужно принять условия",
+    "avatar_invalid_type": "Разрешены только JPEG, PNG и WebP",
+    "avatar_too_large": "Файл больше 5 МБ",
     # ---- Accounts ----
     "account_not_found": "Счёт не найден",
     "account_inactive": "Счёт неактивен",

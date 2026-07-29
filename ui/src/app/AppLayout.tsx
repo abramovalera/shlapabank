@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/shared/stores/auth";
-import { clearSessionUnlock } from "@/features/auth/session";
 import { isDemoLogin } from "@/features/auth/demo";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
@@ -20,7 +19,6 @@ const PAYMENTS_ITEMS: DropdownItem[] = [
   { label: "Обмен валют",           to: "/transfers/exchange", icon: "currency-dollar", testId: "nav-transfers-exchange" },
   { label: "Мобильная связь",       to: "/payments/mobile",    icon: "device-mobile", testId: "nav-payments-mobile" },
   { label: "ЖКХ и поставщики",      to: "/payments/utility",   icon: "home",         testId: "nav-payments-utility" },
-  { label: "Автоплатежи",           to: "/payments/autopay",   icon: "refresh",      testId: "nav-payments-autopay" },
 ];
 
 const MORE_ITEMS: DropdownItem[] = [
@@ -40,7 +38,6 @@ export function AppLayout() {
 
   function doLogout() {
     logout();
-    clearSessionUnlock();
     resetUserCache(qc);
     navigate("/login");
   }
@@ -65,10 +62,10 @@ export function AppLayout() {
           <div className="flex items-center gap-10">
             <div className="flex items-center gap-2.5">
               <button
-                onClick={() => setTopupOpen(true)}
-                title="🧪 Тест: пополнить счёт"
+                onClick={() => (isDemo ? setTopupOpen(true) : navigate("/dashboard"))}
+                title={isDemo ? "🧪 Тест: пополнить счёт" : "ShlapaBank"}
                 data-testid="logo-topup-btn"
-                aria-label="Открыть тест-пополнение"
+                aria-label={isDemo ? "Открыть тест-пополнение" : "На главную"}
                 className="w-8 h-8 rounded-[10px] flex items-center justify-center font-medium text-[#0B1223] hover:scale-110 transition-transform"
                 style={{
                   background: "linear-gradient(135deg, #FFA347 0%, #F09427 100%)",
@@ -135,11 +132,18 @@ export function AppLayout() {
             <button
               onClick={() => navigate("/profile")}
               data-testid="profile-avatar-btn"
-              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium hover:scale-105 transition text-[#0B1223]"
-              style={{ background: profile?.avatar_color || "rgba(240, 148, 39, 0.15)", color: profile?.avatar_color ? "#0B1223" : undefined }}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium hover:scale-105 transition text-[#0B1223] overflow-hidden bg-cover bg-center"
+              style={
+                profile?.avatar_url
+                  ? { backgroundImage: `url(${profile.avatar_url})` }
+                  : {
+                      background: profile?.avatar_color || "rgba(240, 148, 39, 0.15)",
+                      color: profile?.avatar_color ? "#0B1223" : undefined,
+                    }
+              }
               aria-label="Профиль"
             >
-              {initials}
+              {!profile?.avatar_url && initials}
             </button>
             <button
               onClick={doLogout}
@@ -176,7 +180,7 @@ export function AppLayout() {
         </a>
       </footer>
 
-      <TopupModal open={topupOpen} onClose={() => setTopupOpen(false)} />
+      {isDemo && <TopupModal open={topupOpen} onClose={() => setTopupOpen(false)} />}
     </div>
   );
 }

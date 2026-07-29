@@ -5,6 +5,7 @@ import { BankCard, DESIGN_GRADIENTS, DESIGNS_FOR_TYPE } from "./BankCard";
 import { useIssueCard } from "./api";
 import { Account, CardDesign } from "@/shared/api/types";
 import { formatMoney } from "@/shared/lib/format";
+import { apiErrorMessage } from "@/shared/api/errors";
 
 type PickableType = "REGULAR" | "GOLD";
 
@@ -88,7 +89,7 @@ export function IssueCardModal({
       reset();
       onClose();
     } catch (e: any) {
-      setError(e?.response?.data?.detail ?? "Не удалось выпустить карту");
+      setError(apiErrorMessage(e));
     }
   }
 

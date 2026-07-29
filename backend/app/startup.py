@@ -59,6 +59,7 @@ def init_db() -> None:
             "ALTER TYPE cardtype ADD VALUE IF NOT EXISTS 'GOLD'",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS sbp_primary_bank VARCHAR(32) NOT NULL DEFAULT 'SHLAPABANK'",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_color VARCHAR(20)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(255)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth VARCHAR(10)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS theme VARCHAR(10) NOT NULL DEFAULT 'dark'",
             # Таблица пользовательских лимитов на карту (одна строка на карту).

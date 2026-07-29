@@ -1,11 +1,9 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuthStore } from "@/shared/stores/auth";
-import { isSessionUnlocked } from "@/features/auth/session";
 import { Trail } from "@/features/effects/Trail";
 import { StarField } from "@/features/auth/StarField";
 import { AppLayout } from "@/app/AppLayout";
 import { LoginPage } from "@/pages/LoginPage";
-import { PinLoginPage } from "@/pages/PinLoginPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { DashboardPage } from "@/pages/DashboardPage";
@@ -26,42 +24,17 @@ import { SecurityPage } from "@/pages/SecurityPage";
 import { AppearancePage } from "@/pages/AppearancePage";
 import { SbpBankPage } from "@/pages/SbpBankPage";
 
-/**
- * Защищённые роуты: три состояния
- * 1) нет токена         → /login (ввод пароля)
- * 2) токен + PIN + не разблокирована сессия → /pin (быстрый вход по коду)
- * 3) всё ок             → сама страница
- * Плюс: если PIN просрочен (7 дней), автоматически logout.
- */
+/** Защищённые роуты: нет токена → /login, есть токен → сама страница. */
 function Protected({ children }: { children: JSX.Element }) {
   const token = useAuthStore((s) => s.token);
-  const hasPin = useAuthStore((s) => !!s.pinHash);
-  const isPinExpired = useAuthStore((s) => s.isPinExpired);
-  const logout = useAuthStore((s) => s.logout);
-
   if (!token) return <Navigate to="/login" replace />;
-  if (hasPin && isPinExpired()) {
-    logout();
-    return <Navigate to="/login" replace />;
-  }
-  if (hasPin && !isSessionUnlocked()) return <Navigate to="/pin" replace />;
   return children;
 }
 
-/** Если юзер уже авторизован — не пускаем на /login и /pin, а сразу на дашборд. */
-function GuestOnly({ children, requirePin }: { children: JSX.Element; requirePin?: boolean }) {
+/** Если юзер уже авторизован — не пускаем на /login, а сразу на дашборд. */
+function GuestOnly({ children }: { children: JSX.Element }) {
   const token = useAuthStore((s) => s.token);
-  const hasPin = useAuthStore((s) => !!s.pinHash);
-  if (requirePin) {
-    // /pin: показывать только если есть токен + установленный PIN + сессия не разблокирована.
-    if (!token || !hasPin || isSessionUnlocked()) return <Navigate to="/dashboard" replace />;
-    return children;
-  }
-  // /login: если токен есть, пропускаем — но если требуется PIN, отправим на /pin.
-  if (token) {
-    if (hasPin && !isSessionUnlocked()) return <Navigate to="/pin" replace />;
-    return <Navigate to="/dashboard" replace />;
-  }
+  if (token) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -78,14 +51,6 @@ export function App() {
         element={
           <GuestOnly>
             <LoginPage />
-          </GuestOnly>
-        }
-      />
-      <Route
-        path="/pin"
-        element={
-          <GuestOnly requirePin>
-            <PinLoginPage />
           </GuestOnly>
         }
       />

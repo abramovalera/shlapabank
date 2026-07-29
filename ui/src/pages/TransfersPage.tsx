@@ -1,11 +1,13 @@
 import { useState, FormEvent, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "@/shared/api/client";
-import { Account } from "@/shared/api/types";
+import { useAccounts } from "@/features/accounts/api";
 import { TransferShell } from "@/features/transfers/TransferShell";
 import { Select, SelectOption } from "@/shared/ui/Select";
-import { formatMoney } from "@/shared/lib/format";
+import { formatMoney, currencySymbol } from "@/shared/lib/format";
+import { apiErrorCode } from "@/shared/api/errors";
+import { Label } from "@/features/transfers/shared";
 
 /**
  * Перевод между своими счетами. Одна форма без вкладок —
@@ -14,10 +16,7 @@ import { formatMoney } from "@/shared/lib/format";
 export function TransfersPage() {
   const qc = useQueryClient();
 
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async (): Promise<Account[]> => (await api.get("/accounts")).data,
-  });
+  const { data: accounts = [] } = useAccounts();
 
   const [fromId, setFromId] = useState<number | null>(null);
   const [toId, setToId] = useState<number | null>(null);
@@ -68,7 +67,7 @@ export function TransfersPage() {
       setTimeout(() => setSuccess(false), 3000);
     },
     onError: (e: any) =>
-      setError(mapErr(e?.response?.data?.detail) ?? "Не удалось выполнить перевод"),
+      setError(mapErr(apiErrorCode(e) ?? undefined) ?? "Не удалось выполнить перевод"),
   });
 
   function onSubmit(e: FormEvent) {
@@ -216,14 +215,6 @@ export function TransfersPage() {
       </form>
     </TransferShell>
   );
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return <div className="text-[12px] text-ink-secondary mb-1.5">{children}</div>;
-}
-
-function currencySymbol(c: string): string {
-  return c === "USD" ? "$" : c === "EUR" ? "€" : c === "CNY" ? "¥" : "₽";
 }
 
 function mapErr(detail: string | undefined): string | null {
