@@ -31,9 +31,9 @@ openapi_tags = [
     {
         "name": "admin",
         "description": (
-            "**Административные операции.** Логин: `admin`, пароль: `adminadmin`. "
-            "Залогиньтесь через `POST /auth/login`, скопируйте `access_token` и вставьте в "
-            "«Authorize» вверху страницы."
+            "**Административные операции.** Логин: `admin`, пароль: `admin`. "
+            "Залогиньтесь через `POST /auth/login`, скопируйте `access_token` и вставьте "
+            "в «Authorize» вверху страницы."
         ),
     },
     {"name": "auth", "description": "Регистрация, вход, восстановление пароля."},

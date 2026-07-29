@@ -250,36 +250,38 @@ def _seed_full_client() -> None:
         )
         debit_accounts = [a for a in user_accounts if a.account_type == AccountType.DEBIT]
 
-        design_cycle = [
-            CardDesign.CLASSIC,
-            CardDesign.EMERALD,
-            CardDesign.SUNSET,
-            CardDesign.ROSE,
+        # Для fullclient: раскладка карт по всем дизайнам,
+        # чтобы витрина показывала оба типа (REGULAR и GOLD).
+        card_plan: list[tuple[CardType, CardDesign]] = [
+            (CardType.REGULAR, CardDesign.CLASSIC),
+            (CardType.REGULAR, CardDesign.EMERALD),
+            (CardType.GOLD,    CardDesign.SUNSET),
+            (CardType.GOLD,    CardDesign.ROSE),
         ]
         for i, acc in enumerate(debit_accounts):
             existing_cards = db.scalars(select(Card).where(Card.account_id == acc.id)).all()
             if existing_cards:
                 continue
-            # Основная карта — под валюту счёта, дизайн по кругу
+            card_type, design = card_plan[i % len(card_plan)]
             issue_card_for_account(
                 account=acc,
                 user=user,
                 db=db,
-                card_type=CardType.DEBIT,
+                card_type=card_type,
                 payment_system=(
                     CardPaymentSystem.MIR if acc.currency == Currency.RUB else CardPaymentSystem.VISA
                 ),
-                design=design_cycle[i % len(design_cycle)],
+                design=design,
             )
-            # У первого RUB-счёта — ещё виртуалка (для демо мультикарточного счёта)
+            # У первого RUB-счёта — вторая карта, чтобы показать «несколько карт на счёте»
             if i == 0 and acc.currency == Currency.RUB:
                 issue_card_for_account(
                     account=acc,
                     user=user,
                     db=db,
-                    card_type=CardType.VIRTUAL,
+                    card_type=CardType.REGULAR,
                     payment_system=CardPaymentSystem.MIR,
-                    design=CardDesign.EMERALD,
+                    design=CardDesign.GRAPHITE,
                 )
 
         # Пометить последнюю карту как BLOCKED — для демо статусов, только один раз

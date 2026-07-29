@@ -118,7 +118,7 @@ def _execute_vendor_payment(
     if provider_account_length is None:
         raise HTTPException(status_code=400, detail="payment_provider_not_supported")
     if len(payload.account_number) != provider_account_length:
-        raise HTTPException(status_code=400, detail="payment_account_number_invalid_length")
+        raise HTTPException(status_code=400, detail="payment_account_length_mismatch")
     if payload.amount < VENDOR_MIN or payload.amount > VENDOR_MAX:
         raise HTTPException(status_code=400, detail="payment_amount_out_of_range")
 

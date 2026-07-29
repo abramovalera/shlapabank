@@ -101,6 +101,23 @@ def _rand_login(existing: set[str]) -> str:
             return login
 
 
+def password_for_login(login: str) -> str:
+    """Детерминированный пароль по логину.
+
+    Формула: `<Login>A1!` — например для `u12345678` пароль будет `U12345678A1!`.
+    Так у каждого пользователя пароль свой, но его можно вычислить в тестах и в UI-подсказках.
+
+    Правила безопасности `validate_password_rules` проходят:
+    - латиница в верхнем регистре (`U`) и в нижнем (внутри логина цифры не влияют — но
+      добавляем гарантированную нижнюю букву `a` через хвост `A1!` для строгих валидаторов
+      в других местах),
+    - цифра (`1` в хвосте, плюс цифры логина),
+    - спецсимвол (`!`),
+    - длина > 8, без пробелов, ≠ логину.
+    """
+    return f"{login.capitalize()}A1a!"
+
+
 def _rand_acc_number(currency: Currency) -> str:
     prefixes = {
         Currency.RUB: "2202",
@@ -173,7 +190,9 @@ def _seed_batch(
         primary = "SHLAPABANK" if random.random() < 0.6 else random.choice(external_banks)
         u = User(
             login=login,
-            password_hash="StrongPass1!",  # общий пароль — тесты знают
+            # Пароль детерминированно вычисляется из логина — см. password_for_login().
+            # Тесты и автотесты умеют его пересобрать: `{Login}A1a!`.
+            password_hash=password_for_login(login),
             first_name=first,
             last_name=last,
             phone=phone,
