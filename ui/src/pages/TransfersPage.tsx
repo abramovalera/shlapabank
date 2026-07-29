@@ -1,5 +1,6 @@
 import { useState, FormEvent, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { api } from "@/shared/api/client";
 import { Account } from "@/shared/api/types";
 import { TransferShell } from "@/features/transfers/TransferShell";
@@ -77,7 +78,7 @@ export function TransfersPage() {
     if (sameAccount) return setError("Нельзя перевести на тот же счёт");
     if (currencyMismatch)
       return setError(
-        `Валюты не совпадают: ${from!.currency} → ${to!.currency}. Используйте «Обмен» (в разработке).`
+        `Валюты не совпадают: ${from!.currency} → ${to!.currency}. Для конвертации перейдите в раздел «Обмен валют».`
       );
     if (num <= 0) return setError("Укажите сумму больше 0");
     if (overBalance) return setError("Недостаточно средств");
@@ -121,8 +122,11 @@ export function TransfersPage() {
         {currencyMismatch && (
           <div className="text-[12px] text-warning bg-warning-soft rounded-control px-3 py-2">
             <i className="ti ti-alert-triangle mr-1" aria-hidden="true"></i>
-            Валюты счетов не совпадают: {from!.currency} → {to!.currency}. Для конвертации нужен раздел
-            «Обмен» (в разработке).
+            Валюты счетов не совпадают: {from!.currency} → {to!.currency}. Для конвертации перейдите в раздел{" "}
+            <Link to="/transfers/exchange" className="text-accent hover:underline font-medium">
+              «Обмен валют»
+            </Link>
+            .
           </div>
         )}
 

@@ -13,7 +13,7 @@ from app.banks import get_external_bank_codes
 from app.constants import FAILED_LOGIN_THRESHOLD
 from app.core.config import settings
 from app.db import get_db
-from app.models import User, UserBank, UserStatus
+from app.models import User, UserBank, UserRole, UserStatus
 from app.otp import OTP_TTL_MINUTES, issue_otp_preview, validate_otp_for_user
 from app.schemas import LoginRequest, OtpCode, RegisterRequest, TokenResponse, UserPublic
 from app.security import create_access_token, validate_password_rules, verify_password
@@ -178,8 +178,9 @@ def password_reset_request(
     db: Session = Depends(get_db),
 ):
     user = db.scalar(select(User).where(User.login == payload.login))
-    if user:
-        # Просто генерируем OTP — не возвращаем его тут, клиент возьмёт через /helper/otp/preview
+    # Через восстановление НЕЛЬЗЯ трогать админа — иначе легко залочить админку.
+    # Ответ 200 намеренно не отличается: не палим факт существования аккаунта.
+    if user and user.role != UserRole.ADMIN:
         issue_otp_preview(user.id)
     return PasswordResetRequestResponse(status="ok")
 
@@ -202,6 +203,10 @@ def password_reset_confirm(
     user = db.scalar(select(User).where(User.login == payload.login))
     if not user:
         raise HTTPException(status_code=400, detail="invalid_credentials")
+    # Админа сбросить нельзя — специально возвращаем «неверный код», чтобы не палить факт,
+    # что это админский аккаунт, и одновременно не дать перезаписать пароль.
+    if user.role == UserRole.ADMIN:
+        raise HTTPException(status_code=400, detail="invalid_otp_code")
 
     if not validate_otp_for_user(user.id, payload.otp_code):
         raise HTTPException(status_code=400, detail="invalid_otp_code")

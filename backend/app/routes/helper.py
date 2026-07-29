@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db import get_db
-from app.models import User
+from app.models import User, UserRole
 from app.otp import OTP_TTL_MINUTES, issue_otp_preview
 
 router = APIRouter(prefix="/api/v1/helper", tags=["helper"])
@@ -62,8 +62,10 @@ def helper_otp_preview(
     user: User | None = None
     if login:
         user = db.scalar(select(User).where(User.login == login))
-        # Не палим существование логина — возвращаем как будто OK
-        if not user:
+        # Не палим существование логина — возвращаем как будто OK.
+        # Плюс: OTP админу через login-режим никогда не отдаём (иначе через
+        # /helper + /password/reset-confirm можно было бы залезть в админку без Bearer).
+        if not user or user.role == UserRole.ADMIN:
             return {
                 "userId": None,
                 "otp": None,

@@ -18,6 +18,22 @@ interface OtpPreview {
 }
 
 /**
+ * Правила пароля должны совпадать с backend `PASSWORD_REGEX` в security.py:
+ *   ^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])\S{8,30}$
+ * Если фронт пропустит слабый пароль, бэк вернёт weak_password.
+ */
+function validatePasswordLocal(login: string, password: string): string | null {
+  if (password.length < 8 || password.length > 30) return "Пароль должен быть от 8 до 30 символов";
+  if (/\s/.test(password)) return "Пароль не должен содержать пробелов";
+  if (password === login) return "Пароль не должен совпадать с логином";
+  if (!/[a-z]/.test(password)) return "Нужна хотя бы одна строчная буква (a–z)";
+  if (!/[A-Z]/.test(password)) return "Нужна хотя бы одна заглавная буква (A–Z)";
+  if (!/\d/.test(password)) return "Нужна хотя бы одна цифра";
+  if (!/[^A-Za-z\d]/.test(password)) return "Нужен хотя бы один спецсимвол (! @ # $ % и т.п.)";
+  return null;
+}
+
+/**
  * Восстановление пароля — 3 шага:
  *  0 — логин, дёргаем POST /auth/password/reset-request → генерирует OTP на бэке
  *  1 — ввод 4-значного OTP. Подсказку с кодом тянем через ЕДИНУЮ ручку
@@ -42,13 +58,20 @@ export function ForgotPasswordPage() {
     if (login.trim().length < 1) return setError("Введите логин");
     setLoading(true);
     try {
-      // 1. Триггерим генерацию OTP на бэке — ответ намеренно пустой (защита от перебора)
+      // 1. Триггерим генерацию OTP на бэке — ответ намеренно пустой (защита от перебора).
       await api.post("/auth/password/reset-request", { login });
-      // 2. Забираем код через ЕДИНУЮ ручку OTP (по логину, без Bearer)
+      // 2. Забираем код через единую ручку OTP. Бэк для несуществующего логина возвращает
+      //    200 с `{otp: null}` — тогда предупреждаем клиента, что логин, скорее всего, неверный.
       const { data } = await api.get<OtpPreview>("/helper/otp/preview", {
         params: { login },
       });
-      setHint(data.otp ? data : null);
+      if (!data.otp) {
+        setError(
+          "Не нашли такого пользователя. Проверьте, правильно ли введён логин."
+        );
+        return;
+      }
+      setHint(data);
       setStep(1);
     } catch (err: any) {
       setError(err?.response?.data?.error?.message ?? "Не удалось отправить запрос");
@@ -57,16 +80,21 @@ export function ForgotPasswordPage() {
     }
   }
 
-  async function onConfirmOtp(code: string) {
-    // Просто переходим на следующий шаг, финальная проверка OTP произойдёт при сохранении.
+  function onConfirmOtp(code: string) {
+    // Финальная проверка OTP произойдёт при сохранении нового пароля.
     setOtp(code);
+    setError(null);
     setStep(2);
   }
 
   async function onSetNewPassword() {
     setError(null);
-    if (password.length < 8) return setError("Пароль минимум 8 символов");
+    // Валидируем локально по тем же правилам, что и бэк — чтобы пользователь
+    // увидел конкретную причину, а не общий weak_password.
+    const localError = validatePasswordLocal(login, password);
+    if (localError) return setError(localError);
     if (password !== passwordConfirm) return setError("Пароли не совпадают");
+
     setLoading(true);
     try {
       const { data } = await api.post<TokenResponse>("/auth/password/reset-confirm", {
@@ -78,11 +106,15 @@ export function ForgotPasswordPage() {
       markSessionUnlocked();
       navigate("/dashboard", { replace: true });
     } catch (err: any) {
-      const detail = err?.response?.data?.detail ?? "Не удалось сохранить пароль";
-      if (typeof detail === "string" && detail.includes("invalid_otp_code")) {
-        setError("Неверный или истёкший OTP. Вернитесь на шаг ввода кода.");
-      } else if (typeof detail === "string") {
-        setError(detail);
+      // Новый формат ответа: {error: {code, message, field}}. Показываем message,
+      // а для просроченного/неверного OTP предлагаем вернуться на шаг ввода кода.
+      const errObj = err?.response?.data?.error;
+      const code = errObj?.code;
+      const message = errObj?.message;
+      if (code === "invalid_otp_code") {
+        setError("Неверный или истёкший OTP. Вернитесь на шаг «Код» и запросите новый.");
+      } else if (message) {
+        setError(message);
       } else {
         setError("Не удалось сохранить пароль");
       }
@@ -96,7 +128,14 @@ export function ForgotPasswordPage() {
       <StepHeader
         total={3}
         active={step}
-        onBack={step > 0 ? () => setStep((step - 1) as Step) : undefined}
+        onBack={
+          step > 0
+            ? () => {
+                setError(null);
+                setStep((step - 1) as Step);
+              }
+            : undefined
+        }
       />
       <AuthLogo />
 
@@ -106,7 +145,7 @@ export function ForgotPasswordPage() {
             Восстановление
           </div>
           <div className="text-center text-[12px] text-ink-secondary mb-5">
-            Введите логин — вышлем OTP код
+            Введите логин — вышлем OTP-код
           </div>
 
           <input
@@ -144,7 +183,7 @@ export function ForgotPasswordPage() {
       {step === 1 && (
         <div>
           <div className="text-center text-[20px] font-semibold text-ink-primary mb-1">
-            OTP код
+            OTP-код
           </div>
           <div className="text-center text-[12px] text-ink-secondary mb-5">
             {hint
@@ -193,11 +232,18 @@ export function ForgotPasswordPage() {
             Не пришёл код?{" "}
             <button
               onClick={onRequestReset}
-              className="text-accent hover:underline"
+              disabled={loading}
+              className="text-accent hover:underline disabled:opacity-50 disabled:cursor-wait"
               data-testid="forgot-resend-btn"
             >
-              Отправить снова
+              {loading ? "Запрашиваем…" : "Отправить снова"}
             </button>
+          </div>
+
+          <div className="text-center text-[11px] text-ink-muted mt-3">
+            <Link to="/login" className="text-ink-secondary hover:text-ink-primary hover:underline">
+              Отмена и вернуться на вход
+            </Link>
           </div>
         </div>
       )}
@@ -207,8 +253,8 @@ export function ForgotPasswordPage() {
           <div className="text-center text-[20px] font-semibold text-ink-primary mb-1">
             Новый пароль
           </div>
-          <div className="text-center text-[12px] text-ink-secondary mb-5">
-            Минимум 8 символов, буквы и цифры
+          <div className="text-center text-[12px] text-ink-secondary mb-3">
+            8–30 символов: строчная, заглавная, цифра и спецсимвол
           </div>
 
           <input
@@ -242,6 +288,29 @@ export function ForgotPasswordPage() {
           >
             {loading ? "Сохраняем…" : "Сохранить и войти"}
           </button>
+
+          <div className="flex items-center justify-between mt-3 text-[11px]">
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setPassword("");
+                setPasswordConfirm("");
+                setStep(1);
+              }}
+              className="text-ink-secondary hover:text-ink-primary hover:underline"
+              data-testid="forgot-back-to-otp-btn"
+            >
+              ← Ввести код заново
+            </button>
+            <Link
+              to="/login"
+              className="text-ink-secondary hover:text-ink-primary hover:underline"
+              data-testid="forgot-cancel-link"
+            >
+              Отмена
+            </Link>
+          </div>
         </div>
       )}
     </AuthShell>

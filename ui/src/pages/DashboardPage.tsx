@@ -13,6 +13,7 @@ const QUICK_TILES = [
   { icon: "phone", label: "По номеру телефона", to: "/transfers/by-phone", primary: true, testId: "qt-by-phone" },
   { icon: "credit-card", label: "По номеру карты", to: "/transfers/by-card", testId: "qt-by-card" },
   { icon: "arrows-exchange", label: "Между своими", to: "/transfers", testId: "qt-own" },
+  { icon: "currency-dollar", label: "Обмен валют", to: "/transfers/exchange", testId: "qt-exchange" },
   { icon: "device-mobile", label: "Мобильная связь", to: "/payments/mobile", testId: "qt-mobile" },
   { icon: "home", label: "ЖКХ и поставщики", to: "/payments/utility", testId: "qt-utilities" },
   { icon: "refresh", label: "Автоплатежи", to: "/payments", testId: "qt-autopay" },

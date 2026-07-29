@@ -14,6 +14,7 @@ import { CardDetailsPage } from "@/pages/CardDetailsPage";
 import { AccountDetailsPage } from "@/pages/AccountDetailsPage";
 import { TransferByCardPage } from "@/pages/TransferByCardPage";
 import { TransferByPhonePage } from "@/pages/TransferByPhonePage";
+import { ExchangePage } from "@/pages/ExchangePage";
 import { MobilePaymentPage } from "@/pages/MobilePaymentPage";
 import { UtilityPaymentPage } from "@/pages/UtilityPaymentPage";
 import { TransfersPage } from "@/pages/TransfersPage";
@@ -106,6 +107,7 @@ export function App() {
         <Route path="/transfers" element={<TransfersPage />} />
         <Route path="/transfers/by-card" element={<TransferByCardPage />} />
         <Route path="/transfers/by-phone" element={<TransferByPhonePage />} />
+        <Route path="/transfers/exchange" element={<ExchangePage />} />
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/payments/mobile" element={<MobilePaymentPage />} />
         <Route path="/payments/utility" element={<UtilityPaymentPage />} />

@@ -61,6 +61,26 @@ def init_db() -> None:
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_color VARCHAR(20)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth VARCHAR(10)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS theme VARCHAR(10) NOT NULL DEFAULT 'dark'",
+            # Таблица пользовательских лимитов на карту (одна строка на карту).
+            """CREATE TABLE IF NOT EXISTS card_limits (
+                id SERIAL PRIMARY KEY,
+                card_id INTEGER UNIQUE NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+                monthly_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                monthly_amount NUMERIC(14,2) NOT NULL DEFAULT 500000,
+                daily_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                daily_amount NUMERIC(14,2) NOT NULL DEFAULT 100000,
+                online_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                online_amount NUMERIC(14,2) NOT NULL DEFAULT 50000,
+                atm_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                atm_amount NUMERIC(14,2) NOT NULL DEFAULT 100000,
+                contactless_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                contactless_amount NUMERIC(14,2) NOT NULL DEFAULT 5000,
+                abroad_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                abroad_amount NUMERIC(14,2) NOT NULL DEFAULT 50000,
+                online_purchases_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                online_purchases_amount NUMERIC(14,2) NOT NULL DEFAULT 30000,
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )""",
         ):
             try:
                 conn.execute(text(stmt))

@@ -17,6 +17,7 @@ const PAYMENTS_ITEMS: DropdownItem[] = [
   { label: "Перевод по карте",      to: "/transfers/by-card",  icon: "credit-card",  testId: "nav-transfers-card" },
   { label: "Перевод по телефону",   to: "/transfers/by-phone", icon: "phone",        testId: "nav-transfers-phone" },
   { label: "Между своими счетами",  to: "/transfers",          icon: "arrows-exchange", testId: "nav-transfers-own" },
+  { label: "Обмен валют",           to: "/transfers/exchange", icon: "currency-dollar", testId: "nav-transfers-exchange" },
   { label: "Мобильная связь",       to: "/payments/mobile",    icon: "device-mobile", testId: "nav-payments-mobile" },
   { label: "ЖКХ и поставщики",      to: "/payments/utility",   icon: "home",         testId: "nav-payments-utility" },
   { label: "Автоплатежи",           to: "/payments/autopay",   icon: "refresh",      testId: "nav-payments-autopay" },

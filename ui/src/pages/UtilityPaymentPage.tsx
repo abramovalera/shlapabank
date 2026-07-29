@@ -82,23 +82,24 @@ export function UtilityPaymentPage() {
     setBusy(true);
     setOtpError(null);
     try {
-      // extras пакуем в description на будущее — бэку сейчас только базовый vendor нужен
+      // extras собираются в строку k:v|k:v (показания, ФИО, назначение и т.п.)
+      // и уходят на бэк — бэк дописывает их в description транзакции, чтобы клиент
+      // видел детали в истории и чеке.
       const extrasSuffix = buildExtrasSuffix(categoryKey!, extras);
-      // extras пока не отправляем на бэк — показываем только в сводке шага и success-экране
-      void extrasSuffix;
       const { data } = await api.post<{ id: number }>("/payments/vendor", {
         account_id: source?.accountId,
         provider,
         account_number: accountNumber,
         amount,
         otp_code: otp,
+        extras: extrasSuffix || undefined,
       });
       setCompletedTxId(data.id);
       qc.invalidateQueries({ queryKey: ["accounts"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
       setStep(3);
     } catch (e: any) {
-      setOtpError(mapError(e?.response?.data?.detail) ?? "Не удалось выполнить платёж");
+      setOtpError(mapError(e?.response?.data?.error?.code) ?? "Не удалось выполнить платёж");
     } finally {
       setBusy(false);
     }

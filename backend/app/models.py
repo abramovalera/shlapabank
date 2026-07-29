@@ -193,6 +193,51 @@ class Card(Base):
     account: Mapped["Account"] = relationship(back_populates="cards")
 
 
+class CardLimit(Base):
+    """Пользовательские лимиты по одной карте.
+
+    Одна строка на карту (one-to-one). Каждый лимит — пара (enabled, amount):
+    выключенный лимит не проверяется на операциях. Amount хранится в валюте счёта карты.
+
+    Значения по умолчанию задаются на уровне ORM (см. DEFAULT_CARD_LIMITS в bulk_seed/CardLimit).
+    """
+
+    __tablename__ = "card_limits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    card_id: Mapped[int] = mapped_column(
+        ForeignKey("cards.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    monthly_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    monthly_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("500000"), nullable=False)
+
+    daily_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    daily_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("100000"), nullable=False)
+
+    online_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    online_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("50000"), nullable=False)
+
+    atm_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    atm_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("100000"), nullable=False)
+
+    contactless_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    contactless_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("5000"), nullable=False)
+
+    abroad_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    abroad_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("50000"), nullable=False)
+
+    online_purchases_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    online_purchases_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("30000"), nullable=False)
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
 class Transaction(Base):
     __tablename__ = "transactions"
 

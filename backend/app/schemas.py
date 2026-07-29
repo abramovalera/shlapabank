@@ -301,6 +301,11 @@ class VendorPaymentRequest(BaseModel):
     account_number: str = Field(min_length=1, max_length=30, pattern=r"^\d+$")
     amount: Decimal = Field(gt=0)
     otp_code: OtpCode
+    # Свободная строка для дополнительных данных платежа:
+    # показания счётчиков (ЖКХ), ФИО студента (образование), назначение (благотворительность) и т.п.
+    # Не участвует в валидации бизнес-правил — просто дописывается в описание транзакции,
+    # чтобы клиент видел контекст в истории и чеке.
+    extras: str | None = Field(default=None, max_length=200)
 
 
 class AccountCreateRequest(BaseModel):
@@ -399,6 +404,43 @@ class CardPublic(BaseModel):
     status: CardStatus
     design: CardDesign = CardDesign.CLASSIC
     is_contactless: bool
+
+
+class CardLimitEntry(BaseModel):
+    """Один лимит: включён/выключен + сумма в валюте счёта карты."""
+
+    enabled: bool
+    amount: Decimal = Field(ge=0, description="Сумма лимита, не отрицательная")
+
+
+class CardLimitsPayload(BaseModel):
+    """Все 7 лимитов карты одним объектом.
+
+    Клиент присылает всё скопом при сохранении, бэк перезаписывает целиком —
+    так проще, чем PATCH с частичным обновлением.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "monthly":          {"enabled": True,  "amount": "500000"},
+                "daily":            {"enabled": True,  "amount": "100000"},
+                "online":           {"enabled": True,  "amount": "50000"},
+                "atm":              {"enabled": True,  "amount": "100000"},
+                "contactless":      {"enabled": True,  "amount": "5000"},
+                "abroad":           {"enabled": False, "amount": "50000"},
+                "online_purchases": {"enabled": True,  "amount": "30000"},
+            }
+        }
+    )
+
+    monthly: CardLimitEntry
+    daily: CardLimitEntry
+    online: CardLimitEntry
+    atm: CardLimitEntry
+    contactless: CardLimitEntry
+    abroad: CardLimitEntry
+    online_purchases: CardLimitEntry
 
 
 class CardCreateRequest(BaseModel):

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Modal } from "@/shared/ui/Modal";
 import { Card } from "@/shared/api/types";
+import { api } from "@/shared/api/client";
 
 interface Props {
   open: boolean;
@@ -23,6 +25,7 @@ interface Limits {
   online_purchases: LimitEntry;
 }
 
+// Дефолты нужны для оптимистичного начального состояния — реальные придут с бэка.
 const DEFAULTS: Limits = {
   monthly:          { enabled: true,  amount: 500000 },
   daily:            { enabled: true,  amount: 100000 },
@@ -43,36 +46,65 @@ const LIMIT_LABELS: { key: keyof Limits; label: string; hint: string }[] = [
   { key: "online_purchases", label: "Онлайн-покупки",           hint: "Магазины и сервисы в интернете" },
 ];
 
+// Ответ API: amount приходит строкой (Decimal), нормализуем в number.
+type ApiLimits = Record<keyof Limits, { enabled: boolean; amount: string | number }>;
+
+function apiToState(data: ApiLimits): Limits {
+  const out: Partial<Limits> = {};
+  (Object.keys(DEFAULTS) as (keyof Limits)[]).forEach((k) => {
+    out[k] = {
+      enabled: !!data[k]?.enabled,
+      amount: parseFloat(String(data[k]?.amount ?? DEFAULTS[k].amount)) || 0,
+    };
+  });
+  return out as Limits;
+}
+
 /**
- * Настройка лимитов. Каждая строка: тогл (включить/выключить) + инпут суммы.
- * Хранится в localStorage — на бэке пока не сохраняется.
+ * Настройка лимитов карты. Хранится на бэке (`GET/PUT /cards/{id}/limits`).
  */
 export function LimitsModal({ open, onClose, card }: Props) {
-  const storageKey = `sb_card_limits_${card.id}`;
+  const qc = useQueryClient();
   const [limits, setLimits] = useState<Limits>(DEFAULTS);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data, isFetching } = useQuery({
+    queryKey: ["card-limits", card.id],
+    queryFn: async (): Promise<ApiLimits> => (await api.get(`/cards/${card.id}/limits`)).data,
+    enabled: open,
+    staleTime: 30_000,
+  });
 
   useEffect(() => {
-    if (!open) return;
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) setLimits({ ...DEFAULTS, ...JSON.parse(raw) });
-      else setLimits(DEFAULTS);
-    } catch {
-      setLimits(DEFAULTS);
-    }
+    if (data) setLimits(apiToState(data));
     setSaved(false);
-  }, [open, storageKey]);
+    setError(null);
+  }, [data, open]);
 
   function updateEntry(key: keyof Limits, patch: Partial<LimitEntry>) {
     setLimits((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }
 
-  function save() {
-    localStorage.setItem(storageKey, JSON.stringify(limits));
-    setSaved(true);
-    setTimeout(() => onClose(), 800);
-  }
+  const save = useMutation({
+    mutationFn: async () => {
+      const payload: ApiLimits = Object.fromEntries(
+        (Object.keys(limits) as (keyof Limits)[]).map((k) => [
+          k,
+          { enabled: limits[k].enabled, amount: String(limits[k].amount) },
+        ])
+      ) as ApiLimits;
+      return (await api.put(`/cards/${card.id}/limits`, payload)).data;
+    },
+    onSuccess: () => {
+      setSaved(true);
+      qc.invalidateQueries({ queryKey: ["card-limits", card.id] });
+      setTimeout(() => onClose(), 800);
+    },
+    onError: (e: any) => {
+      setError(e?.response?.data?.error?.message ?? "Не удалось сохранить лимиты");
+    },
+  });
 
   return (
     <Modal
@@ -84,7 +116,7 @@ export function LimitsModal({ open, onClose, card }: Props) {
       maxWidth={460}
     >
       <div className="text-[11px] text-ink-muted mb-3">
-        Каждый лимит можно включить/выключить и задать сумму.
+        Каждый лимит можно включить/выключить и задать сумму. Изменения сохраняются в вашем профиле.
       </div>
 
       <div className="flex flex-col gap-2 mb-4">
@@ -100,6 +132,16 @@ export function LimitsModal({ open, onClose, card }: Props) {
         ))}
       </div>
 
+      {isFetching && !data && (
+        <div className="text-[12px] text-ink-muted mb-3">Загружаем текущие лимиты…</div>
+      )}
+
+      {error && (
+        <div className="text-[13px] text-danger bg-danger-soft rounded-control px-3 py-2 mb-3">
+          {error}
+        </div>
+      )}
+
       {saved && (
         <div className="text-[13px] text-success bg-success-soft rounded-control px-3 py-2 mb-3">
           <i className="ti ti-check mr-1" aria-hidden="true"></i>
@@ -108,15 +150,16 @@ export function LimitsModal({ open, onClose, card }: Props) {
       )}
 
       <div className="flex gap-2">
-        <button className="btn flex-1" onClick={onClose}>
+        <button className="btn flex-1" onClick={onClose} disabled={save.isPending}>
           Отмена
         </button>
         <button
-          onClick={save}
-          className="btn-primary flex-[1.4] py-2.5"
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+          className="btn-primary flex-[1.4] py-2.5 disabled:opacity-60 disabled:cursor-wait"
           data-testid="limits-save-btn"
         >
-          Сохранить
+          {save.isPending ? "Сохраняем…" : "Сохранить"}
         </button>
       </div>
     </Modal>

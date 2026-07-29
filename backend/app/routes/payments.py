@@ -129,6 +129,10 @@ def _execute_vendor_payment(
         raise HTTPException(status_code=400, detail="insufficient_funds")
 
     account.balance -= payload.amount
+    description = f"vendor:{payload.provider}:{payload.account_number}"
+    if payload.extras:
+        # extras присоединяем через | (структура: k:v|k:v|…). См. UtilityPaymentPage.tsx / buildExtrasSuffix.
+        description = f"{description}|{payload.extras}"
     tx = Transaction(
         from_account_id=account.id,
         to_account_id=None,
@@ -137,7 +141,7 @@ def _execute_vendor_payment(
         currency=account.currency,
         status=TransactionStatus.COMPLETED,
         initiated_by=current_user.id,
-        description=f"vendor:{payload.provider}:{payload.account_number}",
+        description=description[:250],  # оставляем запас на строку 255 в БД
         fee=Decimal("0"),
     )
     db.add(account)

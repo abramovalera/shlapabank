@@ -34,6 +34,7 @@ export function GlobalSearch() {
     { key: "p:cards", title: "Мои карты", hint: "Список всех карт", icon: "credit-card", to: "/cards" },
     { key: "p:history", title: "История операций", hint: "Все операции", icon: "list", to: "/history" },
     { key: "p:transfers", title: "Между своими счетами", hint: "Перевод", icon: "arrows-exchange", to: "/transfers" },
+    { key: "p:exchange", title: "Обмен валют", hint: "Конвертация RUB / USD / EUR / CNY", icon: "currency-dollar", to: "/transfers/exchange" },
     { key: "p:by-phone", title: "Перевод по номеру телефона", hint: "СБП", icon: "phone", to: "/transfers/by-phone" },
     { key: "p:by-card", title: "Перевод по номеру карты", hint: "Карта → карта", icon: "credit-card", to: "/transfers/by-card" },
     { key: "p:mobile", title: "Мобильная связь", hint: "Оплата телефона", icon: "device-mobile", to: "/payments/mobile" },

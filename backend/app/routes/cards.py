@@ -13,6 +13,7 @@ from app.models import (
     Account,
     Card,
     CardDesign,
+    CardLimit,
     CardPaymentSystem,
     CardStatus,
     CardType,
@@ -21,7 +22,14 @@ from app.models import (
 )
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas import CardCreateRequest, CardPublic, CardUpdateRequest, ActionResponse
+from app.schemas import (
+    ActionResponse,
+    CardCreateRequest,
+    CardLimitEntry,
+    CardLimitsPayload,
+    CardPublic,
+    CardUpdateRequest,
+)
 from app.security import require_active_user
 
 router = APIRouter(prefix="/api/v1/cards", tags=["cards"])
@@ -368,3 +376,93 @@ def _get_own_card(card_id: int, current_user: User, db: Session) -> Card:
     if not account or account.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="card_not_found")
     return card
+
+
+# =========================================================================
+# Пользовательские лимиты по карте
+# =========================================================================
+
+
+def _limits_to_payload(limit: CardLimit) -> CardLimitsPayload:
+    """ORM-запись → API-формат (сгруппированные пары enabled/amount)."""
+    return CardLimitsPayload(
+        monthly=CardLimitEntry(enabled=limit.monthly_enabled, amount=limit.monthly_amount),
+        daily=CardLimitEntry(enabled=limit.daily_enabled, amount=limit.daily_amount),
+        online=CardLimitEntry(enabled=limit.online_enabled, amount=limit.online_amount),
+        atm=CardLimitEntry(enabled=limit.atm_enabled, amount=limit.atm_amount),
+        contactless=CardLimitEntry(enabled=limit.contactless_enabled, amount=limit.contactless_amount),
+        abroad=CardLimitEntry(enabled=limit.abroad_enabled, amount=limit.abroad_amount),
+        online_purchases=CardLimitEntry(
+            enabled=limit.online_purchases_enabled, amount=limit.online_purchases_amount
+        ),
+    )
+
+
+def _get_or_create_limits(card: Card, db: Session) -> CardLimit:
+    """Возвращает запись лимитов карты, создавая с дефолтами при первом обращении."""
+    limit = db.scalar(select(CardLimit).where(CardLimit.card_id == card.id))
+    if limit:
+        return limit
+    limit = CardLimit(card_id=card.id)
+    db.add(limit)
+    db.commit()
+    db.refresh(limit)
+    return limit
+
+
+@router.get(
+    "/{card_id}/limits",
+    response_model=CardLimitsPayload,
+    summary="Получить лимиты карты",
+    description=(
+        "Возвращает текущие лимиты по 7 категориям (месяц/день/онлайн/банкомат/бесконтакт/за границей/онлайн-покупки). "
+        "Если ещё не настраивались — вернутся значения по умолчанию."
+    ),
+)
+def get_card_limits(
+    card_id: int,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    card = _get_own_card(card_id, current_user, db)
+    limit = _get_or_create_limits(card, db)
+    return _limits_to_payload(limit)
+
+
+@router.put(
+    "/{card_id}/limits",
+    response_model=CardLimitsPayload,
+    summary="Обновить лимиты карты",
+    description=(
+        "Полностью заменяет набор лимитов. Клиент должен прислать все 7 пар (enabled + amount). "
+        "Значения хранятся в валюте счёта карты."
+    ),
+)
+def update_card_limits(
+    card_id: int,
+    payload: CardLimitsPayload,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+):
+    card = _get_own_card(card_id, current_user, db)
+    limit = _get_or_create_limits(card, db)
+
+    limit.monthly_enabled = payload.monthly.enabled
+    limit.monthly_amount = payload.monthly.amount
+    limit.daily_enabled = payload.daily.enabled
+    limit.daily_amount = payload.daily.amount
+    limit.online_enabled = payload.online.enabled
+    limit.online_amount = payload.online.amount
+    limit.atm_enabled = payload.atm.enabled
+    limit.atm_amount = payload.atm.amount
+    limit.contactless_enabled = payload.contactless.enabled
+    limit.contactless_amount = payload.contactless.amount
+    limit.abroad_enabled = payload.abroad.enabled
+    limit.abroad_amount = payload.abroad.amount
+    limit.online_purchases_enabled = payload.online_purchases.enabled
+    limit.online_purchases_amount = payload.online_purchases.amount
+
+    db.add(limit)
+    db.commit()
+    db.refresh(limit)
+    return _limits_to_payload(limit)
