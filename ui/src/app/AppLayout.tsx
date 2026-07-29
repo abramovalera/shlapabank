@@ -61,10 +61,10 @@ export function AppLayout() {
           <div className="flex items-center gap-10">
             <div className="flex items-center gap-2.5">
               <button
-                onClick={() => (isDemo ? setTopupOpen(true) : navigate("/dashboard"))}
-                title={isDemo ? "🧪 Тест: пополнить счёт" : "ShlapaBank"}
+                onClick={() => setTopupOpen(true)}
+                title="🧪 Тест: пополнить счёт"
                 data-testid="logo-topup-btn"
-                aria-label={isDemo ? "Открыть тест-пополнение" : "На главную"}
+                aria-label="Открыть тест-пополнение"
                 className="w-8 h-8 rounded-[10px] flex items-center justify-center font-medium text-[#0B1223] hover:scale-110 transition-transform"
                 style={{
                   background: "linear-gradient(135deg, #FFA347 0%, #F09427 100%)",
@@ -179,7 +179,7 @@ export function AppLayout() {
         </a>
       </footer>
 
-      {isDemo && <TopupModal open={topupOpen} onClose={() => setTopupOpen(false)} />}
+      <TopupModal open={topupOpen} onClose={() => setTopupOpen(false)} />
     </div>
   );
 }

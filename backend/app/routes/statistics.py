@@ -25,9 +25,6 @@ from app.security import require_active_user
 
 router = APIRouter(prefix="/api/v1/statistics", tags=["statistics"])
 
-# Лимит по-умолчанию (в рублях, для MVP — один на всех). Позже можно вынести в настройки пользователя.
-DEFAULT_LIMIT_RUB = Decimal("50000.00")
-
 
 CATEGORY_ORDER = ["utilities", "mobile", "internet_tv", "education", "charity", "transfers", "other"]
 
@@ -141,16 +138,9 @@ def monthly_stats(
         if totals[key] > 0
     ]
 
-    limit = DEFAULT_LIMIT_RUB
-    percent = 0
-    if limit > 0:
-        percent = min(100, int((total_spent / limit) * 100))
-
     return {
         "period": f"{y:04d}-{m:02d}",
         "currency": "RUB",
-        "limit": str(limit.quantize(Decimal("0.01"))),
         "spent": str(total_spent.quantize(Decimal("0.01"))),
-        "percent": percent,
         "categories": categories,
     }

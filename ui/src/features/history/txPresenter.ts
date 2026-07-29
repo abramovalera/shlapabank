@@ -87,12 +87,6 @@ function formatPhone(raw: string): string {
   return `+${d[0]} ${d.slice(1, 4)} ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9, 11)}`;
 }
 
-function extractFee(rest: string[]): string | undefined {
-  const feePart = rest.find((p) => p.startsWith("fee_"));
-  if (!feePart) return undefined;
-  return feePart.replace("fee_", "");
-}
-
 /**
  * Превращает техническую строку description в человекочитаемое представление.
  * Возвращает title/subtitle/иконку/категорию/цвет.
@@ -132,14 +126,12 @@ export function presentTransaction(tx: Transaction): TxPresentation {
     const curr = rest[0] ?? "";
     const acc = rest[1] ?? "";
     title = "Перевод в другой банк";
-    const feeStr = extractFee(rest);
-    subtitle = `${acc || "счёт"} · ${curr}${feeStr ? ` · комиссия ${feeStr}` : ""} · ${time}`;
+    subtitle = `${acc || "счёт"} · ${curr} · ${time}`;
   } else if (head === "external_card") {
     cat = "transfer_card";
     const acc = rest[1] ?? "";
     title = "Перевод на карту (внешний)";
-    const feeStr = extractFee(rest);
-    subtitle = `${acc}${feeStr ? ` · комиссия ${feeStr}` : ""} · ${time}`;
+    subtitle = `${acc} · ${time}`;
   } else if (head === "card_to_card") {
     cat = "transfer_card";
     const acc = rest[1] ?? "";
@@ -150,8 +142,7 @@ export function presentTransaction(tx: Transaction): TxPresentation {
     const bank = rest[0] ?? "";
     const phone = rest[1] ?? "";
     title = "Перевод по телефону";
-    const feeStr = extractFee(rest);
-    subtitle = `${formatPhone(phone)}${bank ? ` · ${bank}` : ""}${feeStr ? ` · комиссия ${feeStr}` : ""} · ${time}`;
+    subtitle = `${formatPhone(phone)}${bank ? ` · ${bank}` : ""} · ${time}`;
   } else if (head === "p2p_transfer_by_phone") {
     cat = "transfer_phone";
     const acc = rest[1] ?? "";

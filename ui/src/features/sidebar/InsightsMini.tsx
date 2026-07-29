@@ -1,13 +1,14 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
 import { formatMoney } from "@/shared/lib/format";
+import { DonutChart } from "@/features/statistics/DonutChart";
+import { DetailedAnalyticsModal } from "@/features/statistics/DetailedAnalyticsModal";
 
 interface MonthlyStats {
   period: string;
   currency: string;
-  limit: string;
   spent: string;
-  percent: number;
   categories: { key: string; label: string; amount: string }[];
 }
 
@@ -27,10 +28,14 @@ const MONTH_LABELS = [
 ];
 
 /**
- * Компактный виджет статистики для сайдбара:
- * мини-донат с процентом + топ-2 категории + ссылка на подробную аналитику.
+ * Компактный виджет статистики для сайдбара: мини-донат по категориям
+ * расходов + топ-2 категории + ссылка на подробную аналитику (модалка).
+ * Общая статистика трат — без привязки к какому-либо лимиту (его в
+ * проекте нет, показывать «из N ₽» было бы вводящим в заблуждение).
  */
 export function InsightsMini() {
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+
   const { data } = useQuery({
     queryKey: ["statistics", "monthly"],
     queryFn: async (): Promise<MonthlyStats> => (await api.get("/statistics/monthly")).data,
@@ -43,9 +48,11 @@ export function InsightsMini() {
       })()
     : "";
 
-  const percent = data?.percent ?? 0;
-  const circumference = 2 * Math.PI * 24;
-  const dashArray = `${(circumference * percent) / 100} ${circumference}`;
+  const slices = (data?.categories ?? []).map((c) => ({
+    key: c.key,
+    value: parseFloat(c.amount),
+    color: CATEGORY_COLORS[c.key] ?? "#888780",
+  }));
 
   const topCategories = (data?.categories ?? []).slice(0, 2);
 
@@ -57,39 +64,16 @@ export function InsightsMini() {
       </div>
 
       <div className="flex items-center gap-3 mb-2.5">
-        <div className="relative w-[60px] h-[60px] shrink-0">
-          <svg width="60" height="60" viewBox="0 0 60 60" style={{ transform: "rotate(-90deg)" }}>
-            <circle
-              cx="30"
-              cy="30"
-              r="24"
-              fill="none"
-              stroke="rgba(242,244,248,0.08)"
-              strokeWidth="8"
-            />
-            <circle
-              cx="30"
-              cy="30"
-              r="24"
-              fill="none"
-              stroke="#5B6BFF"
-              strokeWidth="8"
-              strokeDasharray={dashArray}
-              strokeDashoffset="0"
-              style={{ transition: "stroke-dasharray 0.4s ease" }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center text-[12px] font-medium">
-            {percent}%
-          </div>
+        <div className="shrink-0">
+          <DonutChart
+            slices={slices.length > 0 ? slices : [{ key: "empty", value: 1, color: "rgba(242,244,248,0.08)" }]}
+            size={60}
+          />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[11px] text-ink-secondary">Потрачено</div>
+          <div className="text-[11px] text-ink-secondary">Потрачено в этом месяце</div>
           <div className="text-[15px] font-medium">
             {data ? formatMoney(data.spent, data.currency) : "—"}
-          </div>
-          <div className="text-[10px] text-ink-muted">
-            из {data ? formatMoney(data.limit, data.currency) : "—"}
           </div>
         </div>
       </div>
@@ -114,11 +98,14 @@ export function InsightsMini() {
       )}
 
       <button
+        onClick={() => setAnalyticsOpen(true)}
         className="w-full mt-3 py-1.5 text-[12px] text-accent hover:underline"
         data-testid="insights-see-all-btn"
       >
         Подробная аналитика →
       </button>
+
+      <DetailedAnalyticsModal open={analyticsOpen} onClose={() => setAnalyticsOpen(false)} />
     </div>
   );
 }
