@@ -52,7 +52,7 @@ ERROR_MESSAGES: dict[str, str] = {
     "currency_mismatch": "Валюты счетов не совпадают",
     "currency_not_supported_for_exchange": "Обмен для этой пары валют не поддерживается",
     "insufficient_funds": "Недостаточно средств",
-    "recipient_not_found_in_our_bank": "Получатель не найден в ShlapaBank",
+    "recipient_not_found_in_our_bank": "Получатель не найден в ShlapaBank. Если это клиент ShlapaBank, возможно, у него просто не указан номер телефона — попробуйте перевод по номеру карты или счёта",
     "recipient_has_no_suitable_account": "У получателя нет подходящего счёта",
     "recipient_account_inactive": "Счёт получателя неактивен",
     "invalid_card_number": "Неверный номер карты",

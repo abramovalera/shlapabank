@@ -24,7 +24,6 @@ const PAYMENTS_ITEMS: DropdownItem[] = [
 const MORE_ITEMS: DropdownItem[] = [
   { label: "Мои карты",   to: "/cards",   icon: "credit-card",  testId: "nav-more-cards" },
   { label: "Настройки",   to: "/profile", icon: "settings",     testId: "nav-more-settings" },
-  { label: "Поддержка",   to: "/profile", icon: "headset",      testId: "nav-more-support" },
 ];
 
 /** Каркас: верхний header + двухколоночная область (sticky sidebar слева + Outlet справа). */

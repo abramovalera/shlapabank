@@ -27,22 +27,12 @@ class RegisterRequest(BaseModel):
             "example": {
                 "login": "ivanpetrov",
                 "password": "StrongPass123!",
-                "phone": "+79991234567",
             }
         }
     )
 
     login: str = Field(min_length=6, max_length=20, pattern=r"^[A-Za-z0-9]+$")
     password: str = Field(min_length=8, max_length=30)
-    # Обязателен: без телефона пользователя нельзя найти как получателя
-    # перевода по номеру телефона (СБП).
-    phone: str
-
-    @field_validator("phone", mode="before")
-    @classmethod
-    def normalize_phone_field(cls, v: str) -> str:
-        from app.phone_utils import normalize_phone_or_raise
-        return normalize_phone_or_raise(v)
 
 
 class LoginRequest(BaseModel):

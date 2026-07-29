@@ -326,6 +326,15 @@ export function TransferByPhonePage() {
                   получает деньги в другой банк.
                 </div>
               )}
+
+              {!check.inOurBank && (
+                <div className="text-[11px] text-ink-secondary bg-fill-control rounded-control px-3 py-2 mb-3">
+                  <i className="ti ti-info-circle mr-1" aria-hidden="true"></i>
+                  Не нашли этот номер среди клиентов ShlapaBank — либо он в другом банке, либо
+                  клиент ShlapaBank просто не указал телефон в профиле. Если получатель точно
+                  клиент ShlapaBank, надёжнее перевести по номеру карты или счёта.
+                </div>
+              )}
             </>
           )}
 

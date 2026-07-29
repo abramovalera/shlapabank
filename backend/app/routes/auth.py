@@ -88,14 +88,10 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
     existing = db.scalar(select(User).where(User.login == payload.login))
     if existing:
         raise HTTPException(status_code=409, detail="validation_error: login_not_unique")
-    existing_phone = db.scalar(select(User).where(User.phone == payload.phone))
-    if existing_phone:
-        raise HTTPException(status_code=409, detail="validation_error: phone_not_unique")
 
     user = User(
         login=payload.login,
         password_hash=payload.password,
-        phone=payload.phone,
     )
     db.add(user)
     db.commit()
