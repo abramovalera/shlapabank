@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
 import { Account, Currency } from "@/shared/api/types";
@@ -11,11 +10,9 @@ const CURRENCY_ORDER: Currency[] = ["RUB", "USD", "EUR", "CNY"];
  * Верхняя плашка сайдбара:
  *  - Сумма всех балансов в выбранной валюте (переключается стрелками, свайпом или точками)
  *  - Кнопка скрыть/показать
- *  - Ряд быстрых действий (Перевести / Пополнить / Оплатить / Выписка)
  * Показываются только валюты, где есть хотя бы один счёт.
  */
 export function BalanceWidget() {
-  const navigate = useNavigate();
   const [hidden, setHidden] = useState(false);
 
   const { data: accounts = [] } = useQuery({
@@ -58,13 +55,6 @@ export function BalanceWidget() {
     if (dx < 0) next();
     else prev();
   }
-
-  const quickActions = [
-    { icon: "arrow-up-right", label: "Перевести", to: "/transfers/by-phone", testId: "qa-transfer" },
-    { icon: "plus", label: "Пополнить", to: "/transfers", testId: "qa-topup" },
-    { icon: "file-invoice", label: "Оплатить", to: "/payments/utility", testId: "qa-pay" },
-    { icon: "file-text", label: "Выписка", to: "/history", testId: "qa-statement" },
-  ];
 
   return (
     <div className="sidebar-block" data-testid="sidebar-balance">
@@ -138,21 +128,6 @@ export function BalanceWidget() {
           ))}
         </div>
       )}
-
-      <div className="grid grid-cols-4 gap-1.5 mt-3" data-testid="balance-quick-actions">
-        {quickActions.map((a) => (
-          <button
-            key={a.testId}
-            onClick={() => navigate(a.to)}
-            data-testid={a.testId}
-            title={a.label}
-            className="btn-outline-brand flex-col gap-1 py-2 h-auto text-[11px]"
-          >
-            <i className={`ti ti-${a.icon} text-base`} aria-hidden="true"></i>
-            <span>{a.label}</span>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
