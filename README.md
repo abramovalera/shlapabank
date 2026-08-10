@@ -1,4 +1,4 @@
-# ShlapaBank
+# ShlapaBank![Uploading image.png…]()
 
 Учебный банк-клон для практики автотестов (UI и API).
 Backend — FastAPI + PostgreSQL, frontend — React + Vite + TypeScript, всё поднимается одной командой.
