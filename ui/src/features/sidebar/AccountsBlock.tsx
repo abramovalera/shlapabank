@@ -32,7 +32,7 @@ export function AccountsBlock() {
   }
 
   return (
-    <div className="sidebar-block" data-testid="sidebar-accounts-block">
+    <div className="sidebar-block">
       <div className="flex justify-between items-center mb-3">
         <div className="text-[14px] font-medium">Счета и Карты</div>
         <span className="text-[11px] text-ink-muted">
@@ -58,14 +58,12 @@ export function AccountsBlock() {
         <button
           onClick={() => setOpenAccount(true)}
           className="flex-1 py-2 text-[12px] text-accent bg-brand-soft border border-brand/25 rounded-control hover:bg-brand/25 transition"
-          data-testid="sidebar-open-account-btn"
         >
           + Счёт
         </button>
         <button
           onClick={() => setOpenCard(true)}
           className="flex-1 py-2 text-[12px] text-accent bg-brand-soft border border-brand/25 rounded-control hover:bg-brand/25 transition"
-          data-testid="sidebar-open-card-btn"
         >
           + Карта
         </button>
@@ -108,7 +106,7 @@ function AccountItem({ account, cards }: { account: Account; cards: Card[] }) {
             •••• {account.account_number.slice(-4)} · {account.currency}
           </div>
         </div>
-        <div className="text-[13px] font-medium">
+        <div className="text-[13px] font-semibold text-money tabular-nums">
           {formatMoney(account.balance, account.currency)}
         </div>
       </button>

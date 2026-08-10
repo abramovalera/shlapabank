@@ -28,7 +28,6 @@ export function ProfilePage() {
       {isDemo && (
         <div
           className="rounded-card border border-brand/30 bg-brand-soft px-4 py-3 flex items-start gap-3"
-          data-testid="profile-demo-notice"
         >
           <i className="ti ti-mood-happy text-accent text-xl mt-0.5" aria-hidden="true"></i>
           <div className="flex-1">
@@ -49,7 +48,7 @@ export function ProfilePage() {
           >
             {initials}
           </div>
-          <div className="text-base font-medium" data-testid="profile-name">
+          <div className="text-base font-medium">
             {displayName}
           </div>
           <div className="text-xs text-ink-secondary mb-3.5">
@@ -97,7 +96,6 @@ export function ProfilePage() {
               logout();
               navigate("/login");
             }}
-            data-testid="profile-logout-btn"
           >
             <i className="ti ti-logout text-lg" aria-hidden="true"></i>
             <span className="text-sm font-medium">Выйти</span>
@@ -140,7 +138,6 @@ function SettingsRow({
   return (
     <button
       onClick={onClick}
-      data-testid={testId}
       className="card flex justify-between items-center hover:bg-surface-2 text-left transition group"
     >
       <div className="flex items-center gap-3">

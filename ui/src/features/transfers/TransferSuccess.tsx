@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatMoney } from "@/shared/lib/format";
+import { downloadReceipt } from "@/shared/lib/receipt";
 
 interface Props {
   amount: string | number;
@@ -26,6 +28,8 @@ export function TransferSuccess({
   completedAt,
 }: Props) {
   const navigate = useNavigate();
+  const [receiptBusy, setReceiptBusy] = useState(false);
+  const [receiptError, setReceiptError] = useState(false);
   const at = completedAt ?? new Date();
   const dateStr = at.toLocaleDateString("ru-RU", {
     day: "2-digit",
@@ -37,14 +41,21 @@ export function TransferSuccess({
     minute: "2-digit",
   });
 
-  function downloadReceipt() {
-    if (transactionId) {
-      window.open(`/api/v1/transactions/${transactionId}/receipt`, "_blank", "noopener");
+  async function onDownloadReceipt() {
+    if (!transactionId) return;
+    setReceiptError(false);
+    setReceiptBusy(true);
+    try {
+      await downloadReceipt(transactionId);
+    } catch {
+      setReceiptError(true);
+    } finally {
+      setReceiptBusy(false);
     }
   }
 
   return (
-    <div className="text-center" data-testid="transfer-success">
+    <div className="text-center">
       <div className="w-16 h-16 rounded-full bg-success-soft flex items-center justify-center mx-auto mb-4">
         <i className="ti ti-check text-success text-4xl" aria-hidden="true"></i>
       </div>
@@ -67,18 +78,20 @@ export function TransferSuccess({
       <div className="flex flex-col gap-2 mb-3">
         {transactionId && (
           <button
-            onClick={downloadReceipt}
-            className="btn-outline-brand w-full py-2.5"
-            data-testid="success-download-receipt"
+            onClick={onDownloadReceipt}
+            disabled={receiptBusy}
+            className="btn-outline-brand w-full py-2.5 disabled:opacity-50"
           >
             <i className="ti ti-file-download" aria-hidden="true"></i>
-            Скачать чек
+            {receiptBusy ? "Готовим чек…" : "Скачать чек"}
           </button>
+        )}
+        {receiptError && (
+          <div className="text-[12px] text-danger">Не удалось скачать чек. Попробуйте ещё раз.</div>
         )}
         <button
           onClick={onNew}
           className="btn w-full py-2.5"
-          data-testid="success-new-btn"
         >
           <i className="ti ti-repeat" aria-hidden="true"></i>
           Новый перевод
@@ -86,7 +99,6 @@ export function TransferSuccess({
         <button
           onClick={() => navigate("/history")}
           className="btn w-full py-2.5"
-          data-testid="success-history-btn"
         >
           <i className="ti ti-list" aria-hidden="true"></i>
           К истории
@@ -94,9 +106,8 @@ export function TransferSuccess({
       </div>
 
       <button
-        onClick={() => navigate("/dashboard")}
+        onClick={() => navigate("/home")}
         className="btn-primary w-full py-2.5"
-        data-testid="success-home-btn"
       >
         На главную
       </button>

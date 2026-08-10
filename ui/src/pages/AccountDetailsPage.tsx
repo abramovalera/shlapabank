@@ -38,7 +38,7 @@ export function AccountDetailsPage() {
     return (
       <div className="card text-center py-10">
         <div className="text-ink-secondary">Счёт не найден</div>
-        <Link to="/dashboard" className="text-accent mt-3 inline-block">
+        <Link to="/home" className="text-accent mt-3 inline-block">
           На главную →
         </Link>
       </div>
@@ -57,7 +57,6 @@ export function AccountDetailsPage() {
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-2 text-[13px] text-ink-secondary hover:text-ink-primary transition"
-        data-testid="account-back-btn"
       >
         <i className="ti ti-arrow-left text-base" aria-hidden="true"></i>
         Назад
@@ -86,7 +85,6 @@ export function AccountDetailsPage() {
               <button
                 onClick={() => setShowFullNumber((v) => !v)}
                 className="text-accent hover:underline"
-                data-testid="account-toggle-number-btn"
               >
                 <i
                   className={`ti ti-${showFullNumber ? "eye-off" : "eye"} text-[13px] mr-1`}
@@ -109,7 +107,6 @@ export function AccountDetailsPage() {
             <button
               onClick={() => navigate("/transfers")}
               className="btn-outline-brand px-3 py-2 text-[13px]"
-              data-testid="account-transfer-btn"
             >
               <i className="ti ti-arrow-up-right" aria-hidden="true"></i>
               Перевести
@@ -117,7 +114,6 @@ export function AccountDetailsPage() {
             <button
               onClick={() => navigate("/transfers")}
               className="btn-outline-brand px-3 py-2 text-[13px]"
-              data-testid="account-topup-btn"
             >
               <i className="ti ti-plus" aria-hidden="true"></i>
               Пополнить
@@ -127,14 +123,13 @@ export function AccountDetailsPage() {
       </section>
 
       <div className="grid grid-cols-[1fr_1.4fr] gap-3">
-        <section className="card" data-testid="account-cards-block">
+        <section className="card">
           <div className="flex justify-between items-center mb-3">
             <div className="text-[15px] font-medium">Карты счёта</div>
             {account.account_type === "DEBIT" && (
               <button
                 onClick={() => setIssueCardOpen(true)}
                 className="text-xs text-accent hover:underline"
-                data-testid="account-issue-card-btn"
               >
                 + Выпустить
               </button>
@@ -158,7 +153,7 @@ export function AccountDetailsPage() {
           )}
         </section>
 
-        <section className="card" data-testid="account-tx-block">
+        <section className="card">
           <div className="flex justify-between items-center mb-3">
             <div className="text-[15px] font-medium">Операции по счёту</div>
             <Link to="/history" className="text-xs text-accent hover:underline">

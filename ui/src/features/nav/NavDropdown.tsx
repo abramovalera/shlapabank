@@ -52,7 +52,6 @@ export function NavDropdown({ label, items, activePaths = [], testId }: Props) {
     <div className="relative" ref={wrapRef}>
       <button
         onClick={() => setOpen((v) => !v)}
-        data-testid={testId}
         aria-haspopup="menu"
         aria-expanded={open}
         className={`text-[14px] pb-1.5 transition flex items-center gap-1 ${
@@ -82,7 +81,6 @@ export function NavDropdown({ label, items, activePaths = [], testId }: Props) {
                 setOpen(false);
                 navigate(item.to);
               }}
-              data-testid={item.testId}
               className="w-full flex items-center gap-2.5 px-4 py-2 text-[13px] text-ink-primary hover:bg-fill-hover transition text-left"
             >
               {item.icon && (

@@ -97,14 +97,13 @@ export function CardDetailsPage() {
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-2 text-[13px] text-ink-secondary hover:text-ink-primary transition"
-        data-testid="card-back-btn"
       >
         <i className="ti ti-arrow-left text-base" aria-hidden="true"></i>
         Назад
       </button>
 
       <div className="grid grid-cols-[280px_1fr] gap-3">
-        <section className="card" data-testid="card-visual-block">
+        <section className="card">
           <BankCard card={card} size="lg" className="mb-3" />
 
           <div className="text-center mb-3">
@@ -141,7 +140,6 @@ export function CardDetailsPage() {
             <button
               onClick={() => setDesignOpen(true)}
               className="btn-outline-brand py-1.5 text-[11px]"
-              data-testid="card-design-btn"
             >
               <i className="ti ti-palette text-sm" aria-hidden="true"></i>
               Дизайн
@@ -157,7 +155,6 @@ export function CardDetailsPage() {
           {reveal && (
             <div
               className="mt-3 rounded-control border border-line bg-surface-2 p-3"
-              data-testid="card-reveal-block"
             >
               <div className="text-[10px] text-ink-muted uppercase tracking-wider mb-1">
                 Номер карты
@@ -185,7 +182,6 @@ export function CardDetailsPage() {
                       onClick={() => setShowCvv((v) => !v)}
                       aria-label={showCvv ? "Скрыть CVV" : "Показать CVV"}
                       className="text-ink-muted hover:text-accent transition"
-                      data-testid="card-cvv-toggle"
                     >
                       <i
                         className={`ti ti-${showCvv ? "eye-off" : "eye"} text-xs`}
@@ -209,7 +205,6 @@ export function CardDetailsPage() {
               <button
                 onClick={() => navigate(`/accounts/${account.id}`)}
                 className="w-full card-nested flex items-center gap-3 hover:bg-surface-3 transition text-left"
-                data-testid="card-linked-account-btn"
               >
                 <div className="w-8 h-8 rounded-full bg-brand-soft text-accent flex items-center justify-center font-medium">
                   {account.currency === "RUB"
@@ -375,7 +370,6 @@ function ActionRow({
     <button
       onClick={onClick}
       disabled={disabled}
-      data-testid={testId}
       className={`flex items-center gap-3 px-2.5 py-2.5 rounded-control hover:bg-fill-hover transition text-left text-[13px] disabled:opacity-40 disabled:cursor-default ${
         danger ? "text-danger" : ""
       }`}

@@ -43,14 +43,12 @@ export function FilterModal({ open, value, onClose, onApply }: Props) {
           value={draft.from ?? ""}
           onChange={(e) => setDraft({ ...draft, from: e.target.value || undefined })}
           className="input"
-          data-testid="filter-from"
         />
         <input
           type="date"
           value={draft.to ?? ""}
           onChange={(e) => setDraft({ ...draft, to: e.target.value || undefined })}
           className="input"
-          data-testid="filter-to"
         />
       </div>
       <div className="flex gap-1.5 mb-4">
@@ -96,7 +94,6 @@ export function FilterModal({ open, value, onClose, onApply }: Props) {
             setDraft({ ...draft, minAmount: e.target.value ? parseFloat(e.target.value) : undefined })
           }
           className="input"
-          data-testid="filter-min"
         />
         <input
           type="number"
@@ -106,7 +103,6 @@ export function FilterModal({ open, value, onClose, onApply }: Props) {
             setDraft({ ...draft, maxAmount: e.target.value ? parseFloat(e.target.value) : undefined })
           }
           className="input"
-          data-testid="filter-max"
         />
       </div>
 
@@ -117,14 +113,12 @@ export function FilterModal({ open, value, onClose, onApply }: Props) {
             onApply(EMPTY_FILTER);
           }}
           className="btn flex-1"
-          data-testid="filter-reset-btn"
         >
           Сбросить
         </button>
         <button
           onClick={() => onApply(draft)}
           className="btn-primary flex-[1.4]"
-          data-testid="filter-apply-btn"
         >
           Применить
         </button>

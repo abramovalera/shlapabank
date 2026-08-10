@@ -59,7 +59,8 @@ export function ExchangePage() {
   const fromOptions: SelectOption<number>[] = activeDebit.map((a) => ({
     value: a.id,
     label: `${a.name} · ${a.currency}`,
-    hint: `•• ${a.account_number.slice(-4)} · ${formatMoney(a.balance, a.currency)}`,
+    hint: `•• ${a.account_number.slice(-4)}`,
+    money: formatMoney(a.balance, a.currency),
   }));
 
   // Куда: любой свой активный счёт с ДРУГОЙ валютой (иначе бэк вернёт currency_mismatch).
@@ -68,7 +69,8 @@ export function ExchangePage() {
     .map((a) => ({
       value: a.id,
       label: `${a.name} · ${a.currency}`,
-      hint: `•• ${a.account_number.slice(-4)} · ${formatMoney(a.balance, a.currency)}`,
+      hint: `•• ${a.account_number.slice(-4)}`,
+    money: formatMoney(a.balance, a.currency),
       disabled: a.id === fromId,
     }));
 
@@ -146,7 +148,7 @@ export function ExchangePage() {
       canGoBack={step > 0 && step < 2}
     >
       {step === 0 && (
-        <div className="flex flex-col gap-3" data-testid="exchange-form">
+        <div className="flex flex-col gap-3">
           <div>
             <Label>Со счёта</Label>
             <Select
@@ -230,7 +232,6 @@ export function ExchangePage() {
           {preview && (
             <div
               className="card-nested flex flex-col gap-1.5"
-              data-testid="exchange-preview"
             >
               <div className="flex items-center justify-between text-[13px]">
                 <span className="text-ink-secondary">Курс</span>
@@ -266,7 +267,6 @@ export function ExchangePage() {
                 ? "btn-primary"
                 : "bg-fill-control text-ink-muted cursor-not-allowed"
             }`}
-            data-testid="exchange-next-btn"
           >
             Продолжить
           </button>

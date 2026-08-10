@@ -143,7 +143,6 @@ export function PersonalDataPage() {
         <div
           className="w-16 h-16 rounded-full flex items-center justify-center text-[22px] font-medium text-[#0B1223] shrink-0 overflow-hidden bg-cover bg-center"
           style={profile?.avatar_url ? { backgroundImage: `url(${profile.avatar_url})` } : { background: color }}
-          data-testid="avatar-preview"
         >
           {!profile?.avatar_url && initials}
         </div>
@@ -154,7 +153,6 @@ export function PersonalDataPage() {
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadAvatar.isPending}
               className="text-[12px] px-3 py-1.5 rounded-pill bg-brand-soft border border-brand/30 text-accent"
-              data-testid="avatar-upload-btn"
             >
               {uploadAvatar.isPending ? "Загружаем…" : "Загрузить фото"}
             </button>
@@ -164,7 +162,6 @@ export function PersonalDataPage() {
                 onClick={onRemoveAvatar}
                 disabled={deleteAvatar.isPending}
                 className="text-[12px] px-3 py-1.5 rounded-pill bg-fill-control text-ink-secondary"
-                data-testid="avatar-remove-btn"
               >
                 Удалить фото
               </button>
@@ -175,7 +172,6 @@ export function PersonalDataPage() {
               accept="image/jpeg,image/png,image/webp"
               onChange={onPickAvatar}
               className="hidden"
-              data-testid="avatar-file-input"
             />
           </div>
           {avatarError && <div className="text-[11px] text-danger mb-2">{avatarError}</div>}
@@ -212,7 +208,6 @@ export function PersonalDataPage() {
             onBlur={() => setTouched((t) => ({ ...t, firstName: true }))}
             placeholder="Иван"
             maxLength={100}
-            data-testid="personal-firstname-input"
           />
         </Field>
         <Field label="Фамилия" error={touched.lastName ? errors.lastName : null}>
@@ -223,7 +218,6 @@ export function PersonalDataPage() {
             onBlur={() => setTouched((t) => ({ ...t, lastName: true }))}
             placeholder="Иванов"
             maxLength={100}
-            data-testid="personal-lastname-input"
           />
         </Field>
       </div>
@@ -245,7 +239,6 @@ export function PersonalDataPage() {
           onChange={(e) => setEmail(e.target.value)}
           onBlur={() => setTouched((t) => ({ ...t, email: true }))}
           placeholder="you@example.com"
-          data-testid="personal-email-input"
         />
       </Field>
 
@@ -257,7 +250,6 @@ export function PersonalDataPage() {
           onChange={(e) => setPhone(e.target.value)}
           onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
           placeholder="+79991234567"
-          data-testid="personal-phone-input"
         />
       </Field>
 

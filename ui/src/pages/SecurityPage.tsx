@@ -52,7 +52,6 @@ export function SecurityPage() {
           value={currentPassword}
           onChange={(e) => setCurrentPassword(e.target.value)}
           autoComplete="current-password"
-          data-testid="current-password-input"
         />
         <button
           type="button"
@@ -70,7 +69,6 @@ export function SecurityPage() {
         value={newPassword}
         onChange={(e) => setNewPassword(e.target.value)}
         autoComplete="new-password"
-        data-testid="new-password-input"
       />
       <input
         className="input mb-3"
@@ -79,7 +77,6 @@ export function SecurityPage() {
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
         autoComplete="new-password"
-        data-testid="confirm-password-input"
       />
       {msg && (
         <div
@@ -138,7 +135,6 @@ export function SecurityPage() {
           navigate("/login");
         }}
         className="btn w-full text-danger py-2.5"
-        data-testid="session-terminate-btn"
       >
         <i className="ti ti-logout" aria-hidden="true"></i>
         Завершить сессию
@@ -159,7 +155,6 @@ export function SecurityPage() {
         <button
           onClick={() => setDeleteOpen(true)}
           className="btn w-full text-danger py-2.5"
-          data-testid="delete-account-open-btn"
         >
           <i className="ti ti-trash" aria-hidden="true"></i>
           Удалить аккаунт

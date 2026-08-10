@@ -36,7 +36,7 @@ export function Dropdown({ trigger, children, align = "stretch", className, test
     align === "left" ? "left-0" : align === "right" ? "right-0" : "left-0 right-0";
 
   return (
-    <div className={`relative ${className ?? ""}`} ref={wrapRef} data-testid={testId}>
+    <div className={`relative ${className ?? ""}`} ref={wrapRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

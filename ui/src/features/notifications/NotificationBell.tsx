@@ -115,7 +115,6 @@ export function NotificationBell() {
         <div
           className="relative text-ink-secondary hover:text-ink-primary transition p-1 cursor-pointer"
           aria-label="Уведомления"
-          data-testid="notifications-btn"
         >
           <i className="ti ti-bell text-xl" aria-hidden="true"></i>
           {count > 0 && (

@@ -152,7 +152,6 @@ export function IssueCardModal({
         className={`grid gap-1.5 mb-3.5 ${
           availableDesigns.length === 3 ? "grid-cols-3" : "grid-cols-4"
         }`}
-        data-testid="card-design-picker"
       >
         {availableDesigns.map((d) => (
           <button
@@ -175,7 +174,6 @@ export function IssueCardModal({
       {lockAccount && account ? (
         <div
           className="mb-1.5 rounded-control bg-brand-soft border border-brand/30 px-3 py-2.5 flex items-center gap-3"
-          data-testid="issue-card-account-locked"
         >
           <i className="ti ti-lock text-accent text-base" aria-hidden="true"></i>
           <div className="flex-1">
@@ -195,7 +193,8 @@ export function IssueCardModal({
             options={eligibleAccounts.map((a) => ({
               value: a.id,
               label: `${a.name} · ${a.currency}`,
-              hint: `•••• ${a.account_number.slice(-4)} · ${formatMoney(a.balance, a.currency)}`,
+              hint: `•••• ${a.account_number.slice(-4)}`,
+              money: formatMoney(a.balance, a.currency),
             }))}
             placeholder="Выберите счёт"
             testId="issue-card-account-select"
@@ -210,14 +209,12 @@ export function IssueCardModal({
 
       <label
         className="flex items-start gap-2 text-xs text-ink-secondary mb-3.5 cursor-pointer select-none"
-        data-testid="issue-card-terms-label"
       >
         <input
           type="checkbox"
           checked={agree}
           onChange={(e) => setAgree(e.target.checked)}
           className="mt-0.5"
-          data-testid="issue-card-terms-checkbox"
         />
         <span>
           Согласен с <a className="text-accent">условиями обслуживания карт</a> и тарифами
@@ -231,14 +228,13 @@ export function IssueCardModal({
       )}
 
       <div className="flex gap-2">
-        <button className="btn flex-1" onClick={onClose} data-testid="issue-card-cancel-btn">
+        <button className="btn flex-1" onClick={onClose}>
           Отмена
         </button>
         <button
           className="btn-primary flex-[1.4]"
           onClick={onSubmit}
           disabled={!agree || !accountId || issue.isPending}
-          data-testid="issue-card-submit-btn"
         >
           {issue.isPending ? "Выпускаем…" : submitLabel ?? "Выпустить карту"}
         </button>
@@ -271,7 +267,6 @@ function TypeCard({
   return (
     <button
       onClick={onClick}
-      data-testid={testId}
       className={`text-left p-2.5 rounded-control transition border ${
         active
           ? "border-brand bg-brand-soft text-accent"

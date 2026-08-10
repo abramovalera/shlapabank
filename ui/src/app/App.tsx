@@ -23,6 +23,8 @@ import { PersonalDataPage } from "@/pages/PersonalDataPage";
 import { SecurityPage } from "@/pages/SecurityPage";
 import { AppearancePage } from "@/pages/AppearancePage";
 import { SbpBankPage } from "@/pages/SbpBankPage";
+import { AdminPage } from "@/pages/AdminPage";
+import { LogPanel } from "@/features/devlog/LogPanel";
 
 /** Защищённые роуты: нет токена → /login, есть токен → сама страница. */
 function Protected({ children }: { children: JSX.Element }) {
@@ -34,7 +36,14 @@ function Protected({ children }: { children: JSX.Element }) {
 /** Если юзер уже авторизован — не пускаем на /login, а сразу на дашборд. */
 function GuestOnly({ children }: { children: JSX.Element }) {
   const token = useAuthStore((s) => s.token);
-  if (token) return <Navigate to="/dashboard" replace />;
+  if (token) return <Navigate to="/home" replace />;
+  return children;
+}
+
+/** Только для админа: иначе — редирект на дашборд. */
+function AdminOnly({ children }: { children: JSX.Element }) {
+  const role = useAuthStore((s) => s.role);
+  if (role !== "ADMIN") return <Navigate to="/home" replace />;
   return children;
 }
 
@@ -64,8 +73,10 @@ export function App() {
           </Protected>
         }
       >
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/home" element={<DashboardPage />} />
+        {/* Обратная совместимость: старый /dashboard → /home */}
+        <Route path="/dashboard" element={<Navigate to="/home" replace />} />
         <Route path="/cards" element={<CardsPage />} />
         <Route path="/cards/:id" element={<CardDetailsPage />} />
         <Route path="/accounts/:id" element={<AccountDetailsPage />} />
@@ -82,10 +93,19 @@ export function App() {
         <Route path="/profile/security" element={<SecurityPage />} />
         <Route path="/profile/appearance" element={<AppearancePage />} />
         <Route path="/profile/sbp-bank" element={<SbpBankPage />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminOnly>
+              <AdminPage />
+            </AdminOnly>
+          }
+        />
       </Route>
 
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
+    <LogPanel />
     </>
   );
 }

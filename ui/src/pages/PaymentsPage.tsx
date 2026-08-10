@@ -19,7 +19,6 @@ export function PaymentsPage() {
         <input
           className="border-none bg-transparent flex-1 outline-none text-sm placeholder:text-ink-muted"
           placeholder="Организация, ИНН, услуга…"
-          data-testid="payments-search-input"
         />
       </div>
 

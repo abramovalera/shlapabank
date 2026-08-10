@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from pydantic import BaseModel, Field
 
+from app import bugs
 from app.banks import get_external_bank_codes
 from app.constants import FAILED_LOGIN_THRESHOLD
 from app.core.config import settings
@@ -85,8 +86,10 @@ def _issue_token_for_credentials(login: str, password: str, db: Session) -> Toke
 def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)):
     _enforce_register_rate_limit(request)
     validate_password_rules(payload.login, payload.password)
+    # DB-1 (bugs): при включённых багах app-проверка уникальности пропускается —
+    # срабатывает UNIQUE-констрейнт БД, отдавая необработанный 500 вместо 409.
     existing = db.scalar(select(User).where(User.login == payload.login))
-    if existing:
+    if existing and not bugs.on():
         raise HTTPException(status_code=409, detail="validation_error: login_not_unique")
 
     user = User(

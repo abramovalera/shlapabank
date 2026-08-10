@@ -32,6 +32,8 @@ export function AppLayout() {
   const qc = useQueryClient();
   const logout = useAuthStore((s) => s.logout);
   const userLogin = useAuthStore((s) => s.login);
+  const role = useAuthStore((s) => s.role);
+  const isAdmin = role === "ADMIN";
   const isDemo = isDemoLogin(userLogin);
   const [topupOpen, setTopupOpen] = useState(false);
 
@@ -63,7 +65,6 @@ export function AppLayout() {
               <button
                 onClick={() => setTopupOpen(true)}
                 title="🧪 Тест: пополнить счёт"
-                data-testid="logo-topup-btn"
                 aria-label="Открыть тест-пополнение"
                 className="w-8 h-8 rounded-[10px] flex items-center justify-center font-medium text-[#0B1223] hover:scale-110 transition-transform"
                 style={{
@@ -78,17 +79,15 @@ export function AppLayout() {
                 <span
                   className="ml-2 badge bg-brand-soft text-accent border border-brand/30"
                   title="Вы залогинены как fullclient — тестовый аккаунт с готовыми данными"
-                  data-testid="demo-badge"
                 >
                   <i className="ti ti-mood-happy text-[13px]" aria-hidden="true"></i>
                   Демо-режим
                 </span>
               )}
             </div>
-            <nav className="flex items-end gap-6" data-testid="main-nav">
+            <nav className="flex items-end gap-6">
               <NavLink
-                to="/dashboard"
-                data-testid="nav-dashboard"
+                to="/home"
                 className={({ isActive }) =>
                   `text-[14px] pb-1.5 transition ${
                     isActive
@@ -107,7 +106,6 @@ export function AppLayout() {
               />
               <NavLink
                 to="/history"
-                data-testid="nav-history"
                 className={({ isActive }) =>
                   `text-[14px] pb-1.5 transition ${
                     isActive
@@ -124,13 +122,26 @@ export function AppLayout() {
                 activePaths={["/cards", "/profile"]}
                 testId="nav-more-dropdown"
               />
+              {isAdmin && (
+                <NavLink
+                  to="/admin"
+                  className={({ isActive }) =>
+                    `text-[14px] pb-1.5 transition ${
+                      isActive
+                        ? "text-ink-primary font-medium border-b-2 border-brand-strong"
+                        : "text-ink-secondary hover:text-ink-primary"
+                    }`
+                  }
+                >
+                  Админ-панель
+                </NavLink>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-3.5">
             <NotificationBell />
             <button
               onClick={() => navigate("/profile")}
-              data-testid="profile-avatar-btn"
               className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium hover:scale-105 transition text-[#0B1223] overflow-hidden bg-cover bg-center"
               style={
                 profile?.avatar_url
@@ -146,7 +157,6 @@ export function AppLayout() {
             </button>
             <button
               onClick={doLogout}
-              data-testid="logout-btn"
               className="text-ink-muted hover:text-danger transition"
               title="Выйти"
               aria-label="Выйти"

@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Modal } from "@/shared/ui/Modal";
 import { api } from "@/shared/api/client";
 import { Account, Card, Transaction } from "@/shared/api/types";
 import { presentTransaction } from "./txPresenter";
 import { formatMoney } from "@/shared/lib/format";
+import { downloadReceipt } from "@/shared/lib/receipt";
 
 interface Props {
   tx: Transaction | null;
@@ -21,6 +23,8 @@ export function TransactionDetailsModal({ tx, onClose }: Props) {
     queryFn: async (): Promise<Card[]> => (await api.get("/cards")).data,
     enabled: !!tx,
   });
+  const [receiptBusy, setReceiptBusy] = useState(false);
+  const [receiptError, setReceiptError] = useState(false);
 
   if (!tx) return null;
 
@@ -42,9 +46,16 @@ export function TransactionDetailsModal({ tx, onClose }: Props) {
   const amountValue = parseFloat(tx.money.amount);
   const fee = parseFloat(tx.money.fee);
 
-  function downloadReceipt() {
-    // Backend отдаёт HTML-чек — открываем в новой вкладке, а браузер уже позволит распечатать/сохранить как PDF.
-    window.open(`/api/v1/transactions/${tx!.id}/receipt`, "_blank", "noopener");
+  async function onDownloadReceipt() {
+    setReceiptError(false);
+    setReceiptBusy(true);
+    try {
+      await downloadReceipt(tx!.id);
+    } catch {
+      setReceiptError(true);
+    } finally {
+      setReceiptBusy(false);
+    }
   }
 
   return (
@@ -99,17 +110,22 @@ export function TransactionDetailsModal({ tx, onClose }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <button
-          onClick={downloadReceipt}
-          className="btn-outline-brand py-2.5"
-          data-testid="tx-download-receipt"
+          onClick={onDownloadReceipt}
+          disabled={receiptBusy}
+          className="btn-outline-brand py-2.5 disabled:opacity-50"
         >
           <i className="ti ti-file-download" aria-hidden="true"></i>
-          Скачать чек
+          {receiptBusy ? "Готовим…" : "Скачать чек"}
         </button>
-        <button className="btn py-2.5" onClick={onClose} data-testid="tx-close-btn">
+        <button className="btn py-2.5" onClick={onClose}>
           Закрыть
         </button>
       </div>
+      {receiptError && (
+        <div className="text-[12px] text-danger mt-2 text-center">
+          Не удалось скачать чек. Попробуйте ещё раз.
+        </div>
+      )}
     </Modal>
   );
 }

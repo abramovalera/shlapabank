@@ -24,10 +24,7 @@ export function EmptyState({
   actionTestId,
 }: Props): JSX.Element {
   return (
-    <div
-      className="text-center py-4 px-2 border border-dashed border-line-strong rounded-[10px]"
-      data-testid={testId}
-    >
+    <div className="text-center py-4 px-2 border border-dashed border-line-strong rounded-[10px]">
       <div className="w-10 h-10 mx-auto mb-2.5 rounded-full bg-fill-control flex items-center justify-center">
         <i className={`ti ti-${icon} text-xl text-ink-muted`} aria-hidden="true"></i>
       </div>
@@ -36,7 +33,6 @@ export function EmptyState({
       <button
         onClick={onAction}
         className="btn-primary text-xs py-1.5 px-3.5"
-        data-testid={actionTestId}
       >
         <i className="ti ti-plus text-xs" aria-hidden="true"></i>
         {actionLabel}

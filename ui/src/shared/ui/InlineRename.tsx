@@ -5,13 +5,14 @@ interface Props {
   onSave: (next: string) => Promise<void> | void;
   className?: string;
   maxLength?: number;
+  /** Не проставляется в DOM (реализм для автотестов). Проп сохранён для совместимости мест вызова. */
   testId?: string;
 }
 
 /**
  * Inline-редактирование текста: клик на карандаш → превращается в input,
- * Enter — сохранить, Escape — отменить. Иконка + input оба поддерживают
- * тестовые id вида `${testId}-edit-btn`, `${testId}-input`, `${testId}-save-btn`.
+ * Enter — сохранить, Escape — отменить. data-testid намеренно не выводятся —
+ * элементы ищутся по роли/иконке/структуре.
  */
 export function InlineRename({ value, onSave, className, maxLength = 60, testId }: Props) {
   const [editing, setEditing] = useState(false);
@@ -48,12 +49,11 @@ export function InlineRename({ value, onSave, className, maxLength = 60, testId 
   if (!editing) {
     return (
       <div className={`inline-flex items-center gap-2 ${className ?? ""}`}>
-        <span data-testid={testId ? `${testId}-value` : undefined}>{value}</span>
+        <span>{value}</span>
         <button
           type="button"
           onClick={() => setEditing(true)}
           aria-label="Переименовать"
-          data-testid={testId ? `${testId}-edit-btn` : undefined}
           className="text-ink-muted hover:text-accent transition p-1 leading-none"
         >
           <i className="ti ti-pencil text-[15px]" aria-hidden="true"></i>
@@ -76,14 +76,12 @@ export function InlineRename({ value, onSave, className, maxLength = 60, testId 
         disabled={busy}
         className="rounded-control bg-fill-control border border-brand px-2.5 py-1 text-inherit font-inherit focus:outline-none focus:ring-2 focus:ring-brand/40"
         style={{ font: "inherit", minWidth: "180px" }}
-        data-testid={testId ? `${testId}-input` : undefined}
       />
       <button
         type="button"
         onClick={save}
         disabled={busy}
         aria-label="Сохранить"
-        data-testid={testId ? `${testId}-save-btn` : undefined}
         className="btn-primary py-1.5 px-2.5 rounded-control"
       >
         <i className="ti ti-check text-sm" aria-hidden="true"></i>
@@ -92,7 +90,6 @@ export function InlineRename({ value, onSave, className, maxLength = 60, testId 
         type="button"
         onClick={() => setEditing(false)}
         aria-label="Отмена"
-        data-testid={testId ? `${testId}-cancel-btn` : undefined}
         className="btn py-1.5 px-2.5 rounded-control"
       >
         <i className="ti ti-x text-sm" aria-hidden="true"></i>

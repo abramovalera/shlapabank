@@ -97,7 +97,7 @@ export function ForgotPasswordPage() {
         new_password: password,
       });
       setToken(data.access_token, data.role ?? null, login);
-      navigate("/dashboard", { replace: true });
+      navigate("/home", { replace: true });
     } catch (err: any) {
       // Новый формат ответа: {error: {code, message, field}}. Показываем message,
       // а для просроченного/неверного OTP предлагаем вернуться на шаг ввода кода.
@@ -146,7 +146,6 @@ export function ForgotPasswordPage() {
             placeholder="Логин"
             value={login}
             onChange={(e) => setLogin(e.target.value)}
-            data-testid="forgot-login-input"
           />
 
           {error && (
@@ -159,7 +158,6 @@ export function ForgotPasswordPage() {
             onClick={onRequestReset}
             disabled={loading}
             className="btn-primary w-full h-12 text-[15px]"
-            data-testid="forgot-request-btn"
           >
             {loading ? "Отправляем…" : "Выслать код"}
           </button>
@@ -192,7 +190,6 @@ export function ForgotPasswordPage() {
                 onConfirmOtp(hint.otp!);
               }}
               className="w-full mb-4 rounded-control bg-brand-soft border border-brand/30 hover:bg-brand/25 hover:border-brand/50 transition px-3 py-2 text-center cursor-pointer"
-              data-testid="forgot-otp-hint"
               title="Нажмите, чтобы подставить код автоматически"
             >
               <div className="text-[10px] text-ink-muted uppercase tracking-wider mb-1">
@@ -227,7 +224,6 @@ export function ForgotPasswordPage() {
               onClick={onRequestReset}
               disabled={loading}
               className="text-accent hover:underline disabled:opacity-50 disabled:cursor-wait"
-              data-testid="forgot-resend-btn"
             >
               {loading ? "Запрашиваем…" : "Отправить снова"}
             </button>
@@ -256,7 +252,6 @@ export function ForgotPasswordPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            data-testid="forgot-new-password-input"
           />
           <input
             className="input h-12 rounded-control px-4 text-[14px] mb-4"
@@ -264,7 +259,6 @@ export function ForgotPasswordPage() {
             type="password"
             value={passwordConfirm}
             onChange={(e) => setPasswordConfirm(e.target.value)}
-            data-testid="forgot-new-password-confirm-input"
           />
 
           {error && (
@@ -277,7 +271,6 @@ export function ForgotPasswordPage() {
             onClick={onSetNewPassword}
             disabled={loading}
             className="btn-primary w-full h-12 text-[15px]"
-            data-testid="forgot-save-btn"
           >
             {loading ? "Сохраняем…" : "Сохранить и войти"}
           </button>
@@ -292,14 +285,12 @@ export function ForgotPasswordPage() {
                 setStep(1);
               }}
               className="text-ink-secondary hover:text-ink-primary hover:underline"
-              data-testid="forgot-back-to-otp-btn"
             >
               ← Ввести код заново
             </button>
             <Link
               to="/login"
               className="text-ink-secondary hover:text-ink-primary hover:underline"
-              data-testid="forgot-cancel-link"
             >
               Отмена
             </Link>

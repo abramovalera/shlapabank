@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
 import { useAccounts } from "@/features/accounts/api";
 import { useCards } from "@/features/cards/api";
 import { TransferShell } from "@/features/transfers/TransferShell";
-import { SourceCardPicker } from "@/features/transfers/SourceCardPicker";
+import { PaymentSourcePicker, PaymentSource } from "@/features/transfers/PaymentSourcePicker";
 import { OtpConfirm } from "@/features/transfers/OtpConfirm";
 import { TransferSuccess } from "@/features/transfers/TransferSuccess";
 import { formatMoney } from "@/shared/lib/format";
@@ -12,6 +12,7 @@ import { CountryCodePicker, COUNTRIES, CountryOption } from "@/features/transfer
 import { Dropdown } from "@/shared/ui/Dropdown";
 import { apiErrorCode } from "@/shared/api/errors";
 import { Label, SumRow } from "@/features/transfers/shared";
+import { useBugsEnabled } from "@/features/flags/api";
 
 interface BankOption {
   id: string;
@@ -39,6 +40,7 @@ const EXTERNAL_FEE_RATE = 0.02;
 
 export function TransferByPhonePage() {
   const qc = useQueryClient();
+  const bugsOn = useBugsEnabled();
   const [step, setStep] = useState<Step>(0);
 
   // Шаг 0: страна + телефон
@@ -50,8 +52,8 @@ export function TransferByPhonePage() {
   const [checking, setChecking] = useState(false);
   const [bankId, setBankId] = useState<string | null>(null);
 
-  // Шаг 2: карта источника + сумма
-  const [fromCardId, setFromCardId] = useState<number | null>(null);
+  // Шаг 2: источник (карта ИЛИ счёт) + сумма
+  const [source, setSource] = useState<PaymentSource | null>(null);
   const [amount, setAmount] = useState("");
   const [comment, setComment] = useState("");
   const [step2Error, setStep2Error] = useState<string | null>(null);
@@ -73,8 +75,9 @@ export function TransferByPhonePage() {
   const isPhoneValid = rawPhone.length === country.length;
   const sbpSupported = country.sbpSupported ?? false;
 
-  const selectedCard = cards.find((c) => c.id === fromCardId);
-  const selectedAccount = accounts.find((a) => a.id === selectedCard?.account_id);
+  const selectedCard =
+    source?.kind === "card" ? cards.find((c) => c.id === source.id) : undefined;
+  const selectedAccount = accounts.find((a) => a.id === source?.accountId);
   const isExternal = bankId !== null && bankId !== OUR_BANK_CODE;
   const numericAmount = parseFloat(amount || "0");
   const fee = isExternal ? +(numericAmount * EXTERNAL_FEE_RATE).toFixed(2) : 0;
@@ -100,15 +103,8 @@ export function TransferByPhonePage() {
       .finally(() => setChecking(false));
   }, [step, isPhoneValid, fullPhone]);
 
-  const rubCards = useMemo(() => {
-    return cards.filter((c) => {
-      const a = accounts.find((x) => x.id === c.account_id);
-      return a && a.currency === "RUB" && c.status === "ACTIVE";
-    });
-  }, [cards, accounts]);
-
   function canProceedStep2(): boolean {
-    if (!selectedCard || !selectedAccount) return false;
+    if (!selectedAccount) return false;
     if (numericAmount <= 0) return false;
     if (totalDebit > parseFloat(selectedAccount.balance)) return false;
     return true;
@@ -119,7 +115,8 @@ export function TransferByPhonePage() {
     setOtpError(null);
     try {
       const { data } = await api.post<{ id: number }>("/transfers/by-phone", {
-        from_card_id: fromCardId,
+        from_account_id: source?.accountId,
+        from_card_id: source?.kind === "card" ? source.id : undefined,
         phone: fullPhone,
         amount,
         recipient_bank_id: bankId,
@@ -144,7 +141,7 @@ export function TransferByPhonePage() {
     setRawPhone("");
     setCheck(null);
     setBankId(null);
-    setFromCardId(null);
+    setSource(null);
     setAmount("");
     setComment("");
     setOtpError(null);
@@ -182,8 +179,11 @@ export function TransferByPhonePage() {
               data-testid="phone-input"
             />
           </div>
+          {/* Ловушка для автотестов: между числом и «цифр» — узкий неразрывный
+              пробел (U+00A0), а не обычный. getByText("Введите 10 цифр") с обычным
+              пробелом НЕ сматчится — нужен нормализованный/частичный поиск. */}
           <div className="text-[11px] text-ink-muted mb-1">
-            Введите {country.length} цифр
+            Введите {country.length}&nbsp;цифр
           </div>
           {!sbpSupported && rawPhone.length > 0 && (
             <div className="mb-3 rounded-control bg-warning-soft border border-warning/30 px-3 py-2 text-[11px] text-warning">
@@ -196,6 +196,9 @@ export function TransferByPhonePage() {
           {recentContacts.length > 0 && (
             <>
               <Label>Недавние</Label>
+              {/* Контейнер сохраняет testid, а элементы — нет: локатор строится
+                  подъёмом от родителя ([data-testid=recent-contacts] > button) +
+                  nth/вложенный текст имени. */}
               <div className="flex flex-col gap-1.5 mb-4" data-testid="recent-contacts">
                 {recentContacts.map((c) => (
                   <button
@@ -205,7 +208,6 @@ export function TransferByPhonePage() {
                       setRawPhone(clean.slice(0, 10));
                     }}
                     className="card-nested flex items-center gap-3 text-left hover:bg-surface-3 transition"
-                    data-testid={`recent-${c.phone}`}
                   >
                     <div className="w-9 h-9 rounded-full bg-brand-soft text-accent flex items-center justify-center text-[12px] font-medium">
                       {initials(c.display_name)}
@@ -214,7 +216,10 @@ export function TransferByPhonePage() {
                       <div className="text-[13px] font-medium truncate">{c.display_name}</div>
                       <div className="text-[10px] text-ink-muted">
                         {formatPhone(c.phone)} · {c.transfers_count}{" "}
-                        {plural(c.transfers_count, "перевод", "перевода", "переводов")}
+                        {/* TX-6 (bugs): всегда множественная форма — «1 переводов». */}
+                        {bugsOn
+                          ? "переводов"
+                          : plural(c.transfers_count, "перевод", "перевода", "переводов")}
                       </div>
                     </div>
                     <i className="ti ti-chevron-right text-ink-muted" aria-hidden="true"></i>
@@ -232,7 +237,6 @@ export function TransferByPhonePage() {
                 ? "btn-primary"
                 : "bg-fill-control text-ink-muted cursor-not-allowed"
             }`}
-            data-testid="phone-next-btn"
           >
             Далее
           </button>
@@ -267,7 +271,6 @@ export function TransferByPhonePage() {
               <div className="mb-3">
                 <Dropdown
                   align="stretch"
-                  testId="bank-dropdown"
                   trigger={<BankTrigger banks={check.availableBanks} activeId={bankId} primaryId={check.primaryBankId} />}
                 >
                   {(close) => (
@@ -285,6 +288,8 @@ export function TransferByPhonePage() {
                               setBankId(b.id);
                               close();
                             }}
+                            /* Ловушка: id динамический — точное равенство не
+                               подойдёт, нужен префиксный селектор [data-testid^="bank-"]. */
                             data-testid={`bank-${b.id}`}
                             className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition text-left ${
                               selected ? "bg-brand-soft text-accent" : "text-ink-primary hover:bg-fill-hover"
@@ -342,7 +347,6 @@ export function TransferByPhonePage() {
             onClick={() => setStep(2)}
             disabled={!bankId}
             className="btn-primary w-full py-2.5"
-            data-testid="bank-next-btn"
           >
             Далее
           </button>
@@ -372,14 +376,15 @@ export function TransferByPhonePage() {
             </button>
           </div>
 
-          <Label>С какой карты · только RUB</Label>
+          <Label>Откуда списать · только RUB</Label>
           <div className="mb-4">
-            <SourceCardPicker
-              cards={rubCards}
+            <PaymentSourcePicker
+              cards={cards}
               accounts={accounts}
-              selectedId={fromCardId}
-              onSelect={setFromCardId}
+              value={source}
+              onChange={setSource}
               currencyFilter="RUB"
+              invalid={numericAmount > 0}
             />
           </div>
 
@@ -418,7 +423,6 @@ export function TransferByPhonePage() {
             maxLength={70}
             placeholder="За обед"
             className="input mb-4"
-            data-testid="comment-input"
           />
 
           {isExternal && numericAmount > 0 && (
@@ -456,9 +460,9 @@ export function TransferByPhonePage() {
               setStep2Error(null);
               setStep(3);
             }}
-            disabled={!canProceedStep2()}
+            /* FE-1 (bugs): кнопка активна даже без корректной суммы. */
+            disabled={bugsOn ? false : !canProceedStep2()}
             className="btn-primary w-full py-2.5"
-            data-testid="step2-next-btn"
           >
             Продолжить
           </button>
@@ -471,11 +475,26 @@ export function TransferByPhonePage() {
             <SumRow label="Получатель" value={recipientLabel} />
             <SumRow label="Телефон" value={formatPhone(fullPhone)} />
             <SumRow label="Банк" value={check?.availableBanks.find((b) => b.id === bankId)?.label ?? "—"} />
-            <SumRow label="С карты" value={selectedCard ? `•• ${selectedCard.last4}` : "—"} />
-            <SumRow label="Сумма" value={formatMoney(numericAmount, "RUB")} />
-            <SumRow label="Комиссия" value={formatMoney(fee, "RUB")} />
+            <SumRow
+              label="Откуда"
+              value={
+                selectedCard
+                  ? `Карта •• ${selectedCard.last4}`
+                  : selectedAccount
+                  ? `Счёт «${selectedAccount.name}»`
+                  : "—"
+              }
+            />
+            <SumRow label="Сумма" value={formatMoney(numericAmount, "RUB")} money />
+            <SumRow label="Комиссия" value={formatMoney(fee, "RUB")} money />
             <div className="h-px bg-line my-2"></div>
-            <SumRow label="Итого спишется" value={formatMoney(totalDebit, "RUB")} bold />
+            {/* FE-2 (bugs): «Итого спишется» показывает сумму без комиссии. */}
+            <SumRow
+              label="Итого спишется"
+              value={formatMoney(bugsOn ? numericAmount : totalDebit, "RUB")}
+              bold
+              money
+            />
           </div>
           <OtpConfirm
             onSubmit={submitTransfer}
@@ -498,6 +517,8 @@ export function TransferByPhonePage() {
           fromLabel={
             selectedCard && selectedAccount
               ? `Карта •• ${selectedCard.last4} · «${selectedAccount.name}»`
+              : selectedAccount
+              ? `Счёт «${selectedAccount.name}»`
               : undefined
           }
           comment={comment || undefined}

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
+from app.chaos import ChaosMiddleware
 from app.core.config import settings
 from app.dev_trace import clear_request_context, record_http_event, reset_request_context, sanitize_correlation_id
 from app.error_messages import message_for
@@ -18,6 +19,7 @@ from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.cards import router as cards_router
 from app.routes.dev_trace import router as dev_trace_router
+from app.routes.flags import router as flags_router
 from app.routes.helper import router as helper_router
 from app.routes.health import router as health_router
 from app.routes.payments import router as payments_router
@@ -233,6 +235,12 @@ class NoCacheApiMiddleware(BaseHTTPMiddleware):
 app.add_middleware(NoCacheStaticMiddleware)
 app.add_middleware(NoCacheApiMiddleware)
 
+# Chaos: искусственные задержки API. Middleware стоит ВСЕГДА, а фактическое
+# включение управляется рантайм-флагом (chaos.state.enabled) — тумблером в
+# админ-панели. Добавляем ДО DevTraceMiddleware, чтобы задержка попадала в
+# измеряемую длительность (панель Log). Стартовое состояние — из ENABLE_CHAOS.
+app.add_middleware(ChaosMiddleware)
+
 
 def _dev_trace_skip_path(path: str) -> bool:
     if not path.startswith("/api/"):
@@ -332,6 +340,7 @@ def startup() -> None:
 
 app.include_router(health_router)
 app.include_router(dev_trace_router)
+app.include_router(flags_router)
 app.include_router(helper_router)
 app.include_router(admin_router)
 app.include_router(auth_router)

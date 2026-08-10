@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Modal } from "@/shared/ui/Modal";
+import { useBugsEnabled } from "@/features/flags/api";
 
 interface Props {
   open: boolean;
@@ -16,6 +17,9 @@ const REASONS = [
 ];
 
 export function BlockCardModal({ open, onClose, onConfirm, currentlyBlocked }: Props) {
+  const bugsOn = useBugsEnabled();
+  // TX-2 (bugs): опечатка — «Заблокировать» превращается в «Забронировать».
+  const blockWord = bugsOn ? "Забронировать" : "Заблокировать";
   const [reason, setReason] = useState<string>("lost");
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
@@ -42,7 +46,6 @@ export function BlockCardModal({ open, onClose, onConfirm, currentlyBlocked }: P
                 setBusy(false);
               }
             }}
-            data-testid="unblock-confirm-btn"
           >
             {busy ? "Разблокируем…" : "Разблокировать"}
           </button>
@@ -52,7 +55,7 @@ export function BlockCardModal({ open, onClose, onConfirm, currentlyBlocked }: P
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Заблокировать карту" maxWidth={400}>
+    <Modal open={open} onClose={onClose} title={`${blockWord} карту`} maxWidth={400}>
       <div className="text-[13px] text-ink-secondary mb-4">
         Карту нельзя будет использовать для операций. Разблокировать можно в любой момент.
       </div>
@@ -86,13 +89,12 @@ export function BlockCardModal({ open, onClose, onConfirm, currentlyBlocked }: P
             onChange={(e) => setComment(e.target.value)}
             maxLength={100}
             placeholder="Опишите ситуацию"
-            data-testid="block-reason-comment"
           />
         </>
       )}
 
       <div className="flex gap-2">
-        <button className="btn flex-1" onClick={onClose} data-testid="block-cancel-btn">
+        <button className="btn flex-1" onClick={onClose}>
           Отмена
         </button>
         <button
@@ -110,9 +112,8 @@ export function BlockCardModal({ open, onClose, onConfirm, currentlyBlocked }: P
               setBusy(false);
             }
           }}
-          data-testid="block-confirm-btn"
         >
-          {busy ? "Блокируем…" : "Заблокировать"}
+          {busy ? "Блокируем…" : blockWord}
         </button>
       </div>
     </Modal>

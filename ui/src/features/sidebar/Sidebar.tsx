@@ -10,7 +10,6 @@ export function Sidebar() {
   return (
     <aside
       className="flex flex-col gap-2.5 w-[300px] shrink-0 self-start sticky top-4"
-      data-testid="sidebar"
     >
       <BalanceWidget />
       <AccountsBlock />

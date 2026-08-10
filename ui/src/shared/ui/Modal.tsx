@@ -8,6 +8,12 @@ interface Props {
   subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
+  /**
+   * ВНИМАНИЕ: намеренно НЕ проставляется в DOM (реализм для автотестов).
+   * Модалку ищем по роли: `[role="dialog"]` + `aria-label` (= title),
+   * крестик — по `button[aria-label="Закрыть"]`. Проп сохранён, чтобы не
+   * переписывать все места вызова; значение игнорируется.
+   */
   testId?: string;
   maxWidth?: number;
 }
@@ -52,14 +58,12 @@ export function Modal({
         className="bg-surface-2 rounded-card p-5 w-full border border-line max-h-[90vh] overflow-y-auto"
         style={{ maxWidth }}
         onClick={(e) => e.stopPropagation()}
-        data-testid={testId}
       >
         <div className="flex justify-between items-start mb-1">
           <div className="text-[17px] font-medium">{title}</div>
           <button
             onClick={onClose}
             aria-label="Закрыть"
-            data-testid="modal-close-btn"
             className="text-ink-muted hover:text-ink-primary transition"
           >
             <i className="ti ti-x text-lg" aria-hidden="true"></i>

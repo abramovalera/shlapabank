@@ -5,8 +5,25 @@ export interface SelectOption<T = string | number> {
   value: T;
   label: string;
   hint?: string;
+  /** Денежная сумма — показывается акцентным цветом рядом с hint. */
+  money?: string;
   disabled?: boolean;
   icon?: ReactNode;
+}
+
+function Hint({ hint, money }: { hint?: string; money?: string }) {
+  if (!hint && !money) return null;
+  return (
+    <div className="text-[10px] text-ink-muted truncate">
+      {hint}
+      {money && (
+        <>
+          {hint ? " · " : ""}
+          <span className="text-money tabular-nums">{money}</span>
+        </>
+      )}
+    </div>
+  );
 }
 
 interface Props<T = string | number> {
@@ -44,9 +61,7 @@ export function Select<T extends string | number = string>({
               {active ? (
                 <>
                   <div className="text-[13px] truncate">{active.label}</div>
-                  {active.hint && (
-                    <div className="text-[10px] text-ink-muted truncate">{active.hint}</div>
-                  )}
+                  <Hint hint={active.hint} money={active.money} />
                 </>
               ) : (
                 <div className="text-[13px] text-ink-muted">{placeholder}</div>
@@ -72,7 +87,6 @@ export function Select<T extends string | number = string>({
                   onChange(o.value);
                   close();
                 }}
-                data-testid={testId ? `${testId}-opt-${o.value}` : undefined}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-left transition ${
                   o.disabled
                     ? "opacity-40 cursor-not-allowed"
@@ -84,7 +98,7 @@ export function Select<T extends string | number = string>({
                 {o.icon}
                 <div className="flex-1 min-w-0">
                   <div className="truncate">{o.label}</div>
-                  {o.hint && <div className="text-[10px] text-ink-muted truncate">{o.hint}</div>}
+                  <Hint hint={o.hint} money={o.money} />
                 </div>
                 {selected && <i className="ti ti-check text-accent" aria-hidden="true"></i>}
               </button>

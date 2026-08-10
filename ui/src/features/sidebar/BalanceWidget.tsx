@@ -57,7 +57,7 @@ export function BalanceWidget() {
   }
 
   return (
-    <div className="sidebar-block" data-testid="sidebar-balance">
+    <div className="sidebar-block">
       <div className="flex justify-between items-center mb-1.5">
         <div className="text-[12px] text-ink-secondary flex items-center gap-1.5">
           Всего средств
@@ -68,7 +68,6 @@ export function BalanceWidget() {
           onClick={() => setHidden((v) => !v)}
           aria-label={hidden ? "Показать сумму" : "Скрыть сумму"}
           className="text-ink-muted hover:text-ink-primary transition"
-          data-testid="sidebar-balance-toggle"
         >
           <i className={`ti ti-${hidden ? "eye-off" : "eye"} text-sm`} aria-hidden="true"></i>
         </button>
@@ -83,7 +82,6 @@ export function BalanceWidget() {
           <button
             onClick={prev}
             aria-label="Другая валюта"
-            data-testid="balance-prev-btn"
             className="w-6 h-6 rounded-full flex items-center justify-center text-ink-muted hover:text-ink-primary hover:bg-fill-hover transition"
           >
             <i className="ti ti-chevron-left text-sm" aria-hidden="true"></i>
@@ -91,9 +89,8 @@ export function BalanceWidget() {
         )}
         <div
           key={active}
-          className="flex-1 text-center text-[22px] font-medium tracking-tight fade-up"
+          className="flex-1 text-center text-[22px] font-semibold tracking-tight fade-up text-money tabular-nums"
           style={{ animationDuration: "0.35s" }}
-          data-testid="sidebar-balance-value"
         >
           {hidden
             ? `${currencySymbol(active)} ••• •••`
@@ -103,7 +100,6 @@ export function BalanceWidget() {
           <button
             onClick={next}
             aria-label="Другая валюта"
-            data-testid="balance-next-btn"
             className="w-6 h-6 rounded-full flex items-center justify-center text-ink-muted hover:text-ink-primary hover:bg-fill-hover transition"
           >
             <i className="ti ti-chevron-right text-sm" aria-hidden="true"></i>
@@ -112,7 +108,7 @@ export function BalanceWidget() {
       </div>
 
       {canSwitch && (
-        <div className="flex justify-center gap-1.5 mt-2" data-testid="balance-dots">
+        <div className="flex justify-center gap-1.5 mt-2">
           {currencies.map((c, i) => (
             <button
               key={c}

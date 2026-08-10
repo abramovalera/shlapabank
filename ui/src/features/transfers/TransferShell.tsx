@@ -18,7 +18,7 @@ export function TransferShell({ title, step, total, onBack, canGoBack = true, ch
     <div className="max-w-[560px] mx-auto">
       <div className="flex items-center gap-2 mb-4">
         <button
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate("/home")}
           className="flex items-center gap-1.5 text-[13px] text-ink-secondary hover:text-ink-primary transition"
         >
           <i className="ti ti-arrow-left" aria-hidden="true"></i>

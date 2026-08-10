@@ -76,7 +76,6 @@ export function HistoryPage() {
           <button
             onClick={() => setFilterOpen(true)}
             className={`btn text-xs py-1.5 px-2.5 ${filterN > 0 ? "border-brand text-accent" : ""}`}
-            data-testid="history-filter-btn"
           >
             <i className="ti ti-filter text-sm" aria-hidden="true"></i>
             Фильтр
@@ -123,7 +122,7 @@ export function HistoryPage() {
         </div>
       </div>
 
-      <div className="flex gap-1.5 flex-wrap" data-testid="history-filters">
+      <div className="flex gap-1.5 flex-wrap">
         <FilterChip active={chip === "all"} onClick={() => setChip("all")}>
           Все
         </FilterChip>
@@ -176,7 +175,6 @@ export function HistoryPage() {
             <button
               onClick={() => setLimit((l) => l + PAGE_SIZE)}
               className="btn w-full mt-2 py-2.5"
-              data-testid="history-show-more-btn"
             >
               <i className="ti ti-chevron-down" aria-hidden="true"></i>
               Показать ещё {Math.min(PAGE_SIZE, filtered.length - visible.length)}
@@ -266,7 +264,6 @@ function MenuItem({
   return (
     <button
       onClick={onClick}
-      data-testid={testId}
       className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-ink-primary hover:bg-fill-hover transition text-left"
     >
       <i className={`ti ti-${icon} text-lg text-ink-secondary`} aria-hidden="true"></i>

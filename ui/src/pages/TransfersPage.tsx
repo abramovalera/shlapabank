@@ -35,12 +35,14 @@ export function TransfersPage() {
   const fromOptions: SelectOption<number>[] = debitAccounts.map((a) => ({
     value: a.id,
     label: `${a.name} · ${a.currency}`,
-    hint: `•• ${a.account_number.slice(-4)} · ${formatMoney(a.balance, a.currency)}`,
+    hint: `•• ${a.account_number.slice(-4)}`,
+    money: formatMoney(a.balance, a.currency),
   }));
   const toOptions: SelectOption<number>[] = anyAccounts.map((a) => ({
     value: a.id,
     label: `${a.name} · ${a.currency}`,
-    hint: `•• ${a.account_number.slice(-4)} · ${formatMoney(a.balance, a.currency)}`,
+    hint: `•• ${a.account_number.slice(-4)}`,
+    money: formatMoney(a.balance, a.currency),
     disabled: a.id === fromId,
   }));
 
@@ -95,7 +97,7 @@ export function TransfersPage() {
       onBack={() => {}}
       canGoBack={false}
     >
-      <form onSubmit={onSubmit} className="flex flex-col gap-3" data-testid="own-transfer-form">
+      <form onSubmit={onSubmit} className="flex flex-col gap-3">
         <div>
           <Label>Со счёта</Label>
           <Select
@@ -195,7 +197,6 @@ export function TransfersPage() {
         {success && (
           <div
             className="text-xs text-success bg-success-soft rounded-control px-3 py-2"
-            data-testid="transfer-success"
           >
             <i className="ti ti-check mr-1" aria-hidden="true"></i>
             Перевод выполнен

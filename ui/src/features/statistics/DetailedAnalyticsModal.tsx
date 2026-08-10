@@ -76,13 +76,12 @@ export function DetailedAnalyticsModal({ open, onClose }: Props) {
 
   return (
     <Modal open={open} onClose={onClose} title="Подробная аналитика" maxWidth={380}>
-      <div className="flex items-center justify-between mb-4" data-testid="analytics-month-switcher">
+      <div className="flex items-center justify-between mb-4">
         <button
           type="button"
           onClick={() => setMonthOffset((o) => o - 1)}
           className="w-8 h-8 rounded-control flex items-center justify-center text-ink-secondary hover:bg-fill-hover hover:text-ink-primary transition"
           aria-label="Предыдущий месяц"
-          data-testid="analytics-month-prev"
         >
           <i className="ti ti-chevron-left text-lg" aria-hidden="true"></i>
         </button>
@@ -93,7 +92,6 @@ export function DetailedAnalyticsModal({ open, onClose }: Props) {
           disabled={monthOffset >= 0}
           className="w-8 h-8 rounded-control flex items-center justify-center text-ink-secondary hover:bg-fill-hover hover:text-ink-primary transition disabled:opacity-30 disabled:hover:bg-transparent"
           aria-label="Следующий месяц"
-          data-testid="analytics-month-next"
         >
           <i className="ti ti-chevron-right text-lg" aria-hidden="true"></i>
         </button>
@@ -120,7 +118,7 @@ export function DetailedAnalyticsModal({ open, onClose }: Props) {
               centerSubLabel="Потрачено"
             />
           </div>
-          <ul className="flex flex-col gap-2" data-testid="analytics-category-list">
+          <ul className="flex flex-col gap-2">
             {data.categories.map((c) => {
               const pct = total > 0 ? Math.round((parseFloat(c.amount) / total) * 100) : 0;
               return (

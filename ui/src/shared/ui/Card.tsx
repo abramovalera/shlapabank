@@ -8,7 +8,7 @@ interface CardProps {
 
 export function Card({ children, className = "", testId }: CardProps) {
   return (
-    <div className={`card ${className}`} data-testid={testId}>
+    <div className={`card ${className}`}>
       {children}
     </div>
   );

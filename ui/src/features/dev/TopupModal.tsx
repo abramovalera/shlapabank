@@ -79,7 +79,8 @@ export function TopupModal({ open, onClose }: Props) {
           options={accounts.map((a) => ({
             value: a.id,
             label: `${a.name} · ${a.currency}`,
-            hint: `•••• ${a.account_number.slice(-4)} · ${formatMoney(a.balance, a.currency)}`,
+            hint: `•••• ${a.account_number.slice(-4)}`,
+            money: formatMoney(a.balance, a.currency),
           }))}
           placeholder="Выберите счёт"
           testId="topup-account-select"
@@ -99,7 +100,6 @@ export function TopupModal({ open, onClose }: Props) {
           placeholder="0"
           className="bg-transparent border-none outline-none text-[24px] font-medium flex-1 min-w-0"
           inputMode="decimal"
-          data-testid="topup-amount-input"
         />
       </div>
       <div className="flex gap-1.5 flex-wrap mb-4">
@@ -132,14 +132,13 @@ export function TopupModal({ open, onClose }: Props) {
       )}
 
       <div className="flex gap-2">
-        <button className="btn flex-1" onClick={onClose} data-testid="topup-cancel-btn">
+        <button className="btn flex-1" onClick={onClose}>
           Отмена
         </button>
         <button
           className="btn-primary flex-[1.4]"
           onClick={submit}
           disabled={!accountId || num <= 0 || topup.isPending}
-          data-testid="topup-submit-btn"
         >
           {topup.isPending ? "Пополняем…" : "Пополнить"}
         </button>

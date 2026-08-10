@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import bugs
 from app.db import get_db
 from app.models import Account, Currency, Transaction, TransactionType, User
 from app.security import require_active_user
@@ -67,12 +68,15 @@ def _is_own_expense(tx: Transaction, owned_ids: set[int]) -> bool:
         return False
     if tx.from_account_id not in owned_ids:
         return False
-    # Перевод между своими — не расход
-    desc = (tx.description or "").lower()
-    if desc.startswith("p2p_transfer"):
-        return False
-    if tx.type == TransactionType.TRANSFER and tx.to_account_id in owned_ids:
-        return False
+    # Перевод между своими — не расход.
+    # ST-2 (bugs): при включённых багах эти исключения снимаются — переводы между
+    # своими счетами ошибочно попадают в «расходы» и завышают статистику.
+    if not bugs.on():
+        desc = (tx.description or "").lower()
+        if desc.startswith("p2p_transfer"):
+            return False
+        if tx.type == TransactionType.TRANSFER and tx.to_account_id in owned_ids:
+            return False
     return True
 
 

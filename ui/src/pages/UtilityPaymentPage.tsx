@@ -218,6 +218,7 @@ export function UtilityPaymentPage() {
               value={source}
               onChange={setSource}
               currencyFilter="RUB"
+              invalid={numericAmount > 0}
             />
           </div>
 
@@ -284,7 +285,7 @@ export function UtilityPaymentPage() {
               }
             />
             <div className="h-px bg-line my-2"></div>
-            <SumRow label="К оплате" value={formatMoney(numericAmount, "RUB")} bold />
+            <SumRow label="К оплате" value={formatMoney(numericAmount, "RUB")} bold money />
           </div>
           <OtpConfirm
             onSubmit={submit}

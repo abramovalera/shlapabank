@@ -157,7 +157,6 @@ export function LimitsModal({ open, onClose, card }: Props) {
           onClick={() => save.mutate()}
           disabled={save.isPending}
           className="btn-primary flex-[1.4] py-2.5 disabled:opacity-60 disabled:cursor-wait"
-          data-testid="limits-save-btn"
         >
           {save.isPending ? "Сохраняем…" : "Сохранить"}
         </button>

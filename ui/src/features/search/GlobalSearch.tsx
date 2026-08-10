@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
 import { Account, Card } from "@/shared/api/types";
 import { useCards } from "@/features/cards/api";
+import { useBugsEnabled } from "@/features/flags/api";
 
 interface SearchItem {
   key: string;
@@ -23,6 +24,7 @@ export function GlobalSearch() {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const navigate = useNavigate();
+  const bugsOn = useBugsEnabled();
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
@@ -64,16 +66,15 @@ export function GlobalSearch() {
   }, [cards, accounts]);
 
   const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    // SR-1 (bugs): при включённых багах поиск чувствителен к регистру
+    // (нет приведения к нижнему регистру) — «Карты» не находит «Мои карты».
+    const norm = (s: string) => (bugsOn ? s : s.toLowerCase());
+    const q = norm(query.trim());
     if (!q) return [];
     return items
-      .filter(
-        (it) =>
-          it.title.toLowerCase().includes(q) ||
-          it.hint.toLowerCase().includes(q)
-      )
+      .filter((it) => norm(it.title).includes(q) || norm(it.hint).includes(q))
       .slice(0, 8);
-  }, [items, query]);
+  }, [items, query, bugsOn]);
 
   const showDropdown = focused && query.trim().length > 0;
 
@@ -105,7 +106,6 @@ export function GlobalSearch() {
         <div
           className="absolute left-0 right-0 top-full mt-1.5 rounded-card border border-line bg-surface-2 shadow-glow py-1.5 z-50 max-h-[400px] overflow-y-auto fade-up"
           style={{ animationDuration: "0.15s" }}
-          data-testid="search-results"
         >
           {results.length === 0 ? (
             <div className="text-[13px] text-ink-muted text-center py-4">

@@ -89,7 +89,7 @@ export function IssueAccountModal({ open, onClose }: Props) {
         maxWidth={380}
       >
         <Label>Валюта</Label>
-        <div className="grid grid-cols-4 gap-1.5 mb-3.5" data-testid="currency-picker">
+        <div className="grid grid-cols-4 gap-1.5 mb-3.5">
           {CURRENCIES.map((c) => (
             <button
               key={c.code}
@@ -143,7 +143,6 @@ export function IssueAccountModal({ open, onClose }: Props) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={60}
-          data-testid="issue-account-name-input"
         />
         <div className="text-[10px] text-ink-muted mb-3.5">
           Если оставить пустым — присвоим авто-имя. Всегда можно переименовать.
@@ -155,7 +154,6 @@ export function IssueAccountModal({ open, onClose }: Props) {
             checked={agree}
             onChange={(e) => setAgree(e.target.checked)}
             className="mt-0.5"
-            data-testid="issue-account-terms-checkbox"
           />
           <span>
             Согласен с <a className="text-accent">условиями договора счёта</a>
@@ -169,14 +167,13 @@ export function IssueAccountModal({ open, onClose }: Props) {
         )}
 
         <div className="flex gap-2">
-          <button className="btn flex-1" onClick={onClose} data-testid="issue-account-cancel-btn">
+          <button className="btn flex-1" onClick={onClose}>
             Отмена
           </button>
           <button
             className="btn-primary flex-[1.4]"
             onClick={() => (agree ? create.mutate() : setError("Нужно принять условия"))}
             disabled={!agree || create.isPending}
-            data-testid="issue-account-submit-btn"
           >
             {create.isPending ? "Открываем…" : "Открыть счёт"}
           </button>
@@ -212,14 +209,12 @@ export function IssueAccountModal({ open, onClose }: Props) {
           <button
             className="btn flex-1"
             onClick={finish}
-            data-testid="offer-card-skip-btn"
           >
             Позже
           </button>
           <button
             className="btn-primary flex-[1.4]"
             onClick={() => setIssueCardOpen(true)}
-            data-testid="offer-card-issue-btn"
           >
             Выпустить карту
           </button>
@@ -268,7 +263,6 @@ function TypeTile({
   return (
     <button
       onClick={onClick}
-      data-testid={testId}
       className={`text-left p-2.5 rounded-control transition border ${
         active
           ? "border-brand bg-brand-soft text-accent"

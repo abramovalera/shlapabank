@@ -67,7 +67,6 @@ export function CardsPage() {
           <button
             className="btn-primary py-2 px-3.5 text-[13px]"
             onClick={() => setIssueOpen(true)}
-            data-testid="issue-card-open-btn"
           >
             <i className="ti ti-plus text-sm" aria-hidden="true"></i>
             Выпустить карту
@@ -260,7 +259,6 @@ function CardsCarousel({
               }}
               className="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-fill-control hover:bg-fill-hover flex items-center justify-center z-20"
               aria-label="Предыдущая карта"
-              data-testid="carousel-prev"
             >
               <i className="ti ti-chevron-left text-lg" aria-hidden="true"></i>
             </button>
@@ -271,7 +269,6 @@ function CardsCarousel({
               }}
               className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-fill-control hover:bg-fill-hover flex items-center justify-center z-20"
               aria-label="Следующая карта"
-              data-testid="carousel-next"
             >
               <i className="ti ti-chevron-right text-lg" aria-hidden="true"></i>
             </button>

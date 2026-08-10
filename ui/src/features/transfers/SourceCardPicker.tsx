@@ -9,6 +9,8 @@ interface Props {
   onSelect: (cardId: number) => void;
   /** Фильтр по валюте счёта (например для СБП — только RUB). */
   currencyFilter?: string;
+  /** Подсветить жёлтым, если карта обязательна, но не выбрана. */
+  invalid?: boolean;
 }
 
 /**
@@ -21,6 +23,7 @@ export function SourceCardPicker({
   selectedId,
   onSelect,
   currencyFilter,
+  invalid,
 }: Props) {
   if (cards.length === 0) {
     return (
@@ -30,8 +33,20 @@ export function SourceCardPicker({
     );
   }
 
+  const showInvalid = invalid && selectedId == null;
+
   return (
-    <div className="flex flex-col gap-1.5">
+    <div
+      className={`flex flex-col gap-1.5 ${
+        showInvalid ? "rounded-card border border-warning/60 bg-warning-soft/40 p-2" : ""
+      }`}
+    >
+      {showInvalid && (
+        <div className="flex items-center gap-1.5 text-[12px] text-warning px-1">
+          <i className="ti ti-alert-triangle" aria-hidden="true"></i>
+          Выберите карту, с которой списать
+        </div>
+      )}
       {cards.map((c) => {
         const account = accounts.find((a) => a.id === c.account_id);
         const blocked = c.status !== "ACTIVE";

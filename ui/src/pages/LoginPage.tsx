@@ -37,7 +37,7 @@ export function LoginPage() {
 
   function onProgressDone() {
     setShowProgress(false);
-    navigate("/dashboard", { replace: true });
+    navigate("/home", { replace: true });
   }
 
   async function onSubmit(e: FormEvent) {
@@ -84,7 +84,7 @@ export function LoginPage() {
         Войдите в свой аккаунт
       </div>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-2.5" data-testid="login-form">
+      <form onSubmit={onSubmit} className="flex flex-col gap-2.5">
         <input
           className="input h-12 rounded-control px-4 text-[14px]"
           placeholder="Логин или телефон (+7…)"
@@ -92,7 +92,6 @@ export function LoginPage() {
           onChange={(e) => setLogin(e.target.value)}
           autoComplete="username"
           required
-          data-testid="login-input"
         />
 
         <div className="relative">
@@ -104,14 +103,12 @@ export function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             required
-            data-testid="password-input"
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-primary transition p-1"
-            data-testid="password-toggle-btn"
           >
             <i
               className={`ti ti-${showPassword ? "eye-off" : "eye"} text-lg`}
@@ -121,10 +118,7 @@ export function LoginPage() {
         </div>
 
         {error && (
-          <div
-            className="text-xs text-danger bg-danger-soft rounded-control px-3 py-2"
-            data-testid="login-error"
-          >
+          <div className="text-xs text-danger bg-danger-soft rounded-control px-3 py-2">
             {error}
           </div>
         )}
@@ -152,7 +146,6 @@ export function LoginPage() {
         type="button"
         onClick={onDemoLogin}
         disabled={loading}
-        data-testid="demo-login-btn"
         className="w-full h-12 rounded-control border border-brand/30 bg-brand-soft text-accent font-medium text-[14px] hover:bg-brand/25 hover:border-brand/50 transition disabled:opacity-50 flex items-center justify-center gap-2"
       >
         <i className="ti ti-mood-happy text-lg" aria-hidden="true"></i>
@@ -163,17 +156,13 @@ export function LoginPage() {
       </div>
 
       <div className="border-t border-line mt-5 pt-4 text-center">
-        <Link
-          to="/forgot-password"
-          className="text-[13px] text-accent hover:underline"
-          data-testid="forgot-password-link"
-        >
+        <Link to="/forgot-password" className="text-[13px] text-accent hover:underline">
           Восстановить доступ
         </Link>
       </div>
       <div className="text-center text-[11px] text-ink-muted mt-3">
         Нет аккаунта?{" "}
-        <Link to="/register" className="text-accent hover:underline" data-testid="go-register-link">
+        <Link to="/register" className="text-accent hover:underline">
           Зарегистрироваться
         </Link>
       </div>

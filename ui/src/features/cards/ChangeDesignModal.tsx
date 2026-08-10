@@ -40,7 +40,6 @@ export function ChangeDesignModal({ open, onClose, card, onSubmit }: Props) {
 
       <div
         className={`grid gap-2 mb-4 ${availableDesigns.length === 3 ? "grid-cols-3" : "grid-cols-4"}`}
-        data-testid="design-picker"
       >
         {availableDesigns.map((d) => (
           <button
@@ -77,7 +76,6 @@ export function ChangeDesignModal({ open, onClose, card, onSubmit }: Props) {
               ? "btn-primary"
               : "bg-fill-control text-ink-muted cursor-not-allowed"
           }`}
-          data-testid="design-save-btn"
         >
           {busy ? "Сохраняем…" : "Сменить дизайн"}
         </button>

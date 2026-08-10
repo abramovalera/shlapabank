@@ -41,11 +41,10 @@ export function CloseCardModal({ open, onClose, onConfirm, cardLast4 }: Props) {
         placeholder="0000"
         inputMode="numeric"
         maxLength={4}
-        data-testid="close-card-confirm-input"
       />
 
       <div className="flex gap-2">
-        <button className="btn flex-1" onClick={onClose} data-testid="close-card-cancel">
+        <button className="btn flex-1" onClick={onClose}>
           Отмена
         </button>
         <button
@@ -72,7 +71,6 @@ export function CloseCardModal({ open, onClose, onConfirm, cardLast4 }: Props) {
                 }
               : undefined
           }
-          data-testid="close-card-confirm-btn"
         >
           {busy ? "Закрываем…" : "Закрыть карту"}
         </button>

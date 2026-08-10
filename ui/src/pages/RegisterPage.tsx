@@ -64,7 +64,7 @@ export function RegisterPage() {
       // Сброс кеша прошлого юзера — важно, иначе новый увидит чужие данные
       resetUserCache(qc);
       setToken(data.access_token, data.role ?? null, login);
-      navigate("/dashboard", { replace: true });
+      navigate("/home", { replace: true });
     } catch (err: any) {
       setError(apiErrorMessage(err));
     } finally {
@@ -101,7 +101,6 @@ export function RegisterPage() {
               setLoginAvailable(null);
             }}
             onBlur={checkAvailability}
-            data-testid="register-login-input"
           />
 
           <div className="min-h-[18px] mt-2 mb-4 text-[11px] flex items-center gap-1.5">
@@ -133,7 +132,6 @@ export function RegisterPage() {
             onClick={onNext}
             disabled={!loginValid || loginAvailable === false}
             className="btn-primary w-full h-12 text-[15px]"
-            data-testid="register-next-btn"
           >
             Далее
           </button>
@@ -163,7 +161,6 @@ export function RegisterPage() {
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              data-testid="register-password-input"
             />
             <button
               type="button"
@@ -181,7 +178,6 @@ export function RegisterPage() {
               type={showPassword ? "text" : "password"}
               value={passwordConfirm}
               onChange={(e) => setPasswordConfirm(e.target.value)}
-              data-testid="register-password-confirm-input"
             />
           </div>
 
@@ -209,7 +205,6 @@ export function RegisterPage() {
               checked={agree}
               onChange={(e) => setAgree(e.target.checked)}
               className="mt-0.5"
-              data-testid="register-terms-checkbox"
             />
             <span>
               Принимаю <a className="text-accent">условия обслуживания</a>

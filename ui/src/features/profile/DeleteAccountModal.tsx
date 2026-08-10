@@ -76,7 +76,6 @@ export function DeleteAccountModal({ open, onClose }: Props) {
         className="input font-mono uppercase tracking-widest text-center mb-4"
         autoComplete="off"
         autoFocus
-        data-testid="delete-account-confirm-input"
       />
 
       {error && (
@@ -92,7 +91,6 @@ export function DeleteAccountModal({ open, onClose }: Props) {
             reset();
             onClose();
           }}
-          data-testid="delete-account-cancel-btn"
         >
           Отмена
         </button>
@@ -113,7 +111,6 @@ export function DeleteAccountModal({ open, onClose }: Props) {
                 }
               : undefined
           }
-          data-testid="delete-account-confirm-btn"
         >
           {del.isPending ? "Удаляем…" : "Удалить навсегда"}
         </button>

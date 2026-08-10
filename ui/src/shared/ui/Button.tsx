@@ -16,7 +16,7 @@ export function Button({
   const base =
     variant === "primary" ? "btn-primary" : variant === "ghost" ? "btn-ghost" : "btn";
   return (
-    <button data-testid={testId} className={`${base} ${className}`} {...rest}>
+    <button className={`${base} ${className}`} {...rest}>
       {children}
     </button>
   );

@@ -172,7 +172,7 @@ export function TransferByCardPage() {
           />
 
           {/* Всегда видимый статус-блок под инпутом */}
-          <div className="mt-3" data-testid="card-status">
+          <div className="mt-3">
             {digits.length === 0 && (
               <div className="text-[11px] text-ink-muted">Введите 16–19 цифр карты</div>
             )}
@@ -217,7 +217,6 @@ export function TransferByCardPage() {
                     ? "bg-success-soft border-success/30"
                     : "bg-warning-soft border-warning/30"
                 }`}
-                data-testid="card-recipient-info"
               >
                 <div className="text-[13px] font-medium flex items-center gap-2">
                   {check.in_our_bank ? (
@@ -252,7 +251,6 @@ export function TransferByCardPage() {
                     ? "btn-primary"
                     : "bg-fill-control text-ink-muted cursor-not-allowed"
                 }`}
-                data-testid="card-next-btn"
               >
                 Далее
               </button>
@@ -273,6 +271,7 @@ export function TransferByCardPage() {
               selectedId={fromCardId}
               onSelect={setFromCardId}
               currencyFilter={check?.currency ?? undefined}
+              invalid={numericAmount > 0}
             />
           </div>
 
@@ -321,7 +320,6 @@ export function TransferByCardPage() {
             maxLength={70}
             placeholder="За обед"
             className="input mb-4"
-            data-testid="comment-input"
           />
 
           {isExternal && numericAmount > 0 && (
@@ -369,7 +367,6 @@ export function TransferByCardPage() {
             }}
             disabled={!canProceedStep2()}
             className="btn-primary w-full py-2.5"
-            data-testid="step2-next-btn"
           >
             Продолжить
           </button>
@@ -381,10 +378,10 @@ export function TransferByCardPage() {
           <div className="card-nested mb-4">
             <SumRow label="С карты" value={selectedCard ? `•• ${selectedCard.last4}` : "—"} />
             <SumRow label="На карту" value={check?.masked ?? "—"} />
-            <SumRow label="Сумма" value={formatMoney(numericAmount, selectedAccount?.currency ?? "RUB")} />
-            <SumRow label="Комиссия" value={formatMoney(fee, selectedAccount?.currency ?? "RUB")} />
+            <SumRow label="Сумма" value={formatMoney(numericAmount, selectedAccount?.currency ?? "RUB")} money />
+            <SumRow label="Комиссия" value={formatMoney(fee, selectedAccount?.currency ?? "RUB")} money />
             <div className="h-px bg-line my-2"></div>
-            <SumRow label="Итого спишется" value={formatMoney(totalDebit, selectedAccount?.currency ?? "RUB")} bold />
+            <SumRow label="Итого спишется" value={formatMoney(totalDebit, selectedAccount?.currency ?? "RUB")} bold money />
           </div>
 
           <OtpConfirm

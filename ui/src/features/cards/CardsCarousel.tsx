@@ -112,12 +112,11 @@ export function CardsCarousel({ cards, accounts }: Props) {
           <button
             aria-label="Предыдущая карта"
             onClick={() => setIndex((i) => (i - 1 + cards.length) % cards.length)}
-            data-testid="cards-prev-btn"
             className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-surface-1"
           >
             <i className="ti ti-chevron-left text-sm" aria-hidden="true"></i>
           </button>
-          <div className="flex gap-1.5 items-center" data-testid="cards-dots">
+          <div className="flex gap-1.5 items-center">
             {cards.map((c, i) => (
               <button
                 key={c.id}
@@ -135,7 +134,6 @@ export function CardsCarousel({ cards, accounts }: Props) {
           <button
             aria-label="Следующая карта"
             onClick={() => setIndex((i) => (i + 1) % cards.length)}
-            data-testid="cards-next-btn"
             className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-surface-1"
           >
             <i className="ti ti-chevron-right text-sm" aria-hidden="true"></i>

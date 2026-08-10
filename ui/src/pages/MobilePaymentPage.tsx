@@ -170,7 +170,6 @@ export function MobilePaymentPage() {
                 ? "btn-primary"
                 : "bg-fill-control text-ink-muted cursor-not-allowed"
             }`}
-            data-testid="mobile-next-btn"
           >
             Далее
           </button>
@@ -187,6 +186,7 @@ export function MobilePaymentPage() {
               value={source}
               onChange={setSource}
               currencyFilter="RUB"
+              invalid={numericAmount > 0}
             />
           </div>
 
@@ -236,7 +236,6 @@ export function MobilePaymentPage() {
                 numericAmount > parseFloat(selectedAccount.balance))
             }
             className="btn-primary w-full py-2.5"
-            data-testid="mobile-step2-btn"
           >
             Продолжить
           </button>
@@ -259,7 +258,7 @@ export function MobilePaymentPage() {
               }
             />
             <div className="h-px bg-line my-2"></div>
-            <SumRow label="К оплате" value={formatMoney(numericAmount, "RUB")} bold />
+            <SumRow label="К оплате" value={formatMoney(numericAmount, "RUB")} bold money />
           </div>
           <OtpConfirm
             onSubmit={submit}

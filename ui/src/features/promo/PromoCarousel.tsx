@@ -26,7 +26,6 @@ export function PromoCarousel() {
     <div
       className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1 relative"
       style={{ zIndex: 1 }}
-      data-testid="promo-carousel"
       aria-label="Промо-подборка"
     >
       {PROMOS.map((p, i) => (

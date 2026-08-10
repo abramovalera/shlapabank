@@ -82,7 +82,6 @@ export function ReissueCardModal({ open, onClose, card, onConfirm }: Props) {
             }
           }}
           className="btn-primary flex-[1.4] py-2.5"
-          data-testid="reissue-confirm-btn"
         >
           {busy ? "Перевыпускаем…" : "Перевыпустить"}
         </button>

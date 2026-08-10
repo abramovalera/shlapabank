@@ -33,7 +33,7 @@ export function LoginProgress({ onDone, duration = 2000 }: Props) {
   }, [onDone, duration]);
 
   return (
-    <div className="text-center" data-testid="login-progress">
+    <div className="text-center">
       <AuthLogo />
       <div className="text-[18px] font-medium text-ink-primary mb-1">Входим в аккаунт</div>
       <div className="text-[13px] text-ink-secondary mb-6 h-[18px] transition-all">

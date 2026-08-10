@@ -57,7 +57,7 @@ export function InsightsMini() {
   const topCategories = (data?.categories ?? []).slice(0, 2);
 
   return (
-    <div className="sidebar-block" data-testid="sidebar-insights">
+    <div className="sidebar-block">
       <div className="flex justify-between items-center mb-3">
         <div className="text-[14px] font-medium">Инсайты</div>
         <span className="text-[11px] text-ink-muted">{monthLabel}</span>
@@ -100,7 +100,6 @@ export function InsightsMini() {
       <button
         onClick={() => setAnalyticsOpen(true)}
         className="w-full mt-3 py-1.5 text-[12px] text-accent hover:underline"
-        data-testid="insights-see-all-btn"
       >
         Подробная аналитика →
       </button>

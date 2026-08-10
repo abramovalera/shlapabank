@@ -16,6 +16,8 @@ interface Props {
   value: PaymentSource | null;
   onChange: (v: PaymentSource) => void;
   currencyFilter?: string; // если задан — только эта валюта
+  /** Подсветить как «не выбрано» (жёлтым), когда источник обязателен, но не выбран. */
+  invalid?: boolean;
 }
 
 /**
@@ -29,6 +31,7 @@ export function PaymentSourcePicker({
   value,
   onChange,
   currencyFilter,
+  invalid,
 }: Props) {
   const cardsFiltered = cards.filter((c) => {
     const acc = accounts.find((a) => a.id === c.account_id);
@@ -50,8 +53,20 @@ export function PaymentSourcePicker({
     );
   }
 
+  const showInvalid = invalid && !value;
+
   return (
-    <div className="flex flex-col gap-2">
+    <div
+      className={`flex flex-col gap-2 ${
+        showInvalid ? "rounded-card border border-warning/60 bg-warning-soft/40 p-2" : ""
+      }`}
+    >
+      {showInvalid && (
+        <div className="flex items-center gap-1.5 text-[12px] text-warning px-1">
+          <i className="ti ti-alert-triangle" aria-hidden="true"></i>
+          Выберите, с какого счёта или карты списать
+        </div>
+      )}
       {cardsFiltered.length > 0 && (
         <>
           <SectionTitle>Карты</SectionTitle>
@@ -83,7 +98,14 @@ export function PaymentSourcePicker({
                     •• {c.last4} · {c.payment_system}
                   </div>
                   <div className="text-[10px] text-ink-muted truncate">
-                    {acc ? `«${acc.name}» · ${formatMoney(acc.balance, acc.currency)}` : ""}
+                    {acc && (
+                      <>
+                        «{acc.name}» ·{" "}
+                        <span className="text-money tabular-nums">
+                          {formatMoney(acc.balance, acc.currency)}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
                 {selected && <i className="ti ti-check text-accent" aria-hidden="true"></i>}
@@ -118,7 +140,10 @@ export function PaymentSourcePicker({
                     {a.name} · {a.currency}
                   </div>
                   <div className="text-[10px] text-ink-muted truncate">
-                    •••• {a.account_number.slice(-4)} · {formatMoney(a.balance, a.currency)}
+                    •••• {a.account_number.slice(-4)} ·{" "}
+                    <span className="text-money tabular-nums">
+                      {formatMoney(a.balance, a.currency)}
+                    </span>
                   </div>
                 </div>
                 {selected && <i className="ti ti-check text-accent" aria-hidden="true"></i>}

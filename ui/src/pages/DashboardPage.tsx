@@ -46,7 +46,6 @@ export function DashboardPage() {
               key={t.testId}
               onClick={() => navigate(t.to)}
               className="card flex items-center gap-3 hover:bg-surface-2 transition text-left"
-              data-testid={t.testId}
             >
               <i
                 className={`ti ti-${t.icon} text-[22px] ${t.primary ? "text-accent" : "text-ink-secondary"}`}
@@ -64,7 +63,6 @@ export function DashboardPage() {
           <button
             onClick={() => navigate("/history")}
             className="text-[13px] text-accent hover:underline"
-            data-testid="recent-see-all"
           >
             Смотреть все →
           </button>

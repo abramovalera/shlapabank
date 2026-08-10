@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session, aliased
 
+from app import bugs
 from app.banks import OUR_BANK_CODE, BANKS_CATALOG
 from app.constants import DAILY_TRANSFER_LIMIT, MAX_TRANSFER_AMOUNT, MIN_TRANSFER_AMOUNT
 from app.db import get_db
@@ -548,9 +549,13 @@ def create_transfer_by_phone(
     )
     if not source.is_active:
         raise HTTPException(status_code=400, detail="account_inactive")
-    fee = (amount * EXTERNAL_PHONE_FEE_RATE).quantize(Decimal("0.01"))
+    # BF-1 (bugs): фактическая ставка 2.5% вместо показанных на фронте 2%.
+    _phone_fee_rate = Decimal("0.025") if bugs.on() else EXTERNAL_PHONE_FEE_RATE
+    fee = (amount * _phone_fee_rate).quantize(Decimal("0.01"))
     total_debit = amount + fee
-    if source.balance < total_debit:
+    # BE-2 (bugs): проверка баланса без учёта комиссии → возможен овердрафт.
+    _balance_check = amount if bugs.on() else total_debit
+    if source.balance < _balance_check:
         raise HTTPException(status_code=400, detail="insufficient_funds")
     source.balance -= total_debit
     comment_suffix = f":comment_{payload.comment}" if payload.comment else ""

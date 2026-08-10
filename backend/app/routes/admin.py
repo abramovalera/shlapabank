@@ -1,8 +1,11 @@
 """Admin API: список пользователей, блокировка, удаление, банки, транзакции, сброс БД."""
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from app import bugs, chaos
 from app.banks import OUR_BANK_CODE, get_external_bank_codes
 from app.core.config import settings
 from app.db import get_db
@@ -12,6 +15,147 @@ from app.schemas import TransactionPublic, UserBanksUpdateRequest, UserPublic
 from app.security import require_admin
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+
+
+class ChaosConfig(BaseModel):
+    """Состояние искусственных задержек API. `enabled` — единственное, что меняется
+    тумблером; остальные поля read-only, для показа профиля задержек в админ-панели."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "enabled": True,
+                "base_min_ms": 120,
+                "base_max_ms": 450,
+                "heavy_min_ms": 300,
+                "heavy_max_ms": 900,
+                "tail_probability": 0.12,
+                "tail_min_ms": 1500,
+                "tail_max_ms": 4000,
+            }
+        }
+    )
+
+    enabled: bool
+    base_min_ms: int
+    base_max_ms: int
+    heavy_min_ms: int
+    heavy_max_ms: int
+    tail_probability: float
+    tail_min_ms: int
+    tail_max_ms: int
+
+
+class ChaosUpdateRequest(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"example": {"enabled": True}})
+
+    enabled: bool
+
+
+def _chaos_config() -> ChaosConfig:
+    return ChaosConfig(
+        enabled=chaos.state.enabled,
+        base_min_ms=settings.chaos_base_min_ms,
+        base_max_ms=settings.chaos_base_max_ms,
+        heavy_min_ms=settings.chaos_heavy_min_ms,
+        heavy_max_ms=settings.chaos_heavy_max_ms,
+        tail_probability=settings.chaos_tail_probability,
+        tail_min_ms=settings.chaos_tail_min_ms,
+        tail_max_ms=settings.chaos_tail_max_ms,
+    )
+
+
+@router.get(
+    "/chaos",
+    response_model=ChaosConfig,
+    summary="Статус искусственных задержек API",
+)
+def get_chaos(current_user: User = Depends(require_admin)):
+    return _chaos_config()
+
+
+@router.put(
+    "/chaos",
+    response_model=ChaosConfig,
+    summary="Включить/выключить искусственные задержки API",
+)
+def set_chaos(payload: ChaosUpdateRequest, current_user: User = Depends(require_admin)):
+    chaos.state.enabled = payload.enabled
+    return _chaos_config()
+
+
+# ==================== Bugs: тренажёр «найди баг» ====================
+
+
+class BugsConfig(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"example": {"enabled": False, "count": 10}})
+
+    enabled: bool
+    count: int
+
+
+class BugsUpdateRequest(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"example": {"enabled": True}})
+
+    enabled: bool
+
+
+def _bugs_config() -> BugsConfig:
+    return BugsConfig(enabled=bugs.state.enabled, count=len(bugs.BUG_CATALOG))
+
+
+@router.get("/bugs", response_model=BugsConfig, summary="Статус режима багов")
+def get_bugs(current_user: User = Depends(require_admin)):
+    return _bugs_config()
+
+
+@router.put("/bugs", response_model=BugsConfig, summary="Включить/выключить режим багов")
+def set_bugs(payload: BugsUpdateRequest, current_user: User = Depends(require_admin)):
+    bugs.state.enabled = payload.enabled
+    return _bugs_config()
+
+
+def _render_bugs_report_md() -> str:
+    """Собирает «ключ ответов» — Markdown с описанием всех внедрённых багов."""
+    status = "ВКЛючён" if bugs.state.enabled else "ВЫКЛючен"
+    lines = [
+        "# ShlapaBank — карта внедрённых багов",
+        "",
+        "> «Ключ ответов» для тренажёра «найди баг». Когда режим багов **выключен**, "
+        "приложение работает корректно; когда **включён** — активны перечисленные ниже дефекты.",
+        "",
+        f"**Текущий статус режима багов:** {status}  ",
+        f"**Всего багов:** {len(bugs.BUG_CATALOG)}",
+        "",
+        "---",
+        "",
+    ]
+    for b in bugs.BUG_CATALOG:
+        lines += [
+            f"## {b['id']} — {b['title']}",
+            "",
+            f"- **Слой:** {b['layer']}",
+            f"- **Тип:** {b['kind']}",
+            f"- **Где:** {b['where']}",
+            f"- **Как проявляется:** {b['symptom']}",
+            f"- **Как ловить:** {b['detect']}",
+            "",
+        ]
+    return "\n".join(lines)
+
+
+@router.get(
+    "/bugs/report",
+    summary="Скачать описание багов (Markdown)",
+    response_class=Response,
+)
+def download_bugs_report(current_user: User = Depends(require_admin)):
+    md = _render_bugs_report_md()
+    return Response(
+        content=md,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="shlapabank-bugs.md"'},
+    )
 
 
 def _user_is_default_admin(user: User) -> bool:

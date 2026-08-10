@@ -63,7 +63,6 @@ export function OtpConfirm({ onSubmit, submitLabel, busy, error }: Props) {
           type="button"
           onClick={() => setCode(hint.otp)}
           className="w-full rounded-control bg-brand-soft border border-brand/30 hover:bg-brand/25 hover:border-brand/50 transition px-3 py-2 mb-3 text-center cursor-pointer"
-          data-testid="otp-hint"
           title="Нажмите, чтобы вставить код (отправка вручную)"
         >
           <div className="text-[10px] text-ink-muted uppercase tracking-wider mb-1">
@@ -78,7 +77,6 @@ export function OtpConfirm({ onSubmit, submitLabel, busy, error }: Props) {
       {hint && expired && (
         <div
           className="rounded-control bg-danger-soft border border-danger/30 px-3 py-2 mb-3 text-center"
-          data-testid="otp-expired"
         >
           <div className="text-[12px] text-danger font-medium">Код истёк</div>
           <div className="text-[11px] text-ink-secondary mt-0.5">
@@ -99,7 +97,7 @@ export function OtpConfirm({ onSubmit, submitLabel, busy, error }: Props) {
       </div>
 
       {!expired && hint && (
-        <div className="text-[11px] text-ink-muted text-center mb-3" data-testid="otp-timer">
+        <div className="text-[11px] text-ink-muted text-center mb-3">
           Код действует ещё <span className="font-mono text-ink-primary">{fmt(remaining)}</span>
         </div>
       )}
@@ -119,7 +117,6 @@ export function OtpConfirm({ onSubmit, submitLabel, busy, error }: Props) {
               ? "btn-primary"
               : "bg-fill-control text-ink-muted cursor-not-allowed"
           }`}
-          data-testid="otp-submit"
         >
           {busy ? "Отправляем…" : submitLabel}
         </button>
@@ -128,7 +125,6 @@ export function OtpConfirm({ onSubmit, submitLabel, busy, error }: Props) {
           onClick={requestNew}
           disabled={req.isPending}
           className="text-[12px] text-accent hover:underline mx-auto disabled:opacity-50 disabled:cursor-wait"
-          data-testid="otp-request-new"
         >
           {req.isPending ? "Запрашиваем…" : expired ? "Запросить новый код" : "Обновить код"}
         </button>
