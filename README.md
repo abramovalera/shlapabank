@@ -60,6 +60,7 @@ docker compose up --build
 
 Шаг 3 — открыть в браузере http://localhost:8080/ — увидите экран входа. Готово.
 
+Полезные команды:
 **Остановить:** `Ctrl+C` в терминале, потом `docker compose down`.
 **Полностью сбросить (включая базу):** `docker compose down -v && docker compose up --build`.
 
