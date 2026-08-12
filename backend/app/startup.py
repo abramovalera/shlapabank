@@ -21,6 +21,11 @@ from app.models import (
     CardStatus,
     CardType,
     Currency,
+    InvestOrder,
+    InvestPosition,
+    OrderSide,
+    OrderStatus,
+    OrderType,
     Transaction,
     TransactionStatus,
     TransactionType,
@@ -57,6 +62,9 @@ def init_db() -> None:
             "ALTER TYPE carddesign ADD VALUE IF NOT EXISTS 'GOLD_MARBLE'",
             "ALTER TYPE cardtype ADD VALUE IF NOT EXISTS 'REGULAR'",
             "ALTER TYPE cardtype ADD VALUE IF NOT EXISTS 'GOLD'",
+            # Инвестиции: брокерский тип счёта и тип операции.
+            "ALTER TYPE accounttype ADD VALUE IF NOT EXISTS 'BROKER'",
+            "ALTER TYPE transactiontype ADD VALUE IF NOT EXISTS 'INVEST'",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS sbp_primary_bank VARCHAR(32) NOT NULL DEFAULT 'SHLAPABANK'",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_color VARCHAR(20)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(255)",
@@ -319,6 +327,8 @@ def _seed_full_client() -> None:
         if len(existing_txs) < 5 and debit_accounts:
             _seed_fullclient_transactions(db, user, debit_accounts)
 
+        _seed_fullclient_invest(db, user)
+
         db.commit()
     except Exception:
         db.rollback()
@@ -385,6 +395,61 @@ def _seed_fullclient_transactions(db, user: User, debit_accounts: list[Account])
             created_at=created_at,
         )
         db.add(tx)
+
+
+def _seed_fullclient_invest(db, user: User) -> None:
+    """Брокерский счёт демо-клиента: кэш, позиции и пара заявок.
+
+    Идемпотентно: если брокерский счёт уже есть — ничего не делаем."""
+    existing = db.scalar(
+        select(Account).where(
+            Account.user_id == user.id, Account.account_type == AccountType.BROKER
+        )
+    )
+    if existing:
+        return
+
+    broker = Account(
+        account_number=f"BRK-{user.id:06d}",
+        user_id=user.id,
+        account_type=AccountType.BROKER,
+        currency=Currency.RUB,
+        name="Брокерский счёт",
+        balance=Decimal("58214.90"),
+    )
+    db.add(broker)
+    db.flush()
+
+    # Позиции (avg_price подобраны, чтобы был и плюс, и минус в P&L).
+    positions = [
+        ("SHLP", 850, "240.00"),
+        ("PNKF", 12, "3200.00"),
+        ("GZVK-BO1", 30, "990.00"),
+        ("SHMX", 200, "130.00"),
+    ]
+    for ticker, qty, avg in positions:
+        db.add(InvestPosition(user_id=user.id, ticker=ticker, quantity=qty, avg_price=Decimal(avg)))
+
+    now = datetime.utcnow()
+    # Исполненная рыночная покупка (для истории заявок).
+    db.add(InvestOrder(
+        user_id=user.id, ticker="SHLP", side=OrderSide.BUY, order_type=OrderType.MARKET,
+        quantity=100, price=Decimal("240.00"), executed_price=Decimal("240.00"),
+        fee=Decimal("72.00"), status=OrderStatus.EXECUTED, account_id=broker.id,
+        created_at=now - timedelta(days=6), executed_at=now - timedelta(days=6),
+    ))
+    # Активная лимитная заявка (ждёт просадки — демонстрирует «висящую» заявку).
+    db.add(InvestOrder(
+        user_id=user.id, ticker="SHLP", side=OrderSide.BUY, order_type=OrderType.LIMIT,
+        quantity=100, price=Decimal("235.00"), status=OrderStatus.ACTIVE, account_id=broker.id,
+        created_at=now - timedelta(hours=3),
+    ))
+    # Отменённая заявка.
+    db.add(InvestOrder(
+        user_id=user.id, ticker="PNKF", side=OrderSide.SELL, order_type=OrderType.LIMIT,
+        quantity=5, price=Decimal("3300.00"), status=OrderStatus.CANCELLED, account_id=broker.id,
+        created_at=now - timedelta(days=2),
+    ))
 
 
 def _backfill_account_names() -> None:

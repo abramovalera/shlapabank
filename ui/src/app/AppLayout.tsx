@@ -105,6 +105,18 @@ export function AppLayout() {
                 testId="nav-payments-dropdown"
               />
               <NavLink
+                to="/invest"
+                className={({ isActive }) =>
+                  `text-[14px] pb-1.5 transition ${
+                    isActive
+                      ? "text-ink-primary font-medium border-b-2 border-brand-strong"
+                      : "text-ink-secondary hover:text-ink-primary"
+                  }`
+                }
+              >
+                Инвестиции
+              </NavLink>
+              <NavLink
                 to="/history"
                 className={({ isActive }) =>
                   `text-[14px] pb-1.5 transition ${

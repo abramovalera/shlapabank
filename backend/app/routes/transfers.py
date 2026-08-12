@@ -148,6 +148,8 @@ def create_transfer(
         raise HTTPException(status_code=403, detail="forbidden_account_access")
     if source.account_type == AccountType.SAVINGS:
         raise HTTPException(status_code=400, detail="transfer_not_allowed_from_savings")
+    if source.account_type == AccountType.BROKER:
+        raise HTTPException(status_code=400, detail="transfer_not_allowed_for_brokerage")
     if not source.is_active or not target.is_active:
         raise HTTPException(status_code=400, detail="account_inactive")
     if source.currency != target.currency:
@@ -222,6 +224,8 @@ def create_transfer_by_account(
         raise HTTPException(status_code=400, detail="account_inactive")
     if source.account_type == AccountType.SAVINGS:
         raise HTTPException(status_code=400, detail="transfer_not_allowed_from_savings")
+    if source.account_type == AccountType.BROKER:
+        raise HTTPException(status_code=400, detail="transfer_not_allowed_for_brokerage")
     if source.id == target.id:
         raise HTTPException(status_code=400, detail="transfer_same_account")
     if source.currency != target.currency:
@@ -327,6 +331,8 @@ def create_transfer_external_by_account(
         raise HTTPException(status_code=400, detail="account_inactive")
     if source.account_type == AccountType.SAVINGS:
         raise HTTPException(status_code=400, detail="transfer_not_allowed_from_savings")
+    if source.account_type == AccountType.BROKER:
+        raise HTTPException(status_code=400, detail="transfer_not_allowed_for_brokerage")
 
     fee = (payload.amount * EXTERNAL_TRANSFER_FEE_RATE).quantize(Decimal("0.01"))
     total_debit = payload.amount + fee
@@ -485,6 +491,8 @@ def create_transfer_by_phone(
         raise HTTPException(status_code=400, detail="account_inactive")
     if source_check.account_type == AccountType.SAVINGS:
         raise HTTPException(status_code=400, detail="transfer_not_allowed_from_savings")
+    if source_check.account_type == AccountType.BROKER:
+        raise HTTPException(status_code=400, detail="transfer_not_allowed_for_brokerage")
 
     _lock_daily_limit_bucket(db, current_user.id, source_check.currency)
     used_per_currency = _calc_today_transfers_per_currency(current_user, db)
@@ -641,6 +649,8 @@ def exchange_currency(
         raise HTTPException(status_code=400, detail="account_inactive")
     if source.account_type == AccountType.SAVINGS:
         raise HTTPException(status_code=400, detail="transfer_not_allowed_from_savings")
+    if source.account_type == AccountType.BROKER:
+        raise HTTPException(status_code=400, detail="transfer_not_allowed_for_brokerage")
     if source.currency == target.currency:
         raise HTTPException(status_code=400, detail="currency_mismatch")
 

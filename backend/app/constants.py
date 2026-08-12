@@ -18,3 +18,12 @@ DAILY_TRANSFER_LIMIT: dict[Currency, Decimal] = {
 
 # Блокировка по попыткам входа
 FAILED_LOGIN_THRESHOLD = 5
+
+# ---- Инвестиции ----
+# Комиссия брокера за сделку (доля от суммы сделки).
+BROKER_FEE_RATE = Decimal("0.003")  # 0.3 %
+# Ценовой коридор для лимитной заявки: цена не может отстоять от рынка дальше ±20 %.
+INVEST_PRICE_BAND = Decimal("0.20")
+# Минимальная и максимальная сумма одной сделки (в рублях).
+INVEST_MIN_ORDER = Decimal("100.00")
+INVEST_MAX_ORDER = Decimal("5000000.00")

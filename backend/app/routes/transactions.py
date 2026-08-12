@@ -133,6 +133,21 @@ def _humanize_description(
         if part(2):
             extra.append(("Лицевой счёт", part(2)))
         return "Оплата поставщика", extra, comment
+    if head in ("invest_buy", "invest_sell"):
+        extra = []
+        if part(1):
+            extra.append(("Инструмент", part(1)))
+        qp = part(2)  # формат "10@246.80"
+        if "@" in qp:
+            qty, px = qp.split("@", 1)
+            extra.append(("Количество", f"{qty} шт"))
+            extra.append(("Цена", px))
+        label = "Покупка бумаг" if head == "invest_buy" else "Продажа бумаг"
+        return label, extra, comment
+    if head == "invest_cash_in":
+        return "Пополнение брокерского счёта", [], comment
+    if head == "invest_cash_out":
+        return "Вывод с брокерского счёта", [], comment
     return "Операция", [], comment
 
 

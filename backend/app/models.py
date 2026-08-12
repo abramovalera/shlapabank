@@ -21,6 +21,7 @@ class UserStatus(str, enum.Enum):
 class AccountType(str, enum.Enum):
     DEBIT = "DEBIT"
     SAVINGS = "SAVINGS"
+    BROKER = "BROKER"     # брокерский счёт для раздела «Инвестиции» (свободный кэш)
 
 
 class Currency(str, enum.Enum):
@@ -34,6 +35,23 @@ class TransactionType(str, enum.Enum):
     TOPUP = "TOPUP"
     TRANSFER = "TRANSFER"
     PAYMENT = "PAYMENT"
+    INVEST = "INVEST"     # покупка/продажа инструмента на брокерском счёте
+
+
+class OrderSide(str, enum.Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+
+
+class OrderType(str, enum.Enum):
+    MARKET = "MARKET"     # исполняется по текущей цене сразу
+    LIMIT = "LIMIT"       # висит, пока рынок не пересечёт лимитную цену
+
+
+class OrderStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"        # лимитная заявка ждёт исполнения
+    EXECUTED = "EXECUTED"    # исполнена
+    CANCELLED = "CANCELLED"  # отменена пользователем
 
 
 class TransactionStatus(str, enum.Enum):
@@ -259,3 +277,51 @@ class Transaction(Base):
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     fee: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class InvestPosition(Base):
+    """Позиция в портфеле: сколько бумаг данного инструмента и по какой средней цене.
+
+    Одна строка на (пользователь, тикер). Кэш хранится не тут, а на брокерском
+    счёте (Account с account_type=BROKER). Инструменты — статический каталог
+    (app/invest_catalog.py), поэтому тикер храним строкой, без FK."""
+
+    __tablename__ = "invest_positions"
+    __table_args__ = (UniqueConstraint("user_id", "ticker", name="uq_user_ticker_position"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Средневзвешенная цена покупки (для расчёта P&L). В рублях.
+    avg_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
+class InvestOrder(Base):
+    """Заявка на покупку/продажу инструмента.
+
+    MARKET исполняется сразу при создании. LIMIT создаётся со статусом ACTIVE и
+    лениво исполняется, когда рыночная цена пересекает лимитную (проверяется на
+    каждом чтении портфеля/списка заявок)."""
+
+    __tablename__ = "invest_orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    side: Mapped[OrderSide] = mapped_column(Enum(OrderSide), nullable=False)
+    order_type: Mapped[OrderType] = mapped_column(Enum(OrderType), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Для LIMIT — заявленная цена; для MARKET — цена, по которой исполнилось.
+    price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    # Цена фактического исполнения (заполняется при исполнении).
+    executed_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    fee: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"), nullable=False)
+    status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus), default=OrderStatus.ACTIVE, nullable=False, index=True)
+    # Брокерский счёт, с которого/на который идут деньги.
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

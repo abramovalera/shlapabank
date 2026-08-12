@@ -10,6 +10,7 @@ from app.dependencies import get_own_account, get_own_active_account
 from app.db import get_db
 from app.models import (
     Account,
+    AccountType,
     Currency,
     Transaction,
     TransactionStatus,
@@ -68,8 +69,14 @@ def list_accounts(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ):
+    # Брокерский счёт (account_type=BROKER) в общий список не показываем —
+    # он живёт в разделе «Инвестиции» (GET /invest/portfolio).
     return db.scalars(
-        select(Account).where(Account.user_id == current_user.id, Account.is_active.is_(True))
+        select(Account).where(
+            Account.user_id == current_user.id,
+            Account.is_active.is_(True),
+            Account.account_type != AccountType.BROKER,
+        )
     ).all()
 
 
@@ -102,7 +109,11 @@ def create_account(
         raise HTTPException(status_code=400, detail="terms_not_accepted")
 
     user_accounts = db.scalars(
-        select(Account).where(Account.user_id == current_user.id, Account.is_active.is_(True))
+        select(Account).where(
+            Account.user_id == current_user.id,
+            Account.is_active.is_(True),
+            Account.account_type != AccountType.BROKER,
+        )
     ).all()
 
     rub_count = len([acc for acc in user_accounts if acc.currency == Currency.RUB])

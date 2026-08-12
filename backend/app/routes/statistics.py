@@ -64,6 +64,9 @@ def _is_own_expense(tx: Transaction, owned_ids: set[int]) -> bool:
     """Трата = списание с нашего счёта (from_account_id принадлежит нам)."""
     if tx.type == TransactionType.TOPUP:
         return False
+    # Покупка/продажа бумаг — это движение своих денег (кэш ↔ активы), не расход.
+    if tx.type == TransactionType.INVEST:
+        return False
     if tx.from_account_id is None:
         return False
     if tx.from_account_id not in owned_ids:

@@ -12,6 +12,7 @@ export type TxCategoryKey =
   | "transfer_account"
   | "transfer_own"
   | "external_transfer"
+  | "invest"
   | "topup"
   | "other";
 
@@ -41,6 +42,7 @@ const CATEGORY_META: Record<TxCategoryKey, { label: string; icon: string; color:
   transfer_account:  { label: "Перевод на счёт",  icon: "arrow-up-right", color: "#FFA347", bg: "rgba(255,163,71,0.15)" },
   transfer_own:      { label: "Между своими",     icon: "arrows-exchange", color: "#7F8AFF", bg: "rgba(91,107,255,0.15)" },
   external_transfer: { label: "Внешний перевод",  icon: "arrow-up-right", color: "#FFA347", bg: "rgba(255,163,71,0.15)" },
+  invest:            { label: "Инвестиции",        icon: "chart-candle",   color: "#7F8AFF", bg: "rgba(91,107,255,0.15)" },
   topup:             { label: "Пополнение",       icon: "arrow-down",     color: "#4DE89F", bg: "rgba(43,224,140,0.15)" },
   other:             { label: "Операция",         icon: "circle",         color: "#F5F7FF", bg: "rgba(245,247,255,0.06)" },
 };
@@ -97,10 +99,10 @@ export function presentTransaction(tx: Transaction): TxPresentation {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const isIncoming = tx.type === "TOPUP";
+  let isIncoming = tx.type === "TOPUP";
   const currency = tx.money.currency;
   const total = parseFloat(tx.money.total);
-  const amountLabel = `${isIncoming ? "+" : "−"}${formatMoney(total, currency)}`;
+  let amountLabel = `${isIncoming ? "+" : "−"}${formatMoney(total, currency)}`;
   const fee = tx.money.fee !== "0.00" && tx.money.fee !== "0" ? formatMoney(parseFloat(tx.money.fee), currency) : undefined;
 
   // ---- Классификация ----
@@ -152,6 +154,26 @@ export function presentTransaction(tx: Transaction): TxPresentation {
     cat = "transfer_own";
     title = "Между своими счетами";
     subtitle = time;
+  } else if (head === "invest_buy" || head === "invest_sell") {
+    cat = "invest";
+    const ticker = rest[0] ?? "";
+    const qp = rest[1] ?? ""; // "10@246.80"
+    const [qty, px] = qp.split("@");
+    const isSell = head === "invest_sell";
+    title = isSell ? `Продажа ${ticker}` : `Покупка ${ticker}`;
+    subtitle = `${qty ?? ""} шт${px ? ` × ${px} ₽` : ""} · ${time}`;
+    isIncoming = isSell;
+    amountLabel = `${isSell ? "+" : "−"}${formatMoney(total, currency)}`;
+  } else if (head === "invest_cash_in") {
+    cat = "invest";
+    title = "Пополнение брокерского счёта";
+    subtitle = time;
+  } else if (head === "invest_cash_out") {
+    cat = "invest";
+    title = "Вывод с брокерского счёта";
+    subtitle = time;
+    isIncoming = true;
+    amountLabel = `+${formatMoney(total, currency)}`;
   } else if (head === "self_topup") {
     cat = "topup";
     const purpose = rest[0] ?? "";

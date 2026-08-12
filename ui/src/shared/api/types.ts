@@ -49,7 +49,7 @@ export interface Card {
   is_contactless: boolean;
 }
 
-export type TransactionType = "TOPUP" | "TRANSFER" | "PAYMENT";
+export type TransactionType = "TOPUP" | "TRANSFER" | "PAYMENT" | "INVEST";
 export type TransactionStatus = "COMPLETED" | "FAILED";
 
 export interface TransactionMoney {

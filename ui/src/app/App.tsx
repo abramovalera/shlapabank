@@ -15,6 +15,8 @@ import { TransferByPhonePage } from "@/pages/TransferByPhonePage";
 import { ExchangePage } from "@/pages/ExchangePage";
 import { MobilePaymentPage } from "@/pages/MobilePaymentPage";
 import { UtilityPaymentPage } from "@/pages/UtilityPaymentPage";
+import { InvestTerminalPage } from "@/pages/InvestTerminalPage";
+import { InstrumentPage } from "@/pages/InstrumentPage";
 import { TransfersPage } from "@/pages/TransfersPage";
 import { PaymentsPage } from "@/pages/PaymentsPage";
 import { HistoryPage } from "@/pages/HistoryPage";
@@ -84,6 +86,8 @@ export function App() {
         <Route path="/transfers/by-card" element={<TransferByCardPage />} />
         <Route path="/transfers/by-phone" element={<TransferByPhonePage />} />
         <Route path="/transfers/exchange" element={<ExchangePage />} />
+        <Route path="/invest" element={<InvestTerminalPage />} />
+        <Route path="/invest/instrument/:ticker" element={<InstrumentPage />} />
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/payments/mobile" element={<MobilePaymentPage />} />
         <Route path="/payments/utility" element={<UtilityPaymentPage />} />

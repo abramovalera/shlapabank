@@ -22,6 +22,7 @@ from app.routes.dev_trace import router as dev_trace_router
 from app.routes.flags import router as flags_router
 from app.routes.helper import router as helper_router
 from app.routes.health import router as health_router
+from app.routes.invest import router as invest_router
 from app.routes.payments import router as payments_router
 from app.routes.profile import router as profile_router
 from app.routes.statistics import router as statistics_router
@@ -45,6 +46,7 @@ openapi_tags = [
     {"name": "cards", "description": "Карты, привязанные к счетам. Выпуск, блокировка, смена дизайна, закрытие."},
     {"name": "transfers", "description": "Переводы: между своими, по номеру счёта, по телефону, по номеру карты. Обмен валют."},
     {"name": "payments", "description": "Платежи: мобильная связь, поставщики (ЖКХ, интернет, образование, благотворительность)."},
+    {"name": "invest", "description": "Инвестиции: каталог инструментов, котировки, портфель, заявки (рыночные и лимитные), брокерский счёт."},
     {"name": "transactions", "description": "История операций и чеки."},
     {"name": "statistics", "description": "Статистика расходов по месяцам и категориям."},
     {"name": "helper", "description": "OTP: единая точка выдачи одноразовых кодов подтверждения."},
@@ -351,6 +353,7 @@ app.include_router(transactions_router)
 app.include_router(payments_router)
 app.include_router(cards_router)
 app.include_router(statistics_router)
+app.include_router(invest_router)
 
 app.mount(
     "/ui",

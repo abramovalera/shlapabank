@@ -39,6 +39,7 @@ export function GlobalSearch() {
     { key: "p:exchange", title: "Обмен валют", hint: "Конвертация RUB / USD / EUR / CNY", icon: "currency-dollar", to: "/transfers/exchange" },
     { key: "p:by-phone", title: "Перевод по номеру телефона", hint: "СБП", icon: "phone", to: "/transfers/by-phone" },
     { key: "p:by-card", title: "Перевод по номеру карты", hint: "Карта → карта", icon: "credit-card", to: "/transfers/by-card" },
+    { key: "p:invest", title: "Инвестиции", hint: "Терминал, портфель, заявки", icon: "chart-candle", to: "/invest" },
     { key: "p:mobile", title: "Мобильная связь", hint: "Оплата телефона", icon: "device-mobile", to: "/payments/mobile" },
     { key: "p:utility", title: "ЖКХ и поставщики", hint: "Платёж поставщику", icon: "bolt", to: "/payments/utility" },
     { key: "p:profile", title: "Профиль", hint: "Личные данные, безопасность", icon: "user", to: "/profile" },

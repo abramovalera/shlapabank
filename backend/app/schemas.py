@@ -11,6 +11,9 @@ from app.models import (
     CardStatus,
     CardType,
     Currency,
+    OrderSide,
+    OrderStatus,
+    OrderType,
     TransactionStatus,
     TransactionType,
     UserRole,
@@ -617,3 +620,125 @@ class TransactionPublic(BaseModel):
             "to_account_id": orm.to_account_id,
             "status": orm.status,
         }
+
+
+# =========================================================================
+# Инвестиции
+# =========================================================================
+
+
+class InstrumentPublic(BaseModel):
+    """Строка каталога/котировок. Цена и изменение считаются на лету (динамика)."""
+
+    ticker: str
+    name: str
+    cls: str = Field(description="Класс: stock / bond / fund / fx")
+    sector: str
+    lot: int
+    currency: str = "RUB"
+    isin: str
+    price: str
+    change: str
+    change_pct: float
+
+
+class OrderBookLevel(BaseModel):
+    price: str
+    qty: int
+
+
+class OrderBookResponse(BaseModel):
+    ticker: str
+    bids: list[OrderBookLevel]
+    asks: list[OrderBookLevel]
+    spread: str
+
+
+class InstrumentDetail(InstrumentPublic):
+    """Карточка инструмента: сводка за день + внутридневной ряд + доп. факты."""
+
+    open: str
+    high: str
+    low: str
+    volume: int
+    series: list[str]
+    dividend: str | None = None
+    coupon: str | None = None
+    maturity: str | None = None
+    position_qty: int = 0
+    position_avg_price: str | None = None
+
+
+class PositionPublic(BaseModel):
+    ticker: str
+    name: str
+    cls: str
+    quantity: int
+    avg_price: str
+    last_price: str
+    value: str
+    pl: str
+    pl_pct: float
+
+
+class PortfolioResponse(BaseModel):
+    broker_account_id: int
+    broker_account_number: str
+    cash: str
+    positions_value: str
+    total: str
+    pl_total: str
+    pl_total_pct: float
+    positions: list[PositionPublic]
+
+
+class OrderCreateRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "ticker": "SHLP",
+                "side": "BUY",
+                "order_type": "MARKET",
+                "quantity": 10,
+                "otp_code": "1234",
+            }
+        }
+    )
+
+    ticker: str = Field(min_length=1, max_length=16)
+    side: OrderSide
+    order_type: OrderType
+    quantity: int = Field(gt=0)
+    # Обязательна только для LIMIT. Для MARKET игнорируется (берётся рынок).
+    price: Decimal | None = Field(default=None, gt=0)
+    otp_code: OtpCode
+
+
+class OrderPublic(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ticker: str
+    side: OrderSide
+    order_type: OrderType
+    quantity: int
+    price: Decimal
+    executed_price: Decimal | None = None
+    fee: Decimal
+    status: OrderStatus
+    created_at: datetime
+    executed_at: datetime | None = None
+
+    @field_serializer("price", "executed_price", "fee")
+    def _money(self, v: Decimal | None):
+        return None if v is None else str(Decimal(v).quantize(Decimal("0.01")))
+
+
+class BrokerDepositRequest(BaseModel):
+    """Пополнение брокерского счёта с обычного RUB-счёта (или вывод обратно)."""
+
+    model_config = ConfigDict(json_schema_extra={"example": {"account_id": 1, "amount": "50000.00", "otp_code": "1234"}})
+
+    account_id: int = Field(description="RUB-счёт списания (пополнение) или зачисления (вывод)")
+    amount: Decimal = Field(gt=0)
+    otp_code: OtpCode

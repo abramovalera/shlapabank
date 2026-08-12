@@ -46,6 +46,7 @@ ERROR_MESSAGES: dict[str, str] = {
     # ---- Transfers ----
     "transfer_same_account": "Нельзя перевести на тот же счёт",
     "transfer_not_allowed_from_savings": "Со сберегательного счёта переводы запрещены",
+    "transfer_not_allowed_for_brokerage": "Брокерский счёт участвует только в операциях раздела «Инвестиции»",
     "transfer_amount_too_small": "Сумма меньше минимальной для перевода",
     "transfer_amount_exceeds_single_limit": "Сумма превышает разовый лимит",
     "transfer_amount_exceeds_daily_limit": "Сумма превышает суточный лимит",
@@ -64,6 +65,20 @@ ERROR_MESSAGES: dict[str, str] = {
     "payment_requires_rub_account": "Оплата возможна только с рублёвого счёта",
     "payment_provider_not_supported": "Поставщик не поддерживается",
     "payment_account_length_mismatch": "Неверная длина лицевого счёта",
+    # ---- Invest ----
+    "instrument_not_found": "Инструмент не найден",
+    "invest_order_not_found": "Заявка не найдена",
+    "invest_position_not_found": "В портфеле нет такой позиции",
+    "lot_size_mismatch": "Количество должно быть кратно размеру лота",
+    "quantity_must_be_positive": "Количество должно быть больше 0",
+    "price_out_of_band": "Цена лимитной заявки слишком далеко от рынка (допустимо ±20 %)",
+    "invest_amount_out_of_range": "Сумма сделки вне допустимого диапазона",
+    "insufficient_position": "Недостаточно бумаг для продажи",
+    "insufficient_broker_funds": "Недостаточно средств на брокерском счёте",
+    "broker_account_not_found": "Брокерский счёт не найден",
+    "limit_price_required": "Для лимитной заявки нужна цена",
+    "order_not_active": "Заявку нельзя отменить — она уже исполнена или отменена",
+    "withdraw_requires_zero_positions": "Сначала продайте все бумаги",
     # ---- Admin / Helper ----
     "forbidden_account_access": "Нет доступа к этому счёту",
     "forbidden_admin_only": "Действие доступно только администратору",
