@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    min-width: 320px;
+    background: #f3f4f7;
+    color: #1f2d3d;
+    font-family: Inter, Roboto, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 22px;
+    font-variant-numeric: tabular-nums;
+  }
+  a {
+    color: #007dff;
+    text-decoration: none;
+  }
+  a:hover {
+    color: #0866d6;
+    text-decoration: underline;
+  }
+  button,
+  input,
+  select {
+    font-family: inherit;
+  }
+}

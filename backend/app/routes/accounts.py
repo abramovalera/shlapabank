@@ -1,333 +1,132 @@
-from decimal import Decimal
-import random
-
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Response
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_own_account, get_own_active_account
+from app import clock
 from app.db import get_db
-from app.models import (
-    Account,
-    AccountType,
-    Currency,
-    Transaction,
-    TransactionStatus,
-    TransactionType,
-    User,
-)
-from app.otp import validate_otp_for_user
-from app.schemas import (
-    AccountCreateRequest,
-    AccountPublic,
-    AccountTopupRequest,
-    AccountUpdateRequest,
-    ActionResponse,
-    PrimaryAccountsRequest,
-    TransactionPublic,
-)
-from app.security import require_active_user
+from app.errors import ApiError
+from app.models import Account, Card, User
+from app.rules import mask_card, money
+from app.schemas import AccountIn, AccountOut, CardIn, CardOut, CardRequisitesOut
+from app.security import current_user
+from app.seed import new_account, new_card
+from app.sms import iso
 
-router = APIRouter(prefix="/api/v1/accounts", tags=["accounts"])
+router = APIRouter(tags=["Счета и карта"])
 
-_MAX_BALANCE = Decimal("999999999999.99")
-
-MAX_BY_RUB = 3
-MAX_BY_FOREIGN = 3
+MAX_ACCOUNTS = 3
 
 
-def _foreign_currencies():
-    return [Currency.USD, Currency.EUR, Currency.CNY]
-
-
-def _generate_account_number(currency: Currency) -> str:
-    """
-    Генерация цифрового номера счета с маской по валюте.
-
-    RUB  -> 2202XXXXXXXXXXXX
-    USD  -> 3202XXXXXXXXXXXX
-    EUR  -> 4202XXXXXXXXXXXX
-    CNY  -> 5202XXXXXXXXXXXX
-    """
-    prefixes: dict[Currency, str] = {
-        Currency.RUB: "2202",
-        Currency.USD: "3202",
-        Currency.EUR: "4202",
-        Currency.CNY: "5202",
-    }
-    prefix = prefixes.get(currency, "9999")
-    suffix_length = 16 - len(prefix)
-    if suffix_length < 4:
-        suffix_length = 4
-    suffix = "".join(random.choices("0123456789", k=suffix_length))
-    return f"{prefix}{suffix}"
-
-
-@router.get("", response_model=list[AccountPublic], summary="Получить список своих активных счетов")
-def list_accounts(
-    current_user: User = Depends(require_active_user),
-    db: Session = Depends(get_db),
-):
-    # Брокерский счёт (account_type=BROKER) в общий список не показываем —
-    # он живёт в разделе «Инвестиции» (GET /invest/portfolio).
-    return db.scalars(
-        select(Account).where(
-            Account.user_id == current_user.id,
-            Account.is_active.is_(True),
-            Account.account_type != AccountType.BROKER,
-        )
-    ).all()
-
-
-@router.get(
-    "/{account_id}",
-    response_model=AccountPublic,
-    summary="Получить один свой счёт по id",
-    description="Возвращает детали одного счёта. Доступно только владельцу.",
-)
-def get_account(
-    account_id: int,
-    current_user: User = Depends(require_active_user),
-    db: Session = Depends(get_db),
-):
-    return get_own_account(account_id, current_user, db)
-
-
-@router.post(
-    "",
-    response_model=AccountPublic,
-    status_code=201,
-    summary="Открыть счёт",
-)
-def create_account(
-    payload: AccountCreateRequest,
-    current_user: User = Depends(require_active_user),
-    db: Session = Depends(get_db),
-):
-    if not payload.accept_terms:
-        raise HTTPException(status_code=400, detail="terms_not_accepted")
-
-    user_accounts = db.scalars(
-        select(Account).where(
-            Account.user_id == current_user.id,
-            Account.is_active.is_(True),
-            Account.account_type != AccountType.BROKER,
-        )
-    ).all()
-
-    rub_count = len([acc for acc in user_accounts if acc.currency == Currency.RUB])
-    foreign_count = len([acc for acc in user_accounts if acc.currency in _foreign_currencies()])
-
-    if payload.currency == Currency.RUB and rub_count >= MAX_BY_RUB:
-        raise HTTPException(status_code=400, detail="account_limit_exceeded")
-    if payload.currency in _foreign_currencies() and foreign_count >= MAX_BY_FOREIGN:
-        raise HTTPException(status_code=400, detail="account_limit_exceeded")
-
-    # Название: пользовательское или авто-«Счёт N» / «Накопительный N».
-    name = (payload.name or "").strip()
-    if not name:
-        prefix = "Накопительный" if payload.account_type.value == "SAVINGS" else "Счёт"
-        similar_count = sum(1 for a in user_accounts if a.name.startswith(prefix))
-        name = f"{prefix} {similar_count + 1}"
-
-    account = Account(
-        account_number=_generate_account_number(payload.currency),
-        user_id=current_user.id,
-        account_type=payload.account_type,
-        currency=payload.currency,
-        name=name,
-    )
-    db.add(account)
-    # Карту к счёту НЕ выпускаем автоматически — пользователь сам решит на след. шаге
-    # через модалку выпуска карты (см. IssueAccountModal → IssueCardModal preset).
-    db.commit()
-    db.refresh(account)
+def own_open_account(db: Session, user: User, account_id: int, field: str = "account_id", lock: bool = False) -> Account:
+    q = select(Account).where(Account.id == account_id, Account.user_id == user.id, Account.is_open.is_(True))
+    if lock:
+        q = q.with_for_update()
+    account = db.scalar(q)
+    if not account:
+        raise ApiError(404, "account_not_found", field=field)
     return account
 
 
-@router.patch(
-    "/{account_id}",
-    response_model=AccountPublic,
-    summary="Переименовать счёт",
-)
-def rename_account(
-    account_id: int,
-    payload: AccountUpdateRequest,
-    current_user: User = Depends(require_active_user),
-    db: Session = Depends(get_db),
-):
-    account = get_own_account(account_id, current_user, db)
-    account.name = payload.name.strip()
-    db.add(account)
+def account_out(account: Account, card: Card | None) -> AccountOut:
+    return AccountOut(id=account.id, number=account.number, name=account.name, balance=money(account.balance),
+                      has_card=bool(card and card.account_id == account.id), created_at=iso(account.created_at))
+
+
+def card_out(card: Card) -> CardOut:
+    return CardOut(id=card.id, number_masked=mask_card(card.number), last4=card.number[-4:], expiry=card.expiry,
+                   holder=card.holder, account_id=card.account_id, status=card.status)
+
+
+def _user_card(db: Session, user: User) -> Card | None:
+    return db.scalar(select(Card).where(Card.user_id == user.id))
+
+
+def _check_name_free(db: Session, user: User, name: str, except_id: int | None = None) -> None:
+    q = select(Account.id).where(Account.user_id == user.id, Account.is_open.is_(True),
+                                 func.lower(Account.name) == name.lower())
+    if except_id:
+        q = q.where(Account.id != except_id)
+    if db.scalar(q):
+        raise ApiError(409, "account_name_taken", field="name")
+
+
+@router.get("/accounts", response_model=list[AccountOut], summary="Открытые счета")
+def list_accounts(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    card = _user_card(db, user)
+    accounts = db.scalars(select(Account).where(Account.user_id == user.id, Account.is_open.is_(True)).order_by(Account.id))
+    return [account_out(a, card) for a in accounts]
+
+
+@router.post("/accounts", status_code=201, response_model=AccountOut, summary="Открыть счёт")
+def open_account(body: AccountIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    count = db.scalar(select(func.count()).where(Account.user_id == user.id, Account.is_open.is_(True)))
+    if count >= MAX_ACCOUNTS:
+        raise ApiError(409, "accounts_limit")
+    _check_name_free(db, user, body.name)
+    account = new_account(db, user, body.name)
     db.commit()
-    db.refresh(account)
-    return account
+    return account_out(account, None)
 
 
-@router.put(
-    "/primary",
-    response_model=ActionResponse,
-    summary="Установить приоритетные счета (по одному на валюту)",
-)
-def set_primary_accounts(
-    payload: PrimaryAccountsRequest,
-    current_user: User = Depends(require_active_user),
-    db: Session = Depends(get_db),
-):
-    """Помечает указанные счета как приоритетные. Остальные снимаются с приоритета."""
-    owned = list(
-        db.scalars(
-            select(Account).where(
-                Account.user_id == current_user.id,
-                Account.is_active.is_(True),
-            )
-        )
-    )
-    owned_ids = {a.id for a in owned}
-    for aid in payload.account_ids:
-        if aid not in owned_ids:
-            raise HTTPException(status_code=404, detail="account_not_found")
-
-    for acc in owned:
-        acc.is_primary = acc.id in payload.account_ids
-        db.add(acc)
+@router.patch("/accounts/{account_id}", response_model=AccountOut, summary="Переименовать счёт")
+def rename_account(account_id: int, body: AccountIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    account = own_open_account(db, user, account_id)
+    _check_name_free(db, user, body.name, except_id=account.id)
+    account.name = body.name
     db.commit()
-    return ActionResponse(detail="primary_accounts_updated")
+    return account_out(account, _user_card(db, user))
 
 
-@router.delete(
-    "/{account_id}",
-    response_model=ActionResponse,
-    summary="Закрыть счёт",
-)
-def close_account(
-    account_id: int,
-    current_user: User = Depends(require_active_user),
-    db: Session = Depends(get_db),
-):
-    account = get_own_account(account_id, current_user, db)
-    if not account.is_active:
-        raise HTTPException(status_code=400, detail="account_already_closed")
-    if account.balance != Decimal("0.00"):
-        raise HTTPException(status_code=400, detail="account_close_requires_zero_balance")
-
-    account.is_active = False
-    db.add(account)
+@router.delete("/accounts/{account_id}", status_code=204, summary="Закрыть счёт")
+def close_account(account_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Закрыть можно счёт с нулевым балансом, без карты и не единственный."""
+    account = own_open_account(db, user, account_id)
+    if account.balance != 0:
+        raise ApiError(409, "account_not_empty")
+    card = _user_card(db, user)
+    if card and card.account_id == account.id:
+        raise ApiError(409, "account_has_card")
+    count = db.scalar(select(func.count()).where(Account.user_id == user.id, Account.is_open.is_(True)))
+    if count <= 1:
+        raise ApiError(409, "last_account")
+    account.is_open = False
+    account.closed_at = clock.now()
     db.commit()
-    return ActionResponse(detail="account_closed")
+    return Response(status_code=204)
 
 
-@router.post(
-    "/{account_id}/topup",
-    response_model=TransactionPublic,
-    status_code=201,
-    summary="Пополнить счёт (с OTP-подтверждением)",
-    description=(
-        "«Официальное» пополнение счёта с подтверждением OTP-кодом.\n\n"
-        "**Отличие от `POST /accounts/{id}/deposit`:** этот эндпоинт требует OTP из SMS, "
-        "используйте его когда моделируете «настоящее» банковское пополнение. Для быстрого "
-        "тестового пополнения без OTP — используйте `/deposit`."
-    ),
-)
-def topup_account(
-    account_id: int,
-    payload: AccountTopupRequest,
-    current_user: User = Depends(require_active_user),
-    db: Session = Depends(get_db),
-):
-    if not validate_otp_for_user(current_user.id, payload.otp_code):
-        raise HTTPException(status_code=400, detail="invalid_otp_code")
+@router.get("/card", response_model=CardOut, summary="Виртуальная карта")
+def get_card(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    card = _user_card(db, user)
+    if not card:
+        raise ApiError(404, "card_not_found")
+    return card_out(card)
 
-    if payload.amount <= Decimal("0.00"):
-        raise HTTPException(status_code=400, detail="amount_must_be_positive")
 
-    account = get_own_active_account(account_id, current_user, db, for_update=True)
-
-    if account.balance + payload.amount > _MAX_BALANCE:
-        raise HTTPException(status_code=400, detail="amount_too_large")
-
-    account.balance += payload.amount
-
-    desc = "self_topup"
-    if payload.purpose:
-        desc = f"self_topup:{payload.purpose}"
-
-    tx = Transaction(
-        from_account_id=None,
-        to_account_id=account.id,
-        type=TransactionType.TOPUP,
-        amount=payload.amount,
-        currency=account.currency,
-        status=TransactionStatus.COMPLETED,
-        initiated_by=current_user.id,
-        description=desc,
-        fee=Decimal("0"),
-    )
-    db.add(account)
-    db.add(tx)
+@router.post("/card", status_code=201, response_model=CardOut, summary="Выпустить виртуальную карту")
+def issue_card(body: CardIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    if _user_card(db, user):
+        raise ApiError(409, "card_already_exists")
+    account = own_open_account(db, user, body.account_id)
+    card = new_card(db, user, account)
     db.commit()
-    db.refresh(tx)
-    return tx
+    return card_out(card)
 
 
-class DepositRequest(BaseModel):
-    """Быстрое пополнение своего счёта — без OTP, максимум для удобства.
-
-    Используется для UI-виджета «пополнить» и для автотестов.
-    Доступно только владельцу счёта.
-    """
-
-    model_config = ConfigDict(json_schema_extra={"example": {"amount": "5000.00", "purpose": "gift"}})
-
-    amount: Decimal = Field(gt=0, description="Сумма пополнения")
-    purpose: str | None = Field(default=None, max_length=30, description="Метка: gift, salary, other…")
-
-
-@router.post(
-    "/{account_id}/deposit",
-    response_model=TransactionPublic,
-    status_code=201,
-    summary="Пополнить свой счёт (без OTP)",
-    description=(
-        "**Нужен для пополнения счёта через UI для удобства** — клик по логотипу "
-        "открывает модалку быстрого пополнения без ввода SMS-кода.\n\n"
-        "В отличие от `/topup`, не требует OTP, но доступно только владельцу счёта. "
-        "Для «настоящего» банковского пополнения с подтверждением используйте `POST /accounts/{id}/topup`."
-    ),
-)
-def deposit_account(
-    account_id: int,
-    payload: DepositRequest,
-    current_user: User = Depends(require_active_user),
-    db: Session = Depends(get_db),
-):
-    if payload.amount <= Decimal("0.00"):
-        raise HTTPException(status_code=400, detail="amount_must_be_positive")
-
-    account = get_own_active_account(account_id, current_user, db, for_update=True)
-    if account.balance + payload.amount > _MAX_BALANCE:
-        raise HTTPException(status_code=400, detail="amount_too_large")
-
-    account.balance += payload.amount
-
-    desc = "self_deposit"
-    if payload.purpose:
-        desc = f"self_deposit:{payload.purpose}"
-
-    tx = Transaction(
-        from_account_id=None,
-        to_account_id=account.id,
-        type=TransactionType.TOPUP,
-        amount=payload.amount,
-        currency=account.currency,
-        status=TransactionStatus.COMPLETED,
-        initiated_by=current_user.id,
-        description=desc,
-        fee=Decimal("0"),
-    )
-    db.add(account)
-    db.add(tx)
+@router.patch("/card", response_model=CardOut, summary="Привязать карту к другому счёту")
+def relink_card(body: CardIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    card = _user_card(db, user)
+    if not card:
+        raise ApiError(404, "card_not_found")
+    account = own_open_account(db, user, body.account_id)
+    card.account_id = account.id
     db.commit()
-    db.refresh(tx)
-    return tx
+    return card_out(card)
+
+
+@router.get("/card/requisites", response_model=CardRequisitesOut, summary="Реквизиты карты")
+def card_requisites(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    card = _user_card(db, user)
+    if not card:
+        raise ApiError(404, "card_not_found")
+    return CardRequisitesOut(number=card.number, expiry=card.expiry, cvv=card.cvv, holder=card.holder)

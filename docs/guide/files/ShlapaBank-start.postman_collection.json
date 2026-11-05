@@ -1,0 +1,211 @@
+{
+  "info": {
+    "name": "ShlapaBank — Как начать",
+    "description": "Тест 2 из документации: новый клиент пополняет счёт с карты другого банка и переводит 1 000 ₽ клиенту ShlapaBank. Запуск: Run collection. Телефон для нового клиента выбирается случайно, поэтому коллекцию можно запускать сколько угодно раз.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080/api/v1" },
+    { "key": "password", "value": "Start1234!" },
+    { "key": "phone", "value": "" },
+    { "key": "challenge_id", "value": "" },
+    { "key": "code", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "account_id", "value": "" },
+    { "key": "operation_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0. Регистрация",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": { "type": "text/javascript", "exec": [
+            "// Случайный телефон 900XXXXXXX — у каждого запуска свой клиент",
+            "const tail = String(Math.floor(Math.random() * 1e7)).padStart(7, '0');",
+            "pm.collectionVariables.set('phone', '900' + tail);"
+          ] }
+        },
+        {
+          "listen": "test",
+          "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 — клиент создан', () => pm.response.to.have.status(201));"
+          ] }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"phone\": \"+7{{phone}}\",\n  \"password\": \"{{password}}\",\n  \"first_name\": \"Олег\",\n  \"last_name\": \"Тестов\"\n}" },
+        "url": "{{baseUrl}}/auth/register"
+      }
+    },
+    {
+      "name": "1. Вход: телефон и пароль",
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('200 — код отправлен', () => pm.response.to.have.status(200));",
+          "pm.collectionVariables.set('challenge_id', pm.response.json().challenge_id);"
+        ] }
+      }],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"phone\": \"+7{{phone}}\",\n  \"password\": \"{{password}}\"\n}" },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "2. Код из SMS (вход)",
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "const sms = pm.response.json()[0];",
+          "pm.test('SMS для входа', () => pm.expect(sms.purpose).to.eql('LOGIN'));",
+          "pm.collectionVariables.set('code', sms.code);"
+        ] }
+      }],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "url": "{{baseUrl}}/test/sms?phone={{phone}}&limit=1"
+      }
+    },
+    {
+      "name": "3. Подтверждение входа",
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('200 — получен токен', () => pm.response.to.have.status(200));",
+          "pm.collectionVariables.set('token', pm.response.json().access_token);"
+        ] }
+      }],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"challenge_id\": \"{{challenge_id}}\",\n  \"code\": \"{{code}}\"\n}" },
+        "url": "{{baseUrl}}/auth/login/confirm"
+      }
+    },
+    {
+      "name": "4. Счета",
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "const account = pm.response.json()[0];",
+          "pm.test('Счёт «Основной» с балансом 0', () => {",
+          "  pm.expect(account.name).to.eql('Основной');",
+          "  pm.expect(account.balance).to.eql('0.00');",
+          "});",
+          "pm.collectionVariables.set('account_id', account.id);"
+        ] }
+      }],
+      "request": { "method": "GET", "url": "{{baseUrl}}/accounts" }
+    },
+    {
+      "name": "5. Пополнение с карты другого банка",
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('201 — пополнение выполнено', () => {",
+          "  pm.response.to.have.status(201);",
+          "  pm.expect(pm.response.json().status).to.eql('DONE');",
+          "});"
+        ] }
+      }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"to_account_id\": {{account_id}},\n  \"card_number\": \"4276000000001015\",\n  \"expiry\": \"12/30\",\n  \"cvc\": \"123\",\n  \"amount\": \"5000\"\n}" },
+        "url": "{{baseUrl}}/operations/topup"
+      }
+    },
+    {
+      "name": "6. Перевод по телефону",
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "const op = pm.response.json();",
+          "pm.test('201 — ждёт кода, без комиссии', () => {",
+          "  pm.response.to.have.status(201);",
+          "  pm.expect(op.status).to.eql('WAITING_CODE');",
+          "  pm.expect(op.fee).to.eql('0.00');",
+          "});",
+          "pm.collectionVariables.set('operation_id', op.id);"
+        ] }
+      }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"from_account_id\": {{account_id}},\n  \"phone\": \"+79000000001\",\n  \"amount\": \"1000\"\n}" },
+        "url": "{{baseUrl}}/operations/phone-transfer"
+      }
+    },
+    {
+      "name": "7. Код из SMS (операция)",
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "const sms = pm.response.json()[0];",
+          "pm.test('SMS для операции', () => pm.expect(sms.purpose).to.eql('OPERATION'));",
+          "pm.collectionVariables.set('code', sms.code);"
+        ] }
+      }],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "url": "{{baseUrl}}/test/sms?phone={{phone}}&limit=1"
+      }
+    },
+    {
+      "name": "8. Подтверждение перевода",
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('200 — перевод выполнен', () => {",
+          "  pm.response.to.have.status(200);",
+          "  pm.expect(pm.response.json().status).to.eql('DONE');",
+          "});"
+        ] }
+      }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"code\": \"{{code}}\"\n}" },
+        "url": "{{baseUrl}}/operations/{{operation_id}}/confirm"
+      }
+    },
+    {
+      "name": "9. Проверка: баланс",
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('На счёте 4 000 ₽', () => pm.expect(pm.response.json()[0].balance).to.eql('4000.00'));"
+        ] }
+      }],
+      "request": { "method": "GET", "url": "{{baseUrl}}/accounts" }
+    },
+    {
+      "name": "10. Проверка: история",
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "const page = pm.response.json();",
+          "pm.test('Две выполненные операции', () => {",
+          "  pm.expect(page.total).to.eql(2);",
+          "  page.items.forEach(op => pm.expect(op.status).to.eql('DONE'));",
+          "});"
+        ] }
+      }],
+      "request": { "method": "GET", "url": "{{baseUrl}}/operations" }
+    }
+  ]
+}

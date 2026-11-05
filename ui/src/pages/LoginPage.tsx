@@ -1,177 +1,318 @@
-import { FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { api } from "@/shared/api/client";
-import { useAuthStore } from "@/shared/stores/auth";
-import { TokenResponse } from "@/shared/api/types";
-import { AuthShell, AuthLogo } from "@/features/auth/AuthShell";
-import { LoginProgress } from "@/features/auth/LoginProgress";
-import { DEMO_LOGIN, DEMO_PASSWORD } from "@/features/auth/demo";
-import { resetUserCache } from "@/shared/lib/authCache";
-import { apiErrorCode } from "@/shared/api/errors";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { fetchLoginChallenge, useGuardedMutate, useLogin, useLoginConfirm, useLoginResend } from "../api/hooks";
+import {
+  readLastPhone,
+  readLoginChallenge,
+  useSession,
+  writeLastPhone,
+  writeLoginChallenge,
+  type SavedLoginChallenge,
+} from "../api/session";
+import type { ApiError } from "../api/client";
+import type { LoginChallenge } from "../api/types";
+import { Button } from "../ui/Button";
+import { Field, PasswordInput, PhoneInput } from "../ui/fields";
+import { Notice } from "../ui/blocks";
+import { CodeStep, expiryDeadline, resendDeadline } from "../ui/code";
+import { maskPhone10 } from "../ui/format";
+import { PASSWORD_MAX, onlyDigits, phoneToApi } from "../ui/validate";
 
-/** Экран входа. Логин + пароль → JWT → дашборд. */
+interface LocationState {
+  from?: string;
+  phone?: string;
+  registered?: boolean;
+}
+
+/** Ошибки, после которых этот код уже не подтвердить — нужно войти заново. */
+const DEAD_CHALLENGE = ["code_attempts_exceeded", "challenge_not_found"];
+
+/**
+ * Шаг ввода кода, сохранённый до обновления страницы. Сроки потом сверяются с банком:
+ * если банк этот вход уже не знает — возвращаемся к форме с подставленным телефоном.
+ */
+function savedChallenge(): { restored: SavedLoginChallenge | null; phone: string } {
+  const saved = readLoginChallenge();
+  return saved ? { restored: saved, phone: saved.phone } : { restored: null, phone: "" };
+}
+
+/** Как часто сверять таймеры шага кода с часами банка. */
+const SYNC_EVERY_MS = 15_000;
+
+/** Шаг кода из ответа банка: сроки — момент ответа + секунды (часы банка ≠ часы браузера). */
+function toSaved(ch: LoginChallenge, phone: string): SavedLoginChallenge {
+  const at = Date.now();
+  const expiresAt = expiryDeadline(ch.expires_in_seconds, at);
+  return {
+    challenge_id: ch.challenge_id,
+    phone_masked: ch.phone_masked,
+    phone,
+    resendAt: resendDeadline(ch.resend_in_seconds, at),
+    // Банк не прислал срок — считаем стандартные 5 минут, чтобы не держать шаг вечно
+    expiresAt: Number.isFinite(expiresAt) ? expiresAt : at + 5 * 60_000,
+  };
+}
+
 export function LoginPage() {
+  const location = useLocation();
   const navigate = useNavigate();
-  const qc = useQueryClient();
-  const setToken = useAuthStore((s) => s.setToken);
+  const state = (location.state ?? {}) as LocationState;
+  const signIn = useSession((s) => s.signIn);
+  const expired = useSession((s) => s.expired);
 
-  const [login, setLogin] = useState("");
+  // Шаг ввода кода, сохранённый до обновления страницы (если код ещё не истёк)
+  const [saved] = useState(savedChallenge);
+  const restored = saved.restored;
+  // Номер из регистрации, иначе — из прерванного входа, иначе — номер последнего входа
+  const [phone, setPhone] = useState(() => maskPhone10(state.phone || saved.phone || readLastPhone()));
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Экран-прогресс после успешной авторизации (2 сек)
-  const [showProgress, setShowProgress] = useState(false);
+  const [formError, setFormError] = useState<ApiError | null>(null);
 
-  async function loginWith(loginValue: string, passwordValue: string) {
-    const { data } = await api.post<TokenResponse>("/auth/login", {
-      login: loginValue,
-      password: passwordValue,
-    });
-    // Сброс кеша прошлого юзера — важно, чтобы новый не видел чужие данные
-    resetUserCache(qc);
-    setToken(data.access_token, data.role ?? null, loginValue);
-    setShowProgress(true);
+  // Текущий шаг кода: challenge, телефон и сроки по часам браузера (см. toSaved)
+  const [challenge, setChallengeState] = useState<SavedLoginChallenge | null>(restored);
+  // Шаг восстановлен после обновления страницы: если банк его уже не знает — тихо назад к форме
+  const [isRestored, setIsRestored] = useState(!!restored);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
+
+  const login = useLogin();
+  const confirm = useLoginConfirm();
+  const resend = useLoginResend();
+  const loginOnce = useGuardedMutate(login);
+  const confirmOnce = useGuardedMutate(confirm);
+  const resendOnce = useGuardedMutate(resend);
+
+  function setChallenge(v: SavedLoginChallenge | null) {
+    setChallengeState(v);
+    writeLoginChallenge(v);
   }
 
-  function onProgressDone() {
-    setShowProgress(false);
-    navigate("/home", { replace: true });
+  /** Сохранённый шаг кода банк уже не знает (404) — без ошибки возвращаем на ввод телефона. */
+  function dropRestored() {
+    setChallenge(null);
+    setIsRestored(false);
+    setCodeError(null);
+    setLocked(false);
+    setPhone(maskPhone10(challenge?.phone || readLastPhone()));
+    confirm.reset();
+    resend.reset();
   }
 
-  async function onSubmit(e: FormEvent) {
+  // Таймеры шага кода — по часам банка: сверяемся сразу (после обновления страницы) и раз в 15 секунд.
+  const challengeId = challenge?.challenge_id;
+  useEffect(() => {
+    if (!challengeId || locked) return;
+    let alive = true;
+    const sync = () =>
+      fetchLoginChallenge(challengeId).then(
+        (ch) => {
+          if (!alive) return;
+          setChallengeState((cur) => {
+            if (!cur || cur.challenge_id !== ch.challenge_id) return cur;
+            const next = toSaved(ch, cur.phone);
+            writeLoginChallenge(next);
+            return next;
+          });
+        },
+        (e: ApiError) => {
+          if (!alive || e.status !== 404) return;
+          if (isRestored) dropRestored();
+          else {
+            setCodeError(e.message);
+            setLocked(true);
+          }
+        },
+      );
+    sync();
+    const timer = window.setInterval(sync, SYNC_EVERY_MS);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [challengeId, locked]);
+
+  const phoneDigits = onlyDigits(phone);
+  const pwd = password.trim();
+  const problem = phoneDigits.length < 10 ? "Введите номер телефона полностью" : !pwd ? "Введите пароль" : null;
+
+  function submitCredentials(e: FormEvent) {
     e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      await loginWith(login, password);
-    } catch (err: any) {
-      const code = apiErrorCode(err);
-      setError(code ? mapAuthError(code) : "Не удалось войти");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function onDemoLogin() {
-    setError(null);
-    setLoading(true);
-    try {
-      await loginWith(DEMO_LOGIN, DEMO_PASSWORD);
-    } catch (err: any) {
-      setError("Демо-аккаунт недоступен. Убедитесь что бэкенд запущен.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (showProgress) {
-    return (
-      <AuthShell>
-        <LoginProgress onDone={onProgressDone} />
-      </AuthShell>
+    if (problem || login.isPending) return;
+    setFormError(null);
+    loginOnce(
+      { phone: phoneToApi(phoneDigits), password: pwd },
+      {
+        onSuccess: (ch) => {
+          setChallenge(toSaved(ch, phoneDigits));
+          setIsRestored(false);
+          setCodeError(null);
+          setLocked(false);
+          setResetKey((k) => k + 1);
+        },
+        onError: setFormError,
+      },
     );
   }
 
+  function submitCode(code: string) {
+    if (!challenge || confirm.isPending) return;
+    setCodeError(null);
+    confirmOnce(
+      { challenge_id: challenge.challenge_id, code },
+      {
+        onSuccess: (r) => {
+          writeLastPhone(challenge.phone);
+          writeLoginChallenge(null);
+          signIn(r.access_token);
+          navigate(state.from && state.from !== "/login" ? state.from : "/", { replace: true });
+        },
+        onError: (e) => {
+          if (isRestored && e.status === 404) return dropRestored();
+          if (e.code === "invalid_code" && e.attemptsLeft != null) {
+            setCodeError(`Неверный код. Осталось попыток: ${e.attemptsLeft}`);
+            if (e.attemptsLeft <= 0) setLocked(true);
+          } else {
+            setCodeError(e.message);
+            if (DEAD_CHALLENGE.includes(e.code)) setLocked(true);
+          }
+          setResetKey((k) => k + 1);
+        },
+      },
+    );
+  }
+
+  function resendCode() {
+    if (!challenge || resend.isPending) return;
+    const current = challenge;
+    resendOnce(
+      { challenge_id: current.challenge_id },
+      {
+        onSuccess: (ch) => {
+          setChallenge(toSaved(ch, current.phone));
+          setCodeError(null);
+          setResetKey((k) => k + 1);
+        },
+        onError: (e) => {
+          if (isRestored && e.status === 404) return dropRestored();
+          setCodeError(e.message);
+          // 429 resend_too_early: банк сообщает, сколько ещё ждать
+          if (e.resendInSeconds != null) setChallenge({ ...current, resendAt: resendDeadline(e.resendInSeconds) });
+          if (DEAD_CHALLENGE.includes(e.code)) setLocked(true);
+        },
+      },
+    );
+  }
+
+  function backToForm() {
+    setChallenge(null);
+    setIsRestored(false);
+    setCodeError(null);
+    setLocked(false);
+    confirm.reset();
+  }
+
+  const fieldError = (f: string) => (formError?.field === f ? formError.message : null);
+  const generalError = formError && !["phone", "password"].includes(formError.field ?? "") ? formError.message : null;
+
   return (
-    <AuthShell>
-      <AuthLogo />
-      <div className="text-center text-[22px] font-semibold text-ink-primary">
-        Вход в ShlapaBank
-      </div>
-      <div className="text-center text-[13px] text-ink-secondary mb-5">
-        Войдите в свой аккаунт
-      </div>
-
-      <form onSubmit={onSubmit} className="flex flex-col gap-2.5">
-        <input
-          className="input h-12 rounded-control px-4 text-[14px]"
-          placeholder="Логин или телефон (+7…)"
-          value={login}
-          onChange={(e) => setLogin(e.target.value)}
-          autoComplete="username"
-          required
-        />
-
-        <div className="relative">
-          <input
-            className="input h-12 pr-11 rounded-control px-4 text-[14px]"
-            placeholder="Пароль"
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((v) => !v)}
-            aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-primary transition p-1"
-          >
-            <i
-              className={`ti ti-${showPassword ? "eye-off" : "eye"} text-lg`}
-              aria-hidden="true"
-            ></i>
-          </button>
-        </div>
-
-        {error && (
-          <div className="text-xs text-danger bg-danger-soft rounded-control px-3 py-2">
-            {error}
-          </div>
+    <main className="mx-auto flex max-w-page justify-center px-4 py-10 sm:px-6">
+      <section className="flex w-full max-w-[440px] flex-col gap-[18px] rounded-dialog bg-white p-6 shadow-dialog sm:p-7">
+        {challenge ? (
+          <>
+            <h1 className="text-[22px] font-bold leading-[30px]">Введите код из SMS</h1>
+            <CodeStep
+              testPrefix="login-code"
+              sentTo={challenge.phone_masked}
+              resendAt={challenge.resendAt}
+              expiresAt={challenge.expiresAt}
+              error={codeError}
+              locked={locked}
+              verifying={confirm.isPending}
+              resending={resend.isPending}
+              onSubmit={submitCode}
+              onResend={resendCode}
+              resetKey={resetKey}
+              footer={
+                <Button variant="secondary" data-testid="login-code-back" onClick={backToForm}>
+                  {locked ? "Войти заново" : "Изменить номер или пароль"}
+                </Button>
+              }
+            />
+          </>
+        ) : (
+          <form className="flex flex-col gap-[18px]" onSubmit={submitCredentials} noValidate>
+            <div>
+              <h1 className="text-[22px] font-bold leading-[30px]">Вход в ShlapaBank</h1>
+              <div className="mt-1 text-ink-muted">По номеру телефона и паролю</div>
+            </div>
+            {expired && !state.registered && (
+              <Notice tone="info" testId="login-session-expired">
+                Сессия истекла, войдите снова
+              </Notice>
+            )}
+            {state.registered && (
+              <Notice tone="success" testId="login-registered">
+                Готово, вы зарегистрированы. Войдите с новым паролем.
+              </Notice>
+            )}
+            <Field id="login-phone" label="Телефон" testId="login-phone" error={fieldError("phone")}>
+              <PhoneInput
+                id="login-phone"
+                data-testid="login-phone"
+                value={phone}
+                onValueChange={(v) => {
+                  setPhone(v);
+                  setFormError(null);
+                }}
+                invalid={!!fieldError("phone")}
+                autoComplete="username"
+              />
+            </Field>
+            <Field id="login-password" label="Пароль" testId="login-password" error={fieldError("password")}>
+              <PasswordInput
+                id="login-password"
+                data-testid="login-password"
+                toggleTestId="login-password-toggle"
+                value={password}
+                onValueChange={(v) => {
+                  setPassword(v);
+                  setFormError(null);
+                }}
+                maxLength={PASSWORD_MAX}
+                autoComplete="current-password"
+                invalid={!!fieldError("password")}
+              />
+            </Field>
+            {generalError && (
+              <Notice tone="error" testId="login-error">
+                {generalError}
+              </Notice>
+            )}
+            <Button
+              type="submit"
+              size="lg"
+              data-testid="login-submit"
+              disabled={!!problem}
+              loading={login.isPending}
+            >
+              Войти
+            </Button>
+            {problem && (
+              <div className="-mt-2 text-center text-[13px] text-ink-muted" data-testid="login-submit-hint">
+                {problem}
+              </div>
+            )}
+            <div className="text-center text-sm text-ink-muted">
+              Ещё не клиент?{" "}
+              <Link to="/register" data-testid="login-register-link" className="font-medium">
+                Зарегистрироваться
+              </Link>
+            </div>
+          </form>
         )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          data-testid="login-submit-btn"
-          className="btn-primary h-12 mt-1 text-[15px]"
-        >
-          {loading ? "Входим…" : "Продолжить"}
-        </button>
-      </form>
-
-      <div className="relative my-5">
-        <div className="absolute inset-x-0 top-1/2 border-t border-line"></div>
-        <div className="relative text-center">
-          <span className="bg-surface-1/0 px-3 text-[10px] uppercase tracking-wider text-ink-muted">
-            или
-          </span>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onClick={onDemoLogin}
-        disabled={loading}
-        className="w-full h-12 rounded-control border border-brand/30 bg-brand-soft text-accent font-medium text-[14px] hover:bg-brand/25 hover:border-brand/50 transition disabled:opacity-50 flex items-center justify-center gap-2"
-      >
-        <i className="ti ti-mood-happy text-lg" aria-hidden="true"></i>
-        Войти в демо-режим
-      </button>
-      <div className="text-center text-[11px] text-ink-muted mt-2">
-        Готовый аккаунт со счетами, картами и историей — без регистрации
-      </div>
-
-      <div className="border-t border-line mt-5 pt-4 text-center">
-        <Link to="/forgot-password" className="text-[13px] text-accent hover:underline">
-          Восстановить доступ
-        </Link>
-      </div>
-      <div className="text-center text-[11px] text-ink-muted mt-3">
-        Нет аккаунта?{" "}
-        <Link to="/register" className="text-accent hover:underline">
-          Зарегистрироваться
-        </Link>
-      </div>
-    </AuthShell>
+      </section>
+    </main>
   );
-}
-
-function mapAuthError(detail: string): string {
-  if (detail.includes("invalid_credentials")) return "Неверный логин или пароль";
-  if (detail.includes("user_blocked")) return "Пользователь заблокирован";
-  return detail;
 }

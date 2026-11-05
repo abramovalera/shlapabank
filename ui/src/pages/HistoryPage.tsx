@@ -1,309 +1,259 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/shared/api/client";
-import { Transaction } from "@/shared/api/types";
-import { formatRelativeDate } from "@/shared/lib/format";
-import { presentTransaction, transactionsToCsv } from "@/features/history/txPresenter";
-import { TransactionDetailsModal } from "@/features/history/TransactionDetailsModal";
-import {
-  FilterModal,
-  HistoryFilter,
-  EMPTY_FILTER,
-  activeFilterCount,
-} from "@/features/history/FilterModal";
-import { Dropdown } from "@/shared/ui/Dropdown";
+import { useSearchParams } from "react-router-dom";
+import { useAccounts, useAllOperations, useOperationsList, useSingleFlight } from "../api/hooks";
+import type { OperationType, OperationsQuery } from "../api/types";
+import { Card, EmptyState, LoadError, RowsSkeleton, Skeleton } from "../ui/blocks";
+import { Button, ButtonLink } from "../ui/Button";
+import { formatDayLong, formatMoney, mskPeriodStart } from "../ui/format";
+import { OperationRow, groupByDay, totals } from "../ui/operation";
 
-type QuickChip = "all" | "expense" | "income" | "transfer" | "payment";
+const FILTERS = [
+  { id: "all", label: "Все" },
+  { id: "transfers", label: "Переводы" },
+  { id: "payments", label: "Платежи" },
+  { id: "topups", label: "Пополнения" },
+  { id: "declined", label: "Отклонённые" },
+] as const;
+type FilterId = (typeof FILTERS)[number]["id"];
 
-const PAGE_SIZE = 10;
+const FILTER_TYPES: Partial<Record<FilterId, OperationType[]>> = {
+  transfers: ["PHONE_TRANSFER", "CARD_TRANSFER", "OWN_TRANSFER", "INCOMING_TRANSFER"],
+  payments: ["MOBILE", "UTILITY"],
+  topups: ["TOPUP"],
+};
 
-export function HistoryPage() {
-  const [chip, setChip] = useState<QuickChip>("all");
-  const [filter, setFilter] = useState<HistoryFilter>(EMPTY_FILTER);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [selected, setSelected] = useState<Transaction | null>(null);
-  const [limit, setLimit] = useState(PAGE_SIZE);
+const PERIODS = [
+  { id: "7", label: "Последние 7 дней" },
+  { id: "30", label: "Последние 30 дней" },
+  { id: "90", label: "Последние 90 дней" },
+  { id: "all", label: "За всё время" },
+];
 
-  const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ["transactions"],
-    queryFn: async (): Promise<Transaction[]> => (await api.get("/transactions")).data,
-  });
+const DEFAULT_PERIOD = "30";
 
-  const filtered = useMemo(() => {
-    return transactions.filter((tx) => matches(tx, chip, filter));
-  }, [transactions, chip, filter]);
+/** Итог дня: «−1 515 ₽ · +10 000 ₽» или «−7 598,50 ₽ · +207 150,00 ₽» — копейки у обеих частей одинаково. */
+function dayTotalText(out: number, inc: number): string {
+  const parts: string[] = [];
+  const compact = out % 100 === 0 && inc % 100 === 0;
+  if (out > 0) parts.push(formatMoney(out / 100, { sign: "-", compact }));
+  if (inc > 0) parts.push(formatMoney(inc / 100, { sign: "+", compact }));
+  return parts.join(" · ");
+}
 
-  // Сброс лимита при смене фильтра
-  useEffect(() => {
-    setLimit(PAGE_SIZE);
-  }, [chip, filter]);
+/** Крупные суммы (от 10 млн ₽) — мельче, чтобы не вылезали за карточку. */
+function sumSize(cents: number): string {
+  return Math.abs(cents) >= 1_000_000_000 ? "text-xl" : "text-2xl";
+}
 
-  const visible = filtered.slice(0, limit);
-  const hasMore = filtered.length > visible.length;
-
-  // Группировка ТОЛЬКО видимых операций
-  const grouped = useMemo(() => {
-    const groups: Record<string, Transaction[]> = {};
-    visible.forEach((tx) => {
-      const key = new Date(tx.created_at).toISOString().slice(0, 10);
-      (groups[key] ||= []).push(tx);
-    });
-    return Object.entries(groups).sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [visible]);
-
-  function downloadCsv() {
-    const csv = transactionsToCsv(filtered);
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `shlapabank-history-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function printView() {
-    window.print();
-  }
-
-  const filterN = activeFilterCount(filter);
-
+function Summary30() {
+  const q = useAllOperations({ date_from: mskPeriodStart(30), status: "DONE" });
+  const t = q.data ? totals(q.data) : null;
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-lg font-medium">История</h1>
-        <div className="flex gap-1.5">
-          <button
-            onClick={() => setFilterOpen(true)}
-            className={`btn text-xs py-1.5 px-2.5 ${filterN > 0 ? "border-brand text-accent" : ""}`}
-          >
-            <i className="ti ti-filter text-sm" aria-hidden="true"></i>
-            Фильтр
-            {filterN > 0 && (
-              <span className="badge bg-brand text-[#0B1223] px-1.5">{filterN}</span>
-            )}
-          </button>
-
-          <Dropdown
-            align="right"
-            className="w-auto"
-            testId="export-dropdown"
-            trigger={
-              <div className="btn text-xs py-1.5 px-2.5 flex items-center gap-1">
-                <i className="ti ti-download text-sm" aria-hidden="true"></i>
-                Экспорт
-                <i className="ti ti-chevron-down text-xs text-ink-muted" aria-hidden="true"></i>
-              </div>
-            }
-          >
-            {(close) => (
-              <div style={{ minWidth: 220 }}>
-                <MenuItem
-                  icon="file-type-csv"
-                  label="CSV — таблица"
-                  onClick={() => {
-                    downloadCsv();
-                    close();
-                  }}
-                  testId="export-csv"
-                />
-                <MenuItem
-                  icon="printer"
-                  label="Распечатать / сохранить PDF"
-                  onClick={() => {
-                    printView();
-                    close();
-                  }}
-                  testId="export-print"
-                />
-              </div>
-            )}
-          </Dropdown>
-        </div>
-      </div>
-
-      <div className="flex gap-1.5 flex-wrap">
-        <FilterChip active={chip === "all"} onClick={() => setChip("all")}>
-          Все
-        </FilterChip>
-        <FilterChip active={chip === "expense"} onClick={() => setChip("expense")}>
-          Расходы
-        </FilterChip>
-        <FilterChip active={chip === "income"} onClick={() => setChip("income")}>
-          Доходы
-        </FilterChip>
-        <FilterChip active={chip === "transfer"} onClick={() => setChip("transfer")}>
-          Переводы
-        </FilterChip>
-        <FilterChip active={chip === "payment"} onClick={() => setChip("payment")}>
-          Платежи
-        </FilterChip>
-      </div>
-
-      {isLoading ? (
-        <div className="card text-center text-ink-muted py-10">Загружаем…</div>
-      ) : filtered.length === 0 ? (
-        <div className="card text-center text-ink-muted py-10">
-          По этому фильтру операций нет.
+    <aside
+      data-testid="history-summary"
+      className="flex w-full min-w-0 flex-[1_1_280px] flex-col gap-3.5 rounded-card bg-white px-[22px] py-5 lg:max-w-[360px]"
+    >
+      <h2 className="text-[17px] font-semibold">За 30 дней</h2>
+      {q.isPending ? (
+        <>
+          <Skeleton className="h-12 w-40" />
+          <Skeleton className="h-12 w-40" />
+          <Skeleton className="h-10 w-32" />
+        </>
+      ) : q.isError || !t ? (
+        <div className="text-sm text-danger" data-testid="history-summary-error">
+          Не удалось посчитать сводку
         </div>
       ) : (
         <>
-          <div className="card p-0 overflow-hidden">
-            {grouped.map(([day, list]) => (
-              <div key={day}>
-                <div className="px-4 py-2 bg-surface-2 text-[10px] uppercase tracking-wide text-ink-muted font-medium">
-                  {formatRelativeDate(list[0].created_at)} ·{" "}
-                  {new Date(day).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}
-                </div>
-                {list.map((tx, i) => (
-                  <TxRow
-                    key={tx.id}
-                    tx={tx}
-                    onClick={() => setSelected(tx)}
-                    isLast={i === list.length - 1}
-                  />
-                ))}
-              </div>
-            ))}
+          <div className="min-w-0">
+            <div className="text-[13px] text-ink-muted">Потрачено</div>
+            <div className={`break-words font-bold ${sumSize(t.out)}`} data-testid="history-summary-spent">
+              {formatMoney(t.out / 100)}
+            </div>
           </div>
-
-          <div className="text-center text-[11px] text-ink-muted mt-3">
-            Показано {visible.length} из {filtered.length}
+          <div className="min-w-0">
+            <div className="text-[13px] text-ink-muted">Поступило</div>
+            <div className={`break-words font-bold text-success ${sumSize(t.inc)}`} data-testid="history-summary-received">
+              {formatMoney(t.inc / 100, { sign: "+" })}
+            </div>
           </div>
-
-          {hasMore && (
-            <button
-              onClick={() => setLimit((l) => l + PAGE_SIZE)}
-              className="btn w-full mt-2 py-2.5"
-            >
-              <i className="ti ti-chevron-down" aria-hidden="true"></i>
-              Показать ещё {Math.min(PAGE_SIZE, filtered.length - visible.length)}
-            </button>
-          )}
+          <div className="min-w-0">
+            <div className="text-[13px] text-ink-muted">Комиссии</div>
+            <div className="break-words text-lg font-semibold text-fee" data-testid="history-summary-fees">
+              {formatMoney(t.fee / 100)}
+            </div>
+          </div>
         </>
       )}
-
-      <FilterModal
-        open={filterOpen}
-        value={filter}
-        onClose={() => setFilterOpen(false)}
-        onApply={(v) => {
-          setFilter(v);
-          setFilterOpen(false);
-        }}
-      />
-      <TransactionDetailsModal tx={selected} onClose={() => setSelected(null)} />
-    </div>
+    </aside>
   );
 }
 
-function TxRow({ tx, onClick, isLast }: { tx: Transaction; onClick: () => void; isLast: boolean }) {
-  const p = presentTransaction(tx);
+export function HistoryPage() {
+  const [params, setParams] = useSearchParams();
+  const filter = (FILTERS.find((f) => f.id === params.get("filter"))?.id ?? "all") as FilterId;
+  const period = PERIODS.find((p) => p.id === params.get("period"))?.id ?? DEFAULT_PERIOD;
+  const accountParam = params.get("account_id");
+  const accountId = accountParam && /^\d+$/.test(accountParam) ? Number(accountParam) : undefined;
+  const accounts = useAccounts();
+  const account = accounts.data?.find((a) => a.id === accountId);
+
+  const query: Omit<OperationsQuery, "limit" | "offset"> = {
+    ...(FILTER_TYPES[filter] ? { type: FILTER_TYPES[filter] } : {}),
+    ...(filter === "declined" ? { status: "DECLINED" } : {}),
+    ...(period !== "all" ? { date_from: mskPeriodStart(Number(period)) } : {}),
+    ...(accountId ? { account_id: accountId } : {}),
+  };
+  const list = useOperationsList(query);
+  const loadMoreOnce = useSingleFlight();
+  const items = list.data?.pages.flatMap((p) => p.items) ?? [];
+  const total = list.data?.pages[0]?.total ?? 0;
+  const groups = groupByDay(items);
+  const filtered = filter !== "all" || period !== DEFAULT_PERIOD || !!accountId;
+
+  function setParam(key: string, value: string | null) {
+    const next = new URLSearchParams(params);
+    if (value === null) next.delete(key);
+    else next.set(key, value);
+    setParams(next, { replace: true });
+  }
+
   return (
-    <button
-      onClick={onClick}
-      className={`w-full flex justify-between items-center px-4 py-3 hover:bg-surface-2 transition text-left ${
-        isLast ? "" : "border-b border-line"
-      }`}
-      data-testid={`history-tx-${tx.id}`}
-    >
-      <div className="flex items-center gap-3 min-w-0">
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: p.bgColor, color: p.color }}
-        >
-          <i className={`ti ti-${p.icon} text-[16px]`} aria-hidden="true"></i>
+    <main className="mx-auto flex max-w-page flex-wrap items-start gap-6 px-4 py-7 sm:px-6">
+      <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-4">
+        <h1 className="text-[26px] font-bold leading-[34px] tracking-[-0.3px]">История</h1>
+
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Фильтры операций">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              data-testid={`history-filter-${f.id}`}
+              aria-pressed={filter === f.id}
+              onClick={() => setParam("filter", f.id === "all" ? null : f.id)}
+              className={`h-9 rounded-full px-3.5 text-sm ${
+                filter === f.id ? "bg-navy font-semibold text-white" : "bg-white font-medium text-ink hover:bg-line"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+          <div className="relative sm:ml-auto">
+            <label htmlFor="history-period" className="sr-only">
+              Период
+            </label>
+            <select
+              id="history-period"
+              data-testid="history-period"
+              value={period}
+              onChange={(e) => setParam("period", e.target.value === DEFAULT_PERIOD ? null : e.target.value)}
+              className="h-9 cursor-pointer appearance-none rounded-full bg-white pl-3.5 pr-9 text-sm font-medium text-ink outline-none focus:shadow-focus"
+            >
+              {PERIODS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7a8c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </div>
         </div>
-        <div className="min-w-0">
-          <div className="text-[13px] font-medium truncate">{p.title}</div>
-          <div className="text-[11px] text-ink-muted truncate">{p.subtitle}</div>
-        </div>
+
+        {accountId && (
+          <div className="flex items-center gap-2 text-sm" data-testid="history-account-filter">
+            <span className="text-ink-muted">Счёт:</span>
+            <span className="font-semibold">{account?.name ?? "—"}</span>
+            <button
+              type="button"
+              data-testid="history-account-filter-clear"
+              onClick={() => setParam("account_id", null)}
+              className="font-medium text-primary hover:text-primary-hover hover:underline"
+            >
+              Показать все счета
+            </button>
+          </div>
+        )}
+
+        <Card className="py-2" testId="history-list">
+          {list.isPending ? (
+            <RowsSkeleton rows={6} testId="history-loading" />
+          ) : list.isError ? (
+            <LoadError testId="history-error" message={list.error.message} onRetry={() => list.refetch()} />
+          ) : groups.length === 0 ? (
+            filtered ? (
+              <EmptyState
+                testId="history-empty"
+                title="Ничего не найдено"
+                text="Попробуйте другой фильтр или период."
+                action={
+                  <Button size="sm" variant="secondary" data-testid="history-reset-filters" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
+                    Сбросить фильтры
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                testId="history-empty"
+                title="Операций пока нет"
+                text="Здесь появятся ваши переводы, платежи и пополнения."
+                action={
+                  <ButtonLink to="/transfer/phone" size="sm" data-testid="history-empty-transfer">
+                    Сделать перевод
+                  </ButtonLink>
+                }
+              />
+            )
+          ) : (
+            groups.map((g, gi) => {
+              const t = totals(g.items);
+              // Последний день на странице при «Показать ещё» может быть загружен не целиком — итог не показываем
+              const partial = list.hasNextPage && gi === groups.length - 1;
+              const dayTotal = partial ? "" : dayTotalText(t.out, t.inc);
+              return (
+                <div key={g.key} data-testid={`history-day-${g.key}`}>
+                  <div
+                    className={`flex justify-between gap-3 px-4 pb-1 text-[13px] font-semibold text-ink-faint sm:px-6 ${gi === 0 ? "pt-3" : "pt-3.5"}`}
+                  >
+                    <span>{formatDayLong(g.iso)}</span>
+                    {dayTotal && (
+                      <span className="text-right" data-testid={`history-day-total-${g.key}`}>
+                        {dayTotal}
+                      </span>
+                    )}
+                  </div>
+                  {g.items.map((op, i) => (
+                    <OperationRow key={op.id} op={op} last={gi === groups.length - 1 && i === g.items.length - 1} />
+                  ))}
+                </div>
+              );
+            })
+          )}
+        </Card>
+
+        {list.hasNextPage && (
+          <Button
+            variant="white"
+            data-testid="history-load-more"
+            loading={list.isFetchingNextPage}
+            onClick={() => {
+              // Двойной клик: второй вызов не запускаем (cancelRefetch: false — идущий запрос не перезапускать)
+              if (!list.isFetchingNextPage) loadMoreOnce(() => list.fetchNextPage({ cancelRefetch: false }));
+            }}
+            className="h-11"
+          >
+            Показать ещё
+          </Button>
+        )}
+        {!list.isPending && items.length > 0 && (
+          <div className="text-center text-[13px] text-ink-faint" data-testid="history-count">
+            Показано {items.length} из {total}
+          </div>
+        )}
       </div>
-      <div className="text-right shrink-0 ml-3">
-        <div className={`text-[14px] ${p.isIncoming ? "text-success" : ""}`}>{p.amountLabel}</div>
-        {p.fee && <div className="text-[10px] text-warning">комиссия {p.fee}</div>}
-      </div>
-    </button>
+
+      <Summary30 />
+    </main>
   );
-}
-
-function FilterChip({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  children: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`text-xs px-3 py-1.5 rounded-pill transition ${
-        active
-          ? "bg-brand text-[#0B1223] border border-brand font-medium"
-          : "bg-surface-1 border border-line hover:border-line-strong"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function MenuItem({
-  icon,
-  label,
-  onClick,
-  testId,
-}: {
-  icon: string;
-  label: string;
-  onClick: () => void;
-  testId?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-ink-primary hover:bg-fill-hover transition text-left"
-    >
-      <i className={`ti ti-${icon} text-lg text-ink-secondary`} aria-hidden="true"></i>
-      <span>{label}</span>
-    </button>
-  );
-}
-
-function matches(tx: Transaction, chip: QuickChip, f: HistoryFilter): boolean {
-  // Быстрые чипы имеют приоритет
-  if (chip === "expense" && tx.type === "TOPUP") return false;
-  if (chip === "income" && tx.type !== "TOPUP") return false;
-  if (chip === "transfer" && tx.type !== "TRANSFER") return false;
-  if (chip === "payment" && tx.type !== "PAYMENT") return false;
-
-  // Модальный фильтр (типы — AND-сет)
-  const isIncome = tx.type === "TOPUP";
-  const isTransfer = tx.type === "TRANSFER";
-  const isPayment = tx.type === "PAYMENT";
-  const isExpense = !isIncome;
-
-  const t = f.types;
-  const anyTypeChecked = t.expense || t.income || t.transfer || t.payment;
-  if (anyTypeChecked) {
-    const passType =
-      (t.income && isIncome) ||
-      (t.expense && isExpense) ||
-      (t.transfer && isTransfer) ||
-      (t.payment && isPayment);
-    if (!passType) return false;
-  }
-
-  if (f.from) {
-    if (new Date(tx.created_at) < new Date(f.from + "T00:00:00")) return false;
-  }
-  if (f.to) {
-    if (new Date(tx.created_at) > new Date(f.to + "T23:59:59")) return false;
-  }
-  if (f.minAmount != null && parseFloat(tx.money.total) < f.minAmount) return false;
-  if (f.maxAmount != null && parseFloat(tx.money.total) > f.maxAmount) return false;
-
-  return true;
 }

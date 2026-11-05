@@ -1,85 +1,60 @@
-import re
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, HTTPException, status
+import bcrypt
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import clock
 from app.core.config import settings
 from app.db import get_db
-from app.models import User, UserRole, UserStatus
+from app.errors import ApiError
+from app.models import User
 
-# passlib оставлен только для проверки старых записей, где пароль ещё хранился как bcrypt ($2...).
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
 
-PASSWORD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])\S{8,30}$")
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=8)).decode()
 
 
-def verify_password(plain_password: str, stored: str) -> bool:
-    """Учебный режим: в колонке password_hash лежит пароль открытым текстом.
-    Если значение начинается с $2 — это старый bcrypt (до смены режима), проверяем через passlib."""
-    if stored.startswith("$2"):
-        return pwd_context.verify(plain_password, stored)
-    return plain_password == stored
+def verify_password(password: str, password_hash: str) -> bool:
+    return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
-def validate_password_rules(login: str, password: str) -> None:
-    if password == login:
-        raise HTTPException(status_code=400, detail="validation_error: password_equals_login")
-    if " " in password:
-        raise HTTPException(status_code=400, detail="validation_error: password_contains_space")
-    if not PASSWORD_REGEX.match(password):
-        raise HTTPException(status_code=400, detail="validation_error: weak_password")
+def create_access_token(user_id: int) -> str:
+    # Срок считается по часам стенда (app.clock), чтобы истечение токена можно было проверить сдвигом времени.
+    expire = (clock.now() + timedelta(minutes=settings.access_token_expire_minutes)).replace(tzinfo=timezone.utc)
+    return jwt.encode({"sub": str(user_id), "exp": expire}, settings.secret_key, algorithm=settings.algorithm)
 
 
-def create_access_token(subject: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload = {"sub": subject, "exp": expire}
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
-
-
-def get_current_user(
+def current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="invalid_token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    if not credentials or not credentials.credentials:
-        raise credentials_exception
-
+    if not credentials:
+        raise ApiError(401, "invalid_token")
     try:
-        payload = jwt.decode(credentials.credentials, settings.secret_key, algorithms=[settings.algorithm])
-        subject = payload.get("sub")
-        if not subject:
-            raise credentials_exception
-        subject_id = int(subject)
-    except JWTError as exc:
-        raise credentials_exception from exc
-    except (TypeError, ValueError) as exc:
-        raise credentials_exception from exc
-
-    user = db.scalar(select(User).where(User.id == subject_id))
+        payload = jwt.decode(credentials.credentials, settings.secret_key, algorithms=[settings.algorithm],
+                             options={"verify_exp": False})
+        user_id = int(payload["sub"])
+        expired = datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc).replace(tzinfo=None) <= clock.now()
+    except (JWTError, KeyError, ValueError, TypeError):
+        raise ApiError(401, "invalid_token")
+    if expired:
+        raise ApiError(401, "token_expired")
+    q = select(User).where(User.id == user_id)
+    if request.method not in ("GET", "HEAD"):
+        # Запросы одного клиента, которые что-то меняют, выполняются по очереди (блокировка строки клиента
+        # до конца запроса): двойной клик и повтор запроса не проведут операцию дважды и не откроют 4-й счёт.
+        # NO KEY UPDATE не мешает чужим вставкам со ссылкой на клиента (входящий перевод).
+        q = q.with_for_update(key_share=True)
+    user = db.scalar(q)
     if not user:
-        raise credentials_exception
+        raise ApiError(401, "invalid_token")
+    if user.status == "BLOCKED":
+        raise ApiError(403, "user_blocked")
     return user
-
-
-def require_active_user(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.status == UserStatus.BLOCKED:
-        raise HTTPException(status_code=403, detail="user_blocked")
-    return current_user
-
-
-def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.status == UserStatus.BLOCKED:
-        raise HTTPException(status_code=403, detail="user_blocked")
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="forbidden")
-    return current_user
