@@ -63,47 +63,95 @@ async def reject_exponent_amount(request: Request, call_next):
                 "code": "validation_error", "message": "Сумма — число, например 1500 или 1500.50", "field": "amount"}})
     return await call_next(request)
 
-ROUTERS = [
-    (auth, {}),  # у адресов входа — свои наборы ответов
-    (accounts, errors_for(401, 403)),
-    (operations, errors_for(401, 403)),
-    (info, errors_for(401, 403)),
-    (test, {}),
-]
-# Какие ещё ошибки бывают у адреса — чтобы в Swagger не было ответов, которых на деле нет.
+ROUTERS = [auth, accounts, operations, info, test]
+
+# Какие ошибки бывают у адреса — по ним Swagger показывает примеры (у каждого адреса только свои).
+AUTHED = ("invalid_token", "token_expired", "user_blocked")  # у всех адресов, где нужен вход
+AMOUNT = ("validation_error:amount", "amount_out_of_range", "insufficient_funds")
+LIMITS = ("limit_per_operation", "limit_daily", "limit_monthly")
+CODE = ("validation_error:code", "invalid_code", "code_expired", "code_attempts_exceeded")
 ROUTE_ERRORS = {
-    "POST /accounts": (409, 422),
-    "PATCH /accounts/{account_id}": (404, 409, 422),
-    "DELETE /accounts/{account_id}": (404, 409, 422),
-    "GET /card": (404,),
-    "POST /card": (404, 409, 422),
-    "PATCH /card": (404, 422),
-    "GET /card/requisites": (404,),
-    "GET /recipients/phone": (400, 404, 422),
-    "GET /recipients/card": (400, 404, 422),
-    "POST /operations/own-transfer": (400, 404, 422),
-    "POST /operations/phone-transfer": (400, 404, 422),
-    "POST /operations/card-transfer": (400, 404, 422),
-    "POST /operations/mobile": (400, 404, 422),
-    "POST /operations/utility": (400, 404, 422),
-    "POST /operations/topup": (400, 404, 422),
-    "POST /operations/{operation_id}/confirm": (400, 404, 409, 422),
-    "POST /operations/{operation_id}/resend-code": (404, 409, 422, 429),
-    "POST /operations/{operation_id}/cancel": (404, 409, 422),
-    "GET /operations": (404, 422),
-    "GET /operations/{operation_id}": (404, 422),
-    "GET /test/sms": (422,),
-    "POST /test/time/add-minutes": (422,),
-    "POST /test/users/{phone}/block": (404, 422),
-    "POST /test/users/{phone}/unblock": (404, 422),
-    "POST /test/cards/{number}/block": (404, 422),
-    "POST /test/cards/{number}/unblock": (404, 422),
+    "POST /auth/register": ("validation_error:phone", "phone_taken"),
+    "POST /auth/login": ("validation_error:phone", "invalid_credentials", "user_blocked"),
+    "POST /auth/login/confirm": (*CODE, "user_blocked", "challenge_not_found"),
+    "POST /auth/login/resend": ("validation_error:challenge_id", "user_blocked", "challenge_not_found",
+                                "resend_too_early"),
+    "GET /auth/login/{challenge_id}": ("challenge_not_found",),
+    "GET /me": AUTHED,
+    "GET /accounts": AUTHED,
+    "POST /accounts": (*AUTHED, "validation_error:name", "accounts_limit", "account_name_taken"),
+    "PATCH /accounts/{account_id}": (*AUTHED, "validation_error:name", "account_not_found:account_id",
+                                     "account_name_taken"),
+    "DELETE /accounts/{account_id}": (*AUTHED, "validation_error:account_id", "account_not_found:account_id",
+                                      "account_not_empty", "account_has_card", "last_account"),
+    "GET /card": (*AUTHED, "card_not_found"),
+    "POST /card": (*AUTHED, "validation_error:account_id", "account_not_found:account_id", "card_already_exists"),
+    "PATCH /card": (*AUTHED, "validation_error:account_id", "card_not_found", "account_not_found:account_id"),
+    "GET /card/requisites": (*AUTHED, "card_not_found"),
+    "GET /recipients/phone": (*AUTHED, "validation_error:phone", "self_transfer", "recipient_blocked",
+                              "recipient_no_account", "recipient_not_found"),
+    "GET /recipients/card": (*AUTHED, "validation_error:number", "invalid_card_number:number",
+                             "self_transfer:number", "card_blocked:number", "card_expired:number",
+                             "recipient_blocked:number", "card_not_found:number"),
+    "POST /operations/own-transfer": (*AUTHED, *AMOUNT, "same_account", "account_not_found"),
+    "POST /operations/phone-transfer": (*AUTHED, *AMOUNT, *LIMITS, "self_transfer", "recipient_blocked",
+                                       "recipient_no_account", "account_not_found", "recipient_not_found"),
+    "POST /operations/card-transfer": (*AUTHED, *AMOUNT, *LIMITS, "invalid_card_number", "self_transfer:card_number",
+                                      "card_blocked", "card_expired", "recipient_blocked:card_number",
+                                      "account_not_found", "card_not_found:card_number"),
+    "POST /operations/mobile": (*AUTHED, *AMOUNT, *LIMITS, "account_not_found", "operator_not_found"),
+    "POST /operations/utility": (*AUTHED, *AMOUNT, *LIMITS, "invalid_payer_account", "account_not_found",
+                                 "provider_not_found"),
+    "POST /operations/topup": (*AUTHED, "validation_error:amount", "amount_out_of_range", "own_bank_card",
+                               "invalid_card_number", "card_expired:expiry@422", "account_not_found:to_account_id",
+                               "card_not_found:card_number"),
+    "POST /operations/{operation_id}/confirm": (*AUTHED, *CODE, "operation_not_found", "operation_not_waiting"),
+    "POST /operations/{operation_id}/resend-code": (*AUTHED, "validation_error:operation_id", "operation_not_found",
+                                                    "operation_not_waiting", "resend_too_early"),
+    "POST /operations/{operation_id}/cancel": (*AUTHED, "validation_error:operation_id", "operation_not_found",
+                                               "operation_not_waiting"),
+    "GET /operations": (*AUTHED, "validation_error:type", "account_not_found:account_id"),
+    "GET /operations/{operation_id}": (*AUTHED, "validation_error:operation_id", "operation_not_found"),
+    "GET /tariffs": AUTHED,
+    "GET /limits": AUTHED,
+    "GET /dictionary/providers": AUTHED,
+    "GET /dictionary/mobile-operators": AUTHED,
+    "GET /test/sms": ("validation_error:limit",),
+    "POST /test/time/add-minutes": ("validation_error:minutes",),
+    "POST /test/users/{phone}/block": ("client_not_found",),
+    "POST /test/users/{phone}/unblock": ("client_not_found",),
+    "POST /test/cards/{number}/block": ("card_not_found",),
+    "POST /test/cards/{number}/unblock": ("card_not_found",),
 }
-for module, responses in ROUTERS:
+for module in ROUTERS:
     for route in module.router.routes:
         for method in route.methods:
             route.responses.update(errors_for(*ROUTE_ERRORS.get(f"{method} {route.path}", ())))
-    app.include_router(module.router, prefix="/api/v1", responses=responses)
+    app.include_router(module.router, prefix="/api/v1")
+
+
+def _openapi():
+    """Стандартная схема, но без 422 HTTPValidationError, который FastAPI сам дописывает адресам
+    со строковыми параметрами пути: у них такой ошибки не бывает, а наши 422 описаны своим форматом."""
+    if app.openapi_schema:
+        return app.openapi_schema
+    from fastapi.openapi.utils import get_openapi
+    schema = get_openapi(title=app.title, version=app.version, description=app.description, routes=app.routes,
+                         tags=app.openapi_tags)
+    for path in schema["paths"].values():
+        for op in path.values():
+            resp = op.get("responses", {}).get("422")
+            if resp and "HTTPValidationError" in str(resp):
+                del op["responses"]["422"]
+            # FastAPI выкидывает null из примеров — возвращаем "field": null, как в настоящих ответах.
+            for r in op.get("responses", {}).values():
+                for ex in r.get("content", {}).get("application/json", {}).get("examples", {}).values():
+                    ex["value"]["error"].setdefault("field", None)
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = _openapi
 
 
 @app.get("/health", tags=["Служебное"], summary="Сервис жив")

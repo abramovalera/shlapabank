@@ -65,10 +65,68 @@ _RESPONSE_TEXT = {400: "Бизнес-ошибка", 401: "Нет токена, �
                   429: "Слишком часто — новый код из SMS ещё нельзя запросить"}
 
 
-def errors_for(*codes: int) -> dict:
-    """Описания ответов-ошибок для Swagger — только те, что реально бывают у адреса или раздела."""
+# Статус, поле и доп. поля ответа для примеров в Swagger (текст — из MESSAGES, кроме случаев с подстановкой).
+_EXAMPLES: dict[str, tuple[int, str | None, dict]] = {
+    "validation_error": (422, None, {"message": "Обязательное поле"}),
+    "invalid_token": (401, None, {}),
+    "token_expired": (401, None, {}),
+    "user_blocked": (403, None, {}),
+    "client_not_found": (404, None, {}),
+    "phone_taken": (409, "phone", {}),
+    "invalid_credentials": (400, None, {}),
+    "challenge_not_found": (404, None, {}),
+    "invalid_code": (400, "code", {"message": "Неверный код. Осталось попыток: 2", "attempts_left": 2}),
+    "code_expired": (400, "code", {"attempts_left": 3}),
+    "code_attempts_exceeded": (400, "code", {"attempts_left": 0}),
+    "resend_too_early": (429, None, {"resend_available_at": "2026-11-05T10:01:00Z", "resend_in_seconds": 42}),
+    "account_not_found": (404, "from_account_id", {}),
+    "accounts_limit": (409, None, {}),
+    "account_name_taken": (409, "name", {}),
+    "account_not_empty": (409, None, {}),
+    "account_has_card": (409, None, {}),
+    "last_account": (409, None, {}),
+    "card_not_found": (404, None, {}),
+    "card_already_exists": (409, None, {}),
+    "recipient_not_found": (404, "phone", {}),
+    "recipient_blocked": (400, "phone", {}),
+    "self_transfer": (400, "phone", {}),
+    "invalid_card_number": (422, "card_number", {}),
+    "card_blocked": (400, "card_number", {}),
+    "card_expired": (400, "card_number", {}),
+    "recipient_no_account": (400, "phone", {}),
+    "operation_not_found": (404, None, {}),
+    "operation_not_waiting": (409, None, {}),
+    "insufficient_funds": (400, "amount", {}),
+    "amount_out_of_range": (400, "amount", {"message": "Сумма должна быть от 10,00 ₽ до 100 000,00 ₽",
+                                             "amount_min": "10.00", "amount_max": "100000.00"}),
+    "limit_per_operation": (400, "amount", {}),
+    "limit_daily": (400, "amount", {}),
+    "limit_monthly": (400, "amount", {}),
+    "same_account": (400, "to_account_id", {}),
+    "operator_not_found": (404, "phone", {}),
+    "provider_not_found": (404, "provider_code", {}),
+    "invalid_payer_account": (422, "payer_account", {"message": "Лицевой счёт — 10 цифр"}),
+    "own_bank_card": (400, "card_number", {}),
+}
+
+
+def errors_for(*codes: str) -> dict:
+    """Ответы-ошибки для Swagger: только коды, которые реально бывают у адреса, по примеру на каждый.
+    Запись `код:поле` — пример с другим полем, `код@статус` — с другим статусом (card_expired бывает 400 и 422)."""
     from app.schemas import ErrorResponse  # здесь, чтобы не было циклического импорта
-    return {c: {"model": ErrorResponse, "description": _RESPONSE_TEXT[c]} for c in codes}
+    responses: dict[int, dict] = {}
+    for item in codes:
+        item, _, status_override = item.partition("@")
+        code, _, field_override = item.partition(":")
+        status, field, extra = _EXAMPLES[code]
+        status = int(status_override) if status_override else status
+        extra = dict(extra)
+        message = extra.pop("message", MESSAGES.get(code, code))
+        body = _body(code, message, field_override or field, **extra)
+        resp = responses.setdefault(status, {"model": ErrorResponse, "description": _RESPONSE_TEXT[status],
+                                             "content": {"application/json": {"examples": {}}}})
+        resp["content"]["application/json"]["examples"][code] = {"summary": message, "value": body}
+    return responses
 
 
 class ApiError(Exception):

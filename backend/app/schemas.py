@@ -137,9 +137,9 @@ Code = Annotated[str, Field(examples=["1234"], description="4 цифры из SM
 
 
 class ErrorBody(BaseModel):
-    code: str = Field(examples=["insufficient_funds"])
-    message: str = Field(examples=["Недостаточно средств"])
-    field: str | None = Field(None, examples=["amount"])
+    code: str = Field(description="Постоянный код ошибки — по нему проверять в автотестах")
+    message: str = Field(description="Текст для пользователя")
+    field: str | None = Field(None, description="Поле запроса, к которому относится ошибка, или null")
 
 
 class ErrorResponse(BaseModel):

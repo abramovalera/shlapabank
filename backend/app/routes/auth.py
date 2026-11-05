@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app import sms
 from app.db import get_db
-from app.errors import ApiError, errors_for
+from app.errors import ApiError
 from app.models import ExternalRecipient, SmsCode, User
 from app.schemas import ChallengeIn, ChallengeOut, LoginConfirmIn, LoginIn, RegisterIn, TokenOut, UserOut
 from app.security import create_access_token, current_user, hash_password, verify_password
@@ -25,8 +25,7 @@ def challenge_out(code: sms.SmsCode, phone: str) -> ChallengeOut:
                         resend_in_seconds=info["resend_in_seconds"], expires_in_seconds=info["expires_in_seconds"])
 
 
-@router.post("/auth/register", status_code=201, response_model=UserOut, summary="Регистрация",
-             responses=errors_for(409, 422))
+@router.post("/auth/register", status_code=201, response_model=UserOut, summary="Регистрация")
 def register(body: RegisterIn, db: Session = Depends(get_db)):
     """Создаёт клиента и сразу открывает ему счёт «Основной» с нулевым балансом."""
     # Номера клиентов других банков из справочника СБП тоже заняты — иначе ломаются тестовые данные.
@@ -45,8 +44,7 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
     return user_out(user)
 
 
-@router.post("/auth/login", response_model=ChallengeOut, summary="Вход: шаг 1 — телефон и пароль",
-             responses=errors_for(400, 403, 422))
+@router.post("/auth/login", response_model=ChallengeOut, summary="Вход: шаг 1 — телефон и пароль")
 def login(body: LoginIn, db: Session = Depends(get_db)):
     """Проверяет пароль и отправляет код из SMS. Код на стенде: `GET /test/sms?phone=...`."""
     # Одновременные входы одного клиента — по очереди: действует только последний.
@@ -63,8 +61,7 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
     return challenge_out(code, user.phone)
 
 
-@router.post("/auth/login/confirm", response_model=TokenOut, summary="Вход: шаг 2 — код из SMS",
-             responses=errors_for(400, 403, 404, 422))
+@router.post("/auth/login/confirm", response_model=TokenOut, summary="Вход: шаг 2 — код из SMS")
 def login_confirm(body: LoginConfirmIn, db: Session = Depends(get_db)):
     code = sms.active_for_challenge(db, body.challenge_id, lock=True)
     if not code:
@@ -81,8 +78,7 @@ def login_confirm(body: LoginConfirmIn, db: Session = Depends(get_db)):
     return TokenOut(access_token=create_access_token(code.user_id))
 
 
-@router.post("/auth/login/resend", response_model=ChallengeOut, summary="Вход: отправить код ещё раз",
-             responses=errors_for(403, 404, 422, 429))
+@router.post("/auth/login/resend", response_model=ChallengeOut, summary="Вход: отправить код ещё раз")
 def login_resend(body: ChallengeIn, db: Session = Depends(get_db)):
     # Блокируем все коды этого входа: одновременный повтор дождётся первого и увидит уже новый код (429).
     db.execute(select(SmsCode.id).where(SmsCode.challenge_id == body.challenge_id).with_for_update())
@@ -97,8 +93,7 @@ def login_resend(body: ChallengeIn, db: Session = Depends(get_db)):
     return challenge_out(new, code.phone)
 
 
-@router.get("/auth/login/{challenge_id}", response_model=ChallengeOut, summary="Вход: состояние шага кода",
-            responses=errors_for(404))
+@router.get("/auth/login/{challenge_id}", response_model=ChallengeOut, summary="Вход: состояние шага кода")
 def login_status(challenge_id: str, db: Session = Depends(get_db)):
     """Сколько секунд осталось до повторной отправки и до истечения кода — по часам банка.
     Интерфейс сверяется с банком на шаге кода (часы банка можно сдвинуть). 404 — вход сгорел или уже завершён."""
@@ -108,6 +103,6 @@ def login_status(challenge_id: str, db: Session = Depends(get_db)):
     return challenge_out(code, code.phone)
 
 
-@router.get("/me", response_model=UserOut, summary="Текущий клиент", responses=errors_for(401, 403))
+@router.get("/me", response_model=UserOut, summary="Текущий клиент")
 def me(user: User = Depends(current_user)):
     return user_out(user)
