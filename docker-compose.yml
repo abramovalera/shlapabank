@@ -2,6 +2,7 @@ services:
   db:
     image: postgres:16-alpine
     container_name: shlapabank-db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: shlapabank
       POSTGRES_USER: shlapabank
@@ -21,6 +22,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: shlapabank-backend
+    restart: unless-stopped
     env_file:
       - .env
     ports:
@@ -37,6 +39,7 @@ services:
       context: ./ui
       dockerfile: Dockerfile
     container_name: shlapabank-ui
+    restart: unless-stopped
     ports:
       - "8080:80"
     depends_on:
@@ -46,6 +49,7 @@ services:
     build:
       context: ./docs/site
     container_name: shlapabank-docs
+    restart: unless-stopped
     ports:
       - "8090:8000"
     volumes:
